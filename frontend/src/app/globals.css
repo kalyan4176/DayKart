@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  
+  --primary: #0f172a;
+  --secondary: #06b6d4;
+  --accent: #f97316;
+  --success: #10b981;
+  --warning: #f59e0b;
+  
+  --card-bg: rgba(255, 255, 255, 0.7);
+  --card-border: rgba(226, 232, 240, 0.8);
+}
+
+.dark {
+  --background: #090d16;
+  --foreground: #f8fafc;
+  
+  --primary: #f8fafc;
+  --secondary: #06b6d4;
+  
+  --card-bg: rgba(15, 23, 42, 0.6);
+  --card-border: rgba(51, 65, 85, 0.5);
+}
+
+@theme inline {
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-card-bg: var(--card-bg);
+  --color-card-border: var(--card-border);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--secondary);
+}
+
+.glass {
+  background: var(--card-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--card-border);
+}
