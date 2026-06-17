@@ -76,40 +76,40 @@ export default function Home() {
 
               {/* Glassmorphic Features Card */}
               <div className="lg:block hidden">
-                <div className="glass p-8 rounded-3xl max-w-md mx-auto shadow-2xl relative">
+                <div className="bg-white p-8 rounded-3xl max-w-md mx-auto shadow-2xl relative border border-slate-100">
                   <div className="absolute -top-4 -right-4 bg-orange-500 text-white p-3 rounded-2xl shadow-lg transform rotate-6">
                     <Flame className="w-6 h-6 fill-white" />
                   </div>
                   
-                  <h3 className="text-xl font-bold text-slate-100">Why Shop With Us?</h3>
+                  <h3 className="text-xl font-bold text-slate-800">Why Shop With Us?</h3>
                   <div className="mt-6 space-y-6">
                     <div className="flex gap-4">
-                      <div className="p-2.5 rounded-xl bg-cyan-950/60 border border-cyan-800 flex items-center justify-center h-11 w-11">
-                        <Zap className="w-5 h-5 text-cyan-400" />
+                      <div className="p-2.5 rounded-xl bg-cyan-50 border border-cyan-100 flex items-center justify-center h-11 w-11">
+                        <Zap className="w-5 h-5 text-cyan-600" />
                       </div>
                       <div>
-                        <h4 className="font-semibold text-slate-200">Sub-5ms Page Loads</h4>
-                        <p className="text-xs text-slate-400 mt-1">Utilizes high-speed Redis caching layers so your browsing has zero delays.</p>
+                        <h4 className="font-semibold text-slate-700">Sub-5ms Page Loads</h4>
+                        <p className="text-xs text-slate-500 mt-1">Utilizes high-speed Redis caching layers so your browsing has zero delays.</p>
                       </div>
                     </div>
 
                     <div className="flex gap-4">
-                      <div className="p-2.5 rounded-xl bg-orange-950/60 border border-orange-800 flex items-center justify-center h-11 w-11">
-                        <Award className="w-5 h-5 text-orange-400" />
+                      <div className="p-2.5 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center h-11 w-11">
+                        <Award className="w-5 h-5 text-orange-600" />
                       </div>
                       <div>
-                        <h4 className="font-semibold text-slate-200">Apriori Recommendations</h4>
-                        <p className="text-xs text-slate-400 mt-1">Intelligent market basket algorithm matches frequently bought combinations.</p>
+                        <h4 className="font-semibold text-slate-700">Apriori Recommendations</h4>
+                        <p className="text-xs text-slate-500 mt-1">Intelligent market basket algorithm matches frequently bought combinations.</p>
                       </div>
                     </div>
 
                     <div className="flex gap-4">
-                      <div className="p-2.5 rounded-xl bg-emerald-950/60 border border-emerald-800 flex items-center justify-center h-11 w-11">
-                        <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                      <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center h-11 w-11">
+                        <ShieldCheck className="w-5 h-5 text-emerald-600" />
                       </div>
                       <div>
-                        <h4 className="font-semibold text-slate-200">Enterprise Security</h4>
-                        <p className="text-xs text-slate-400 mt-1">HttpOnly session cookies, CSRF protection, and audit trails safeguard transfers.</p>
+                        <h4 className="font-semibold text-slate-700">Enterprise Security</h4>
+                        <p className="text-xs text-slate-500 mt-1">HttpOnly session cookies, CSRF protection, and audit trails safeguard transfers.</p>
                       </div>
                     </div>
                   </div>
