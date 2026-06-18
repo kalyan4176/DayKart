@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { User, Mail, Lock, AlertTriangle, ArrowRight, CheckCircle2 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { useToast } from '@/components/ToastProvider';
 import { useRegisterMutation } from '@/store/api';
 
 const registerSchema = z.object({
@@ -20,6 +21,7 @@ const registerSchema = z.object({
 
 export default function Register() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [registerApi, { isLoading }] = useRegisterMutation();
 
   const [successMsg, setSuccessMsg] = useState('');
@@ -46,11 +48,13 @@ export default function Register() {
       setSuccessMsg('');
       const res = await registerApi(data).unwrap();
       
+      showToast(res.message || 'Registration successful! Verification code sent.', 'success');
       setSuccessMsg(res.message || 'Registration successful! Verification code sent.');
       setTimeout(() => {
         router.push('/login');
       }, 3000);
     } catch (err) {
+      showToast(err.data?.message || 'Registration failed. Please check inputs.', 'error');
       setErrorMsg(err.data?.message || 'Registration failed. Please check inputs.');
     }
   };

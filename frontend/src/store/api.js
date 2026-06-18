@@ -42,7 +42,7 @@ const baseQueryWithReauth = async (args, apiInstance, extraOptions) => {
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['User', 'Product', 'Cart', 'Order', 'Coupon', 'Review', 'Support', 'Wishlist', 'SellerProfile'],
+  tagTypes: ['User', 'Product', 'Cart', 'Order', 'Coupon', 'Review', 'Support', 'Wishlist', 'SellerProfile', 'Category'],
   endpoints: (builder) => ({
     login: builder.mutation({
       query: (credentials) => ({
@@ -84,6 +84,7 @@ export const api = createApi({
     }),
     getCategories: builder.query({
       query: () => '/products/categories',
+      providesTags: ['Category'],
     }),
     getBrands: builder.query({
       query: () => '/products/brands',
@@ -219,6 +220,14 @@ export const api = createApi({
       }),
       invalidatesTags: ['Order'],
     }),
+    getSellerOrders: builder.query({
+      query: () => '/orders/seller-orders',
+      providesTags: ['Order'],
+    }),
+    getAdminOrders: builder.query({
+      query: () => '/admin/orders',
+      providesTags: ['Order'],
+    }),
 
     validateCoupon: builder.mutation({
       query: ({ code, cartValue }) => ({
@@ -278,6 +287,49 @@ export const api = createApi({
       }),
       invalidatesTags: ['SellerProfile'],
     }),
+    uploadProductImage: builder.mutation({
+      query: (formData) => ({
+        url: '/products/upload-image',
+        method: 'POST',
+        body: formData,
+      }),
+    }),
+    createCategory: builder.mutation({
+      query: (categoryData) => ({
+        url: '/admin/categories',
+        method: 'POST',
+        body: categoryData,
+      }),
+      invalidatesTags: ['Category'],
+    }),
+    updateCategory: builder.mutation({
+      query: ({ id, ...categoryData }) => ({
+        url: `/admin/categories/${id}`,
+        method: 'PUT',
+        body: categoryData,
+      }),
+      invalidatesTags: ['Category'],
+    }),
+    deleteCategory: builder.mutation({
+      query: (id) => ({
+        url: `/admin/categories/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Category'],
+    }),
+    createSellerDirectly: builder.mutation({
+      query: (sellerData) => ({
+        url: '/admin/sellers',
+        method: 'POST',
+        body: sellerData,
+      }),
+    }),
+    deleteSeller: builder.mutation({
+      query: (id) => ({
+        url: `/admin/sellers/${id}`,
+        method: 'DELETE',
+      }),
+    }),
     getMyTickets: builder.query({
       query: () => '/support/my-tickets',
       providesTags: ['Support'],
@@ -323,6 +375,8 @@ export const {
   useGetOrderByIdQuery,
   useCancelOrderMutation,
   useUpdateOrderStatusMutation,
+  useGetSellerOrdersQuery,
+  useGetAdminOrdersQuery,
   useValidateCouponMutation,
   useGetProductReviewsQuery,
   useCreateReviewMutation,
@@ -334,4 +388,10 @@ export const {
   useCreateSellerProfileMutation,
   useGetMyTicketsQuery,
   useCreateTicketMutation,
+  useCreateCategoryMutation,
+  useUpdateCategoryMutation,
+  useDeleteCategoryMutation,
+  useUploadProductImageMutation,
+  useCreateSellerDirectlyMutation,
+  useDeleteSellerMutation,
 } = api;

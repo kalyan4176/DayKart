@@ -1,7 +1,23 @@
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
+import { useGetCategoriesQuery } from '@/store/api';
 
 export default function Footer() {
+  const { data: categoriesRes } = useGetCategoriesQuery();
+  const categories = categoriesRes?.data?.categories || [];
+
+  // Fallback default categories to display when loading or empty
+  const displayCategories = categories.length > 0
+    ? categories.slice(0, 5)
+    : [
+        { name: 'Electronics', slug: 'electronics' },
+        { name: 'Mobiles', slug: 'mobiles' },
+        { name: 'Fashion & Apparel', slug: 'fashion' },
+        { name: 'Home & Kitchen', slug: 'home-kitchen' }
+      ];
+
   return (
     <footer className="bg-slate-900 text-slate-400 py-12 mt-auto border-t border-slate-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -20,10 +36,13 @@ export default function Footer() {
           <div>
             <h4 className="text-white font-semibold text-sm tracking-wider uppercase mb-4">Shop Categories</h4>
             <ul className="space-y-2 text-sm">
-              <li><Link href="/products?category=electronics" className="hover:text-cyan-400 transition">Electronics</Link></li>
-              <li><Link href="/products?category=mobiles" className="hover:text-cyan-400 transition">Mobiles</Link></li>
-              <li><Link href="/products?category=fashion" className="hover:text-cyan-400 transition">Fashion & Apparel</Link></li>
-              <li><Link href="/products?category=home-kitchen" className="hover:text-cyan-400 transition">Home & Kitchen</Link></li>
+              {displayCategories.map((category) => (
+                <li key={category._id || category.slug}>
+                  <Link href={`/products?category=${category.slug}`} className="hover:text-cyan-400 transition">
+                    {category.name}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 

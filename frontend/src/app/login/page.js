@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { Mail, Lock, AlertTriangle, ArrowRight, ShieldCheck } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { useToast } from '@/components/ToastProvider';
 import { useLoginMutation, useVerifyOtpMutation } from '@/store/api';
 import { setCredentials } from '@/store/authSlice';
 
@@ -25,6 +26,7 @@ const otpSchema = z.object({
 export default function Login() {
   const router = useRouter();
   const dispatch = useDispatch();
+  const { showToast } = useToast();
   
   const [loginApi, { isLoading: loginLoading }] = useLoginMutation();
   const [verifyOtpApi, { isLoading: otpLoading }] = useVerifyOtpMutation();
@@ -51,12 +53,14 @@ export default function Login() {
         user: res.data.user,
         accessToken: res.accessToken,
       }));
+      showToast(`Welcome back, ${res.data.user.name || 'User'}!`, 'success');
       router.push('/');
     } catch (err) {
       if (err.status === 403) {
         // Account unverified, OTP sent
         setUserEmail(data.email);
         setOtpSent(true);
+        showToast('Verification OTP sent to your email.', 'info');
       } else {
         setErrorMsg(err.data?.message || 'Login failed. Please check credentials.');
       }
@@ -72,6 +76,7 @@ export default function Login() {
         user: res.data.user,
         accessToken: res.accessToken,
       }));
+      showToast('Account verified and logged in successfully!', 'success');
       router.push('/');
     } catch (err) {
       setErrorMsg(err.data?.message || 'Invalid OTP code. Please try again.');

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSelector, useDispatch } from 'react-redux';
-import { ShoppingCart, Heart, User, Search, LogOut, LayoutDashboard, Sparkles, Menu, X, ChevronRight } from 'lucide-react';
+import { ShoppingCart, Heart, User, Search, LogOut, LayoutDashboard, Sparkles, Menu, X, ChevronRight, ShoppingBag } from 'lucide-react';
 import { logoutUser } from '@/store/authSlice';
 import { useGetCartQuery, useLogoutMutation } from '@/store/api';
 
@@ -38,10 +38,11 @@ export default function Navbar() {
   const handleLogout = async () => {
     try {
       await logoutApi().unwrap();
+    } catch (err) {
+      console.error('Logout API failed:', err);
+    } finally {
       dispatch(logoutUser());
       router.push('/login');
-    } catch (err) {
-      console.error('Logout failed:', err);
     }
   };
 
@@ -86,6 +87,11 @@ export default function Navbar() {
               <Link href="/products?category=home-kitchen" className="hover:text-secondary transition duration-150 flex items-center gap-1 lg:gap-1">
                 <span className="w-1.5 h-1.5 lg:w-1 lg:h-1 rounded-full bg-emerald-500"></span> Home & Kitchen
               </Link>
+              {mounted && isAuthenticated && (
+                <Link href="/orders" className="hover:text-secondary transition duration-150 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span> My Orders
+                </Link>
+              )}
             </div>
           </div>
 
@@ -313,6 +319,14 @@ export default function Navbar() {
                       >
                         <Heart className="w-4 h-4 text-slate-400" />
                         <span>My Wishlist</span>
+                      </Link>
+                      <Link
+                        href="/orders"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-slate-700 hover:bg-slate-50 hover:text-secondary text-xs font-semibold transition"
+                      >
+                        <ShoppingBag className="w-4 h-4 text-slate-400" />
+                        <span>My Orders</span>
                       </Link>
                       {user?.role === 'seller' && (
                         <Link

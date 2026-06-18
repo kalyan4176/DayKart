@@ -7,49 +7,32 @@ import { useSelector } from 'react-redux';
 import { Star, ShoppingCart, Trash2, Heart, ArrowRight } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import { useGetWishlistQuery, useToggleWishlistMutation, useUpdateCartMutation } from '@/store/api';
+import ProductCard from '@/components/ProductCard';
+import { useGetWishlistQuery } from '@/store/api';
 
 export default function WishlistPage() {
   const router = useRouter();
   const { isAuthenticated } = useSelector((state) => state.auth);
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Fetch wishlist
   const { data: wishlistRes, isLoading, refetch } = useGetWishlistQuery(undefined, {
-    skip: !isAuthenticated,
+    skip: !isAuthenticated || !mounted,
   });
-  const [toggleWishlist] = useToggleWishlistMutation();
-  const [updateCart, { isLoading: isCartLoading }] = useUpdateCartMutation();
-
   const wishlistItems = wishlistRes?.data?.wishlist || [];
-
-  const handleRemove = async (productId) => {
-    try {
-      await toggleWishlist(productId).unwrap();
-    } catch (err) {
-      console.error('Failed to remove item from wishlist:', err);
-    }
-  };
-
-  const handleAddToCart = async (product) => {
-    try {
-      await updateCart({
-        productId: product._id,
-        action: 'add',
-        quantity: 1,
-      }).unwrap();
-    } catch (err) {
-      console.error('Failed to add item to cart:', err);
-    }
-  };
 
   // Redirect if not authenticated
   React.useEffect(() => {
-    if (!isAuthenticated) {
+    if (mounted && !isAuthenticated) {
       router.push('/login');
     }
-  }, [isAuthenticated, router]);
+  }, [mounted, isAuthenticated, router]);
 
-  if (!isAuthenticated) {
+  if (!mounted || !isAuthenticated) {
     return null;
   }
 
@@ -92,89 +75,9 @@ export default function WishlistPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {wishlistItems.map((product) => {
-              const discountPercent = product.compareAtPrice
-                ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
-                : 0;
-
-              return (
-                <div
-                  key={product._id}
-                  className="group relative bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1"
-                >
-                  {/* Product Image */}
-                  <Link href={`/product/${product._id}`} className="block relative aspect-square overflow-hidden bg-slate-100">
-                    <img
-                      src={product.images[0]}
-                      alt={product.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      loading="lazy"
-                    />
-                    {discountPercent > 0 && (
-                      <span className="absolute top-3.5 left-3.5 bg-accent text-white font-bold text-xxs px-2.5 py-1 rounded-full shadow-md">
-                        -{discountPercent}% OFF
-                      </span>
-                    )}
-
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleRemove(product._id);
-                      }}
-                      className="absolute top-3.5 right-3.5 p-2 bg-white/80 hover:bg-red-50 text-slate-500 hover:text-red-500 backdrop-blur-md rounded-full shadow-md transition-all active:scale-90"
-                      title="Remove from Wishlist"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </Link>
-
-                  {/* Content */}
-                  <div className="p-5">
-                    {/* Category & Rating */}
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xxs font-bold text-secondary tracking-widest uppercase">
-                        {product.category?.name || 'Catalog'}
-                      </span>
-                      <div className="flex items-center gap-1">
-                        <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                        <span className="text-xs font-semibold text-slate-500">
-                          {product.ratings?.average || '4.5'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Title */}
-                    <h3 className="text-sm font-semibold text-slate-800 mt-2 line-clamp-2 h-10 group-hover:text-secondary transition-colors">
-                      <Link href={`/product/${product._id}`}>{product.title}</Link>
-                    </h3>
-
-                    {/* Price & Actions */}
-                    <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-2.5">
-                      <div className="flex items-baseline flex-wrap gap-1.5">
-                        <span className="font-extrabold text-sm sm:text-base text-slate-900">
-                          ₹{product.price.toLocaleString('en-IN')}
-                        </span>
-                        {product.compareAtPrice && (
-                          <span className="text-xxs sm:text-xs line-through text-slate-400">
-                            ₹{product.compareAtPrice.toLocaleString('en-IN')}
-                          </span>
-                        )}
-                      </div>
-
-                      <button
-                        onClick={() => handleAddToCart(product)}
-                        className="w-full bg-secondary hover:bg-cyan-600 text-white font-bold py-2 rounded-xl transition-all shadow-sm active:scale-98 disabled:opacity-50 flex items-center justify-center gap-1.5 text-xs"
-                        title="Add to Cart"
-                      >
-                        <ShoppingCart className="w-3.5 h-3.5" />
-                        <span>Add to Cart</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {wishlistItems.map((product) => (
+              <ProductCard key={product._id} product={product} wishlistMode={true} />
+            ))}
           </div>
         )}
       </main>

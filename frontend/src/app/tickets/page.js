@@ -12,6 +12,11 @@ import { useGetMyTicketsQuery, useCreateTicketMutation } from '@/store/api';
 export default function SupportTicketsPage() {
   const router = useRouter();
   const { isAuthenticated } = useSelector((state) => state.auth);
+  const [mounted, setMounted] = useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
@@ -21,7 +26,7 @@ export default function SupportTicketsPage() {
 
   // Fetch support tickets
   const { data: ticketsRes, isLoading, refetch } = useGetMyTicketsQuery(undefined, {
-    skip: !isAuthenticated,
+    skip: !isAuthenticated || !mounted,
   });
   const [createTicket, { isLoading: isCreating }] = useCreateTicketMutation();
 
@@ -51,12 +56,12 @@ export default function SupportTicketsPage() {
 
   // Redirect if not authenticated
   React.useEffect(() => {
-    if (!isAuthenticated) {
+    if (mounted && !isAuthenticated) {
       router.push('/login');
     }
-  }, [isAuthenticated, router]);
+  }, [mounted, isAuthenticated, router]);
 
-  if (!isAuthenticated) {
+  if (!mounted || !isAuthenticated) {
     return null;
   }
 

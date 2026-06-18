@@ -2,16 +2,51 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { useForm } from 'react-hook-form';
-import { LayoutDashboard, ShoppingBag, PlusCircle, Upload, CheckCircle2, AlertTriangle, FileSpreadsheet, Store, Clock } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, PlusCircle, Upload, CheckCircle2, AlertTriangle, FileSpreadsheet, Store, Clock, User, Mail, Phone, ShieldCheck, UploadCloud, X, Image as ImageIcon, Trash2, RefreshCw, ClipboardList, XCircle } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import { useCreateProductMutation, useGetSellerProfileQuery, useCreateSellerProfileMutation, useGetCategoriesQuery, useGetBrandsQuery } from '@/store/api';
+import ConfirmationModal from '@/components/ConfirmationModal';
+import { useToast } from '@/components/ToastProvider';
+import { updateUser } from '@/store/authSlice';
+import { useCreateProductMutation, useGetSellerProfileQuery, useCreateSellerProfileMutation, useGetCategoriesQuery, useGetBrandsQuery, useUpdateProfileMutation, useUploadProductImageMutation, useUpdateProductMutation, useDeleteProductMutation, useGetProductsQuery, useGetSellerOrdersQuery, useUpdateOrderStatusMutation } from '@/store/api';
 
 export default function SellerDashboard() {
   const router = useRouter();
+  const { showToast } = useToast();
   const { user, isAuthenticated } = useSelector((state) => state.auth);
+
+  const [confirmConfig, setConfirmConfig] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Confirm',
+    cancelText: 'Cancel',
+    type: 'danger',
+    onConfirm: () => {},
+  });
+
+  const [activeTab, setActiveTab] = useState('overview');
+  const [successMsg, setSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const triggerConfirmation = (config) => {
+    setConfirmConfig({
+      isOpen: true,
+      title: config.title,
+      message: config.message,
+      confirmText: config.confirmText || 'Confirm',
+      cancelText: config.cancelText || 'Cancel',
+      type: config.type || 'danger',
+      onConfirm: config.onConfirm,
+    });
+  };
 
   useEffect(() => {
     if (!isAuthenticated || !user || user.role !== 'seller') {
@@ -31,9 +66,130 @@ export default function SellerDashboard() {
 
   const sellerProfile = profileRes?.data?.seller;
 
-  const [activeTab, setActiveTab] = useState('overview');
-  const [successMsg, setSuccessMsg] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
+  const [updateProduct] = useUpdateProductMutation();
+  const [deleteProduct] = useDeleteProductMutation();
+  const [editingStock, setEditingStock] = useState({});
+
+  const { data: sellerProductsRes, refetch: refetchSellerProducts } = useGetProductsQuery(
+    { seller: sellerProfile?._id, status: 'all', limit: 100 },
+    { skip: !sellerProfile || activeTab !== 'manage-listings' }
+  );
+  const sellerProducts = sellerProductsRes?.data?.products || [];
+
+  const { data: sellerOrdersRes, refetch: refetchSellerOrders, isLoading: ordersLoading } = useGetSellerOrdersQuery(
+    undefined,
+    { skip: !sellerProfile || activeTab !== 'manage-orders' }
+  );
+  const sellerOrders = sellerOrdersRes?.data?.orders || [];
+  const [updateOrderStatus] = useUpdateOrderStatusMutation();
+
+  const handleUpdateStock = async (productId) => {
+    const qty = editingStock[productId];
+    if (qty === undefined || qty === '') return;
+    triggerConfirmation({
+      title: 'Update Stock Level?',
+      message: `Are you sure you want to change the stock level of this product to ${qty}?`,
+      type: 'info',
+      confirmText: 'Update Stock',
+      onConfirm: async () => {
+        try {
+          await updateProduct({
+            id: productId,
+            inventory: {
+              quantity: Number(qty),
+              lowStockThreshold: 5
+            }
+          }).unwrap();
+          showToast('Stock quantity updated successfully!', 'success');
+          refetchSellerProducts();
+        } catch (err) {
+          showToast(err.data?.message || 'Failed to update stock.', 'error');
+        }
+      }
+    });
+  };
+
+  const handleDeleteProduct = async (productId) => {
+    triggerConfirmation({
+      title: 'Delete Product Listing?',
+      message: 'Are you sure you want to delete this listing? This action cannot be undone.',
+      type: 'danger',
+      confirmText: 'Delete Product',
+      onConfirm: async () => {
+        try {
+          await deleteProduct(productId).unwrap();
+          showToast('Product listing deleted successfully.', 'success');
+          refetchSellerProducts();
+        } catch (err) {
+          showToast(err.data?.message || 'Failed to delete listing.', 'error');
+        }
+      }
+    });
+  };
+
+  const handleAcceptOrder = async (orderId) => {
+    triggerConfirmation({
+      title: 'Accept & Process Order?',
+      message: 'Are you sure you want to accept and process this customer order?',
+      type: 'info',
+      confirmText: 'Accept Order',
+      onConfirm: async () => {
+        try {
+          await updateOrderStatus({ id: orderId, status: 'processed', message: 'Order approved and processed by seller.' }).unwrap();
+          showToast('Order processed successfully!', 'success');
+          refetchSellerOrders();
+        } catch (err) {
+          showToast(err.data?.message || 'Failed to accept order.', 'error');
+        }
+      }
+    });
+  };
+
+  const handleRejectOrder = async (orderId) => {
+    triggerConfirmation({
+      title: 'Reject & Cancel Order?',
+      message: 'Are you sure you want to reject this order? The order will be cancelled.',
+      type: 'danger',
+      confirmText: 'Reject Order',
+      onConfirm: async () => {
+        try {
+          await updateOrderStatus({ id: orderId, status: 'cancelled' }).unwrap();
+          showToast('Order rejected and cancelled.', 'success');
+          refetchSellerOrders();
+        } catch (err) {
+          showToast(err.data?.message || 'Failed to reject order.', 'error');
+        }
+      }
+    });
+  };
+
+  const dispatch = useDispatch();
+  const [updateProfileApi] = useUpdateProfileMutation();
+  const [personalName, setPersonalName] = useState(user?.name || '');
+  const [personalPhone, setPersonalPhone] = useState(user?.phoneNumber || '');
+  const [personalProfileSuccess, setPersonalProfileSuccess] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setPersonalName(user.name || '');
+      setPersonalPhone(user.phoneNumber || '');
+    }
+  }, [user]);
+
+  const handleUpdatePersonalProfile = async (e) => {
+    e.preventDefault();
+    setPersonalProfileSuccess(false);
+    try {
+      const res = await updateProfileApi({ name: personalName, phoneNumber: personalPhone }).unwrap();
+      dispatch(updateUser(res.data.user));
+      showToast('Profile updated successfully!', 'success');
+      setPersonalProfileSuccess(true);
+    } catch (err) {
+      showToast('Failed to update profile.', 'error');
+    }
+  };
+
+  // activeTab, successMsg, errorMsg states moved to top of component
 
   // CSV Bulk Upload States
   const [csvFile, setCsvFile] = useState(null);
@@ -41,16 +197,64 @@ export default function SellerDashboard() {
   const [csvLoading, setCsvLoading] = useState(false);
 
   // Form for single product upload
-  const { register, handleSubmit, reset, formState: { errors } } = useForm();
+  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm();
+
+  // Cloudinary Image Upload
+  const [uploadProductImage, { isLoading: uploadingImage }] = useUploadProductImageMutation();
+  const [previewUrl, setPreviewUrl] = useState('');
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('File size exceeds the 5MB limit.', 'error');
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const res = await uploadProductImage(formData).unwrap();
+      const url = res.data?.imageUrl || res.url;
+      if (url) {
+        setValue('imageUrl', url);
+        setPreviewUrl(url);
+        showToast('Image uploaded successfully!', 'success');
+      }
+    } catch (err) {
+      showToast(err.data?.message || 'Failed to upload image.', 'error');
+    }
+  };
 
   // Form for store profile registration
   const { 
     register: registerProfile, 
     handleSubmit: handleSubmitProfile, 
+    setValue: setProfileValue,
     formState: { errors: profileErrors } 
   } = useForm();
 
-  if (!isAuthenticated || !user || user.role !== 'seller') {
+  useEffect(() => {
+    if (sellerProfile) {
+      setProfileValue('storeName', sellerProfile.storeName || '');
+      setProfileValue('storeDescription', sellerProfile.storeDescription || '');
+      setProfileValue('gstin', sellerProfile.gstin || '');
+      setProfileValue('pan', sellerProfile.pan || '');
+      setProfileValue('bankAccountHolderName', sellerProfile.bankDetails?.accountHolderName || '');
+      setProfileValue('bankName', sellerProfile.bankDetails?.bankName || '');
+      setProfileValue('bankAccountNumber', sellerProfile.bankDetails?.accountNumber || '');
+      setProfileValue('bankIfsc', sellerProfile.bankDetails?.ifsc || '');
+      setProfileValue('street', sellerProfile.storeAddress?.street || '');
+      setProfileValue('city', sellerProfile.storeAddress?.city || '');
+      setProfileValue('state', sellerProfile.storeAddress?.state || '');
+      setProfileValue('country', sellerProfile.storeAddress?.country || '');
+      setProfileValue('postalCode', sellerProfile.storeAddress?.postalCode || '');
+    }
+  }, [sellerProfile, setProfileValue]);
+
+  if (!mounted || !isAuthenticated || !user || user.role !== 'seller') {
     return null;
   }
 
@@ -70,30 +274,39 @@ export default function SellerDashboard() {
   }
 
   const onSubmitProduct = async (data) => {
-    try {
-      setSuccessMsg('');
-      setErrorMsg('');
+    triggerConfirmation({
+      title: 'Submit Catalog Listing?',
+      message: `Are you sure you want to add the product "${data.title}"? It will await administrator approval before going live.`,
+      type: 'info',
+      confirmText: 'Submit Listing',
+      onConfirm: async () => {
+        try {
+          setSuccessMsg('');
+          setErrorMsg('');
 
-      // Format arrays/objects
-      const payload = {
-        ...data,
-        price: Number(data.price),
-        compareAtPrice: data.compareAtPrice ? Number(data.compareAtPrice) : undefined,
-        gstRate: data.gstRate !== undefined ? Number(data.gstRate) : 18,
-        images: [data.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=800'],
-        inventory: {
-          quantity: Number(data.quantity),
-          lowStockThreshold: 5,
-        },
-        tags: data.tags ? data.tags.split(';').map(t => t.trim()) : [],
-      };
+          // Format arrays/objects
+          const payload = {
+            ...data,
+            price: Number(data.price),
+            compareAtPrice: data.compareAtPrice ? Number(data.compareAtPrice) : undefined,
+            gstRate: data.gstRate !== undefined ? Number(data.gstRate) : 18,
+            images: [data.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=800'],
+            inventory: {
+              quantity: Number(data.quantity),
+              lowStockThreshold: 5,
+            },
+            tags: data.tags ? data.tags.split(';').map(t => t.trim()) : [],
+          };
 
-      await createProduct(payload).unwrap();
-      setSuccessMsg('Product added successfully! Awaiting administrator approval.');
-      reset();
-    } catch (err) {
-      setErrorMsg(err.data?.message || 'Failed to create product listing.');
-    }
+          await createProduct(payload).unwrap();
+          setSuccessMsg('Product added successfully! Awaiting administrator approval.');
+          reset();
+          setPreviewUrl('');
+        } catch (err) {
+          setErrorMsg(err.data?.message || 'Failed to create product listing.');
+        }
+      }
+    });
   };
 
   const onSubmitProfile = async (data) => {
@@ -432,6 +645,16 @@ export default function SellerDashboard() {
                 <LayoutDashboard className="w-4.5 h-4.5" /> Overview & Analytics
               </button>
               <button
+                onClick={() => setActiveTab('manage-orders')}
+                className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                  activeTab === 'manage-orders'
+                    ? 'bg-secondary text-white shadow-md'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                }`}
+              >
+                <ClipboardList className="w-4.5 h-4.5" /> Manage Orders
+              </button>
+              <button
                 onClick={() => setActiveTab('add-product')}
                 className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
                   activeTab === 'add-product'
@@ -442,6 +665,16 @@ export default function SellerDashboard() {
                 <PlusCircle className="w-4.5 h-4.5" /> Add New Product
               </button>
               <button
+                onClick={() => setActiveTab('manage-listings')}
+                className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                  activeTab === 'manage-listings'
+                    ? 'bg-secondary text-white shadow-md'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                }`}
+              >
+                <ShoppingBag className="w-4.5 h-4.5" /> Manage Listings
+              </button>
+              <button
                 onClick={() => setActiveTab('bulk-upload')}
                 className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
                   activeTab === 'bulk-upload'
@@ -450,6 +683,16 @@ export default function SellerDashboard() {
                 }`}
               >
                 <Upload className="w-4.5 h-4.5" /> Bulk CSV Import
+              </button>
+              <button
+                onClick={() => setActiveTab('profile')}
+                className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                  activeTab === 'profile'
+                    ? 'bg-secondary text-white shadow-md'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                }`}
+              >
+                <User className="w-4.5 h-4.5" /> Profile Details
               </button>
             </div>
 
@@ -475,6 +718,227 @@ export default function SellerDashboard() {
                       <span className="inline-block bg-orange-50 dark:bg-orange-950/40 text-orange-500 font-extrabold text-xxs px-2.5 py-0.5 rounded mt-2">Verified Store</span>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {activeTab === 'manage-orders' && (
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 rounded-3xl shadow-sm">
+                  <h3 className="font-extrabold text-lg text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-4 mb-6 flex justify-between items-center">
+                    <span>Manage Customer Orders</span>
+                    <button 
+                      onClick={() => refetchSellerOrders()}
+                      className="text-xs text-secondary hover:underline flex items-center gap-1 font-bold"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" /> Refresh
+                    </button>
+                  </h3>
+
+                  {ordersLoading ? (
+                    <div className="flex flex-col items-center justify-center py-12 gap-3">
+                      <div className="w-8 h-8 border-4 border-secondary border-t-transparent rounded-full animate-spin"></div>
+                      <p className="text-xxs text-slate-500 font-semibold">Loading orders...</p>
+                    </div>
+                  ) : sellerOrders.length === 0 ? (
+                    <div className="text-center py-12">
+                      <ClipboardList className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                      <p className="text-sm text-slate-500">No customer orders found for your products.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {sellerOrders.map((order) => {
+                        const orderSubtotal = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                        return (
+                          <div 
+                            key={order._id} 
+                            className="border border-slate-200 dark:border-slate-850 rounded-2xl overflow-hidden bg-slate-50/10 dark:bg-slate-900/10 hover:shadow-xs transition duration-300"
+                          >
+                            {/* Order Card Header */}
+                            <div className="bg-slate-50/50 dark:bg-slate-900/40 border-b border-slate-200/60 dark:border-slate-850/80 px-5 py-4 flex flex-wrap items-center justify-between gap-4 text-xs">
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-slate-500">
+                                <div>
+                                  <p className="font-bold text-slate-400 uppercase tracking-wider text-[9px]">Order ID</p>
+                                  <p className="font-extrabold text-slate-800 dark:text-slate-200 mt-0.5">{order.orderId}</p>
+                                </div>
+                                <div>
+                                  <p className="font-bold text-slate-400 uppercase tracking-wider text-[9px]">Customer</p>
+                                  <p className="font-semibold text-slate-700 dark:text-slate-300 mt-0.5 truncate max-w-[120px]">{order.customer?.name || 'Guest'}</p>
+                                </div>
+                                <div>
+                                  <p className="font-bold text-slate-400 uppercase tracking-wider text-[9px]">Date Placed</p>
+                                  <p className="font-semibold text-slate-700 dark:text-slate-300 mt-0.5">
+                                    {new Date(order.createdAt).toLocaleDateString('en-IN', {
+                                      day: 'numeric',
+                                      month: 'short',
+                                    })}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="font-bold text-slate-400 uppercase tracking-wider text-[9px]">Your Revenue</p>
+                                  <p className="font-extrabold text-slate-800 dark:text-slate-100 mt-0.5">₹{orderSubtotal.toLocaleString('en-IN')}</p>
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <span className={`inline-block px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase ${
+                                  order.status === 'processed' || order.status === 'shipped' || order.status === 'delivered'
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600'
+                                    : order.status === 'pending' || order.status === 'placed'
+                                      ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-600'
+                                      : 'bg-red-50 dark:bg-red-950/40 text-red-600'
+                                }`}>
+                                  {order.status === 'processed' ? 'Approved' : order.status}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Order Items */}
+                            <div className="p-5 divide-y divide-slate-100 dark:divide-slate-850/60 bg-white dark:bg-slate-900">
+                              {order.items.map((item) => (
+                                <div key={item._id} className="py-3.5 first:pt-0 last:pb-0 flex items-center gap-4 text-xs">
+                                  <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-150 dark:border-slate-850 bg-slate-100 dark:bg-slate-850 flex-shrink-0">
+                                    <img 
+                                      src={item.product?.images?.[0] || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=120'} 
+                                      alt="" 
+                                      className="w-full h-full object-cover" 
+                                    />
+                                  </div>
+                                  <div className="min-w-0 flex-grow">
+                                    <p className="font-bold text-slate-800 dark:text-slate-200 line-clamp-1">{item.product?.title || 'Deleted Product'}</p>
+                                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                                      Qty: <span className="font-bold text-slate-500">{item.quantity}</span> &middot; Price: <span className="font-bold text-slate-500">₹{item.price?.toLocaleString()}</span>
+                                    </p>
+                                  </div>
+                                  <div className="text-right font-bold text-slate-800 dark:text-slate-200">
+                                    ₹{(item.price * item.quantity).toLocaleString()}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Order Actions */}
+                            {(order.status === 'pending' || order.status === 'placed') && (
+                              <div className="bg-slate-50/30 dark:bg-slate-900/30 border-t border-slate-200/50 dark:border-slate-850/50 px-5 py-3.5 flex justify-end gap-3">
+                                <button
+                                  onClick={() => handleRejectOrder(order.orderId)}
+                                  className="inline-flex items-center gap-1.5 border border-red-200 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-600 font-bold px-4 py-2 rounded-xl text-xs transition active:scale-98"
+                                >
+                                  <XCircle className="w-4 h-4" /> Reject Order
+                                </button>
+                                <button
+                                  onClick={() => handleAcceptOrder(order.orderId)}
+                                  className="inline-flex items-center gap-1.5 bg-secondary hover:bg-cyan-600 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-sm transition active:scale-98"
+                                >
+                                  <CheckCircle2 className="w-4 h-4" /> Accept & Process
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'manage-listings' && (
+                /* Manage Catalog Listings */
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 rounded-3xl shadow-sm">
+                  <h3 className="font-extrabold text-lg text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-4 mb-6 flex justify-between items-center">
+                    <span>Manage Catalog Listings</span>
+                    <button 
+                      onClick={() => refetchSellerProducts()}
+                      className="text-xs text-secondary hover:underline flex items-center gap-1 font-bold"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" /> Refresh
+                    </button>
+                  </h3>
+
+                  {sellerProducts.length === 0 ? (
+                    <div className="text-center py-12">
+                      <ShoppingBag className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                      <p className="text-sm text-slate-500">No active product listings found.</p>
+                      <button 
+                        onClick={() => setActiveTab('add-product')}
+                        className="mt-4 bg-secondary text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-cyan-600 transition"
+                      >
+                        Add Your First Product
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 font-bold uppercase tracking-wider">
+                            <th className="py-4 px-2">Product</th>
+                            <th className="py-4 px-2">SKU</th>
+                            <th className="py-4 px-2">Price</th>
+                            <th className="py-4 px-2">Status</th>
+                            <th className="py-4 px-2">Stock Qty</th>
+                            <th className="py-4 px-2 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {sellerProducts.map((prod) => (
+                            <tr key={prod._id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition">
+                              <td className="py-4 px-2 flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-100 dark:border-slate-800 bg-slate-100 flex-shrink-0">
+                                  <img 
+                                    src={prod.images?.[0] || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=120'} 
+                                    alt="" 
+                                    className="w-full h-full object-cover" 
+                                  />
+                                </div>
+                                <span className="font-bold text-slate-800 dark:text-slate-200 line-clamp-1">{prod.title}</span>
+                              </td>
+                              <td className="py-4 px-2 text-slate-500 font-mono">{prod.sku}</td>
+                              <td className="py-4 px-2 font-semibold">₹{prod.price?.toLocaleString('en-IN')}</td>
+                              <td className="py-4 px-2">
+                                <span className={`inline-block px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase ${
+                                  prod.status === 'approved' 
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600'
+                                    : prod.status === 'pending'
+                                      ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-600'
+                                      : 'bg-red-50 dark:bg-red-950/40 text-red-600'
+                                }`}>
+                                  {prod.status}
+                                </span>
+                              </td>
+                              <td className="py-4 px-2">
+                                <div className="flex items-center gap-2">
+                                  <input 
+                                    type="number"
+                                    min="0"
+                                    value={editingStock[prod._id] !== undefined ? editingStock[prod._id] : (prod.inventory?.quantity || 0)}
+                                    onChange={(e) => setEditingStock({
+                                      ...editingStock,
+                                      [prod._id]: e.target.value
+                                    })}
+                                    className="w-16 bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-2.5 py-1.5 rounded-lg text-xs outline-none text-center font-bold dark:text-slate-200"
+                                  />
+                                  <button
+                                    onClick={() => handleUpdateStock(prod._id)}
+                                    className="bg-secondary text-white p-1.5 rounded-lg hover:bg-cyan-600 transition"
+                                    title="Update Stock Quantity"
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                              <td className="py-4 px-2 text-right">
+                                <button
+                                  onClick={() => handleDeleteProduct(prod._id)}
+                                  className="bg-rose-500 text-white p-2 rounded-xl hover:bg-rose-600 transition inline-flex items-center"
+                                  title="Delete Listing"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -586,30 +1050,69 @@ export default function SellerDashboard() {
                       {errors.category && <p className="text-xxs text-red-500 mt-1">{errors.category.message}</p>}
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Brand</label>
-                      <select
-                        {...register('brand', { required: 'Brand is required' })}
-                        className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
-                      >
-                        <option value="">Select Brand</option>
-                        {brands.map(br => (
-                          <option key={br._id} value={br._id}>
-                            {br.name}
-                          </option>
-                        ))}
-                      </select>
-                      {errors.brand && <p className="text-xxs text-red-500 mt-1">{errors.brand.message}</p>}
-                    </div>
 
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Image URL</label>
-                      <input
-                        type="text"
-                        placeholder="http://example.com/image.jpg"
-                        {...register('imageUrl')}
-                        className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
-                      />
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Product Image</label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* File Upload Box */}
+                        <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-secondary dark:hover:border-secondary rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer transition relative group bg-slate-50 dark:bg-slate-900/50">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                            disabled={uploadingImage}
+                          />
+                          <UploadCloud className={`w-8 h-8 ${uploadingImage ? 'text-secondary animate-bounce' : 'text-slate-400 group-hover:text-secondary'} transition mb-2`} />
+                          <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                            {uploadingImage ? 'Uploading image...' : 'Choose image or drag here'}
+                          </span>
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">PNG, JPG, JPEG up to 5MB</span>
+                        </div>
+
+                        {/* Image Preview / URL Link Input */}
+                        <div className="flex flex-col justify-between p-2">
+                          <div className="flex items-center gap-3">
+                            {previewUrl ? (
+                              <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-950 flex-shrink-0">
+                                <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPreviewUrl('');
+                                    setValue('imageUrl', '');
+                                  }}
+                                  className="absolute top-0.5 right-0.5 bg-red-500 hover:bg-red-600 text-white rounded-full p-0.5 transition shadow-sm z-20"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="w-16 h-16 rounded-xl border border-dashed border-slate-300 dark:border-slate-800 flex items-center justify-center text-slate-400 bg-slate-50 dark:bg-slate-900 flex-shrink-0">
+                                <ImageIcon className="w-6 h-6" />
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate">
+                                {previewUrl ? 'Image Selected' : 'No Image Uploaded'}
+                              </p>
+                              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 truncate flex-shrink-0">
+                                {previewUrl || 'Upload a file or provide a URL below'}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="mt-3">
+                            <input
+                              type="text"
+                              placeholder="Or enter image URL manually..."
+                              {...register('imageUrl')}
+                              onChange={(e) => setPreviewUrl(e.target.value)}
+                              className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3 py-2 rounded-lg text-[11px] outline-none transition dark:text-slate-200"
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="md:col-span-2">
@@ -679,11 +1182,280 @@ export default function SellerDashboard() {
                   )}
                 </div>
               )}
+
+              {activeTab === 'profile' && (
+                /* Profile Details edit panel inside Seller Dashboard */
+                <div className="space-y-6">
+                  {/* Personal Details Form */}
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-6">
+                    <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2">
+                      <User className="w-5 h-5 text-secondary" /> Personal Details
+                    </h3>
+
+                    {personalProfileSuccess && (
+                      <p className="text-xs text-emerald-500 font-bold bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 p-2.5 rounded-xl">
+                        Profile updated successfully!
+                      </p>
+                    )}
+
+                    <form onSubmit={handleUpdatePersonalProfile} className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">Full Name</label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={personalName}
+                            onChange={e => setPersonalName(e.target.value)}
+                            className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary pl-10 pr-4 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                          />
+                          <User className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">Email Address</label>
+                        <div className="relative">
+                          <input
+                            type="email"
+                            value={user?.email}
+                            disabled
+                            className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent pl-10 pr-4 py-2.5 rounded-xl text-xs outline-none opacity-60 dark:text-slate-200"
+                          />
+                          <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">Phone Number</label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={personalPhone}
+                            onChange={e => setPersonalPhone(e.target.value)}
+                            placeholder="Enter phone number"
+                            className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary pl-10 pr-4 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                          />
+                          <Phone className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="w-full bg-secondary hover:bg-cyan-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-md transition"
+                      >
+                        Update Profile
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Company & Store Details Form */}
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
+                    <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2 mb-4">
+                      <Store className="w-5 h-5 text-secondary" /> Company & Store Details
+                    </h3>
+
+                    {successMsg && (
+                      <div className="mb-4 p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/50 rounded-xl flex items-center gap-2.5 text-xs text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                        <span>{successMsg}</span>
+                      </div>
+                    )}
+
+                    {errorMsg && (
+                      <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 rounded-xl flex items-center gap-2.5 text-xs text-red-600 dark:text-red-400">
+                        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                        <span>{errorMsg}</span>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleSubmitProfile(onSubmitProfile)} className="space-y-6">
+                      <div>
+                        <h4 className="text-xs font-extrabold text-secondary uppercase tracking-wider mb-4 border-b pb-1">Store Details</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Store Name</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Apex Tech Store"
+                              {...registerProfile('storeName', { required: 'Store name is required' })}
+                              className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                            />
+                            {profileErrors.storeName && <p className="text-xxs text-red-500 mt-1">{profileErrors.storeName.message}</p>}
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Store Description</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Premium technology and accessories"
+                              {...registerProfile('storeDescription')}
+                              className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="text-xs font-extrabold text-secondary uppercase tracking-wider mb-4 border-b pb-1">Tax & Business Identification</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">GSTIN</label>
+                            <input
+                              type="text"
+                              placeholder="15-character GSTIN"
+                              {...registerProfile('gstin', { 
+                                required: 'GSTIN is required', 
+                                minLength: { value: 15, message: 'GSTIN must be exactly 15 characters' },
+                                maxLength: { value: 15, message: 'GSTIN must be exactly 15 characters' }
+                              })}
+                              className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200 uppercase"
+                            />
+                            {profileErrors.gstin && <p className="text-xxs text-red-500 mt-1">{profileErrors.gstin.message}</p>}
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">PAN Number</label>
+                            <input
+                              type="text"
+                              placeholder="10-character PAN"
+                              {...registerProfile('pan', { 
+                                required: 'PAN is required', 
+                                minLength: { value: 10, message: 'PAN must be exactly 10 characters' },
+                                maxLength: { value: 10, message: 'PAN must be exactly 10 characters' }
+                              })}
+                              className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200 uppercase"
+                            />
+                            {profileErrors.pan && <p className="text-xxs text-red-500 mt-1">{profileErrors.pan.message}</p>}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="text-xs font-extrabold text-secondary uppercase tracking-wider mb-4 border-b pb-1">Bank Account Details (For Payouts)</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Account Holder Name</label>
+                            <input
+                              type="text"
+                              placeholder="Full Legal Name"
+                              {...registerProfile('bankAccountHolderName', { required: 'Account holder name is required' })}
+                              className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                            />
+                            {profileErrors.bankAccountHolderName && <p className="text-xxs text-red-500 mt-1">{profileErrors.bankAccountHolderName.message}</p>}
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Bank Name</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. State Bank of India"
+                              {...registerProfile('bankName', { required: 'Bank name is required' })}
+                              className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                            />
+                            {profileErrors.bankName && <p className="text-xxs text-red-500 mt-1">{profileErrors.bankName.message}</p>}
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Account Number</label>
+                            <input
+                              type="text"
+                              placeholder="Bank Account Number"
+                              {...registerProfile('bankAccountNumber', { required: 'Account number is required' })}
+                              className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                            />
+                            {profileErrors.bankAccountNumber && <p className="text-xxs text-red-500 mt-1">{profileErrors.bankAccountNumber.message}</p>}
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">IFSC Code</label>
+                            <input
+                              type="text"
+                              placeholder="11-character IFSC Code"
+                              {...registerProfile('bankIfsc', { required: 'IFSC code is required' })}
+                              className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200 uppercase"
+                            />
+                            {profileErrors.bankIfsc && <p className="text-xxs text-red-500 mt-1">{profileErrors.bankIfsc.message}</p>}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="text-xs font-extrabold text-secondary uppercase tracking-wider mb-4 border-b pb-1">Store Address</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Street Address</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. 101 Corporate Suites"
+                              {...registerProfile('street', { required: 'Street is required' })}
+                              className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                            />
+                            {profileErrors.street && <p className="text-xxs text-red-500 mt-1">{profileErrors.street.message}</p>}
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">City</label>
+                            <input
+                              type="text"
+                              placeholder="City"
+                              {...registerProfile('city', { required: 'City is required' })}
+                              className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                            />
+                            {profileErrors.city && <p className="text-xxs text-red-500 mt-1">{profileErrors.city.message}</p>}
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">State</label>
+                            <input
+                              type="text"
+                              placeholder="State"
+                              {...registerProfile('state', { required: 'State is required' })}
+                              className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                            />
+                            {profileErrors.state && <p className="text-xxs text-red-500 mt-1">{profileErrors.state.message}</p>}
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Country</label>
+                            <input
+                              type="text"
+                              placeholder="Country"
+                              {...registerProfile('country', { required: 'Country is required' })}
+                              className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                            />
+                            {profileErrors.country && <p className="text-xxs text-red-500 mt-1">{profileErrors.country.message}</p>}
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Postal Code</label>
+                            <input
+                              type="text"
+                              placeholder="Postal Code"
+                              {...registerProfile('postalCode', { required: 'Postal code is required' })}
+                              className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                            />
+                            {profileErrors.postalCode && <p className="text-xxs text-red-500 mt-1">{profileErrors.postalCode.message}</p>}
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={profileCreating}
+                        className="w-full bg-secondary hover:bg-cyan-600 text-white font-bold py-3.5 rounded-xl text-xs shadow-md active:scale-98 transition"
+                      >
+                        {profileCreating ? 'Saving Details...' : 'Save Company Details'}
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
       </main>
 
+      <ConfirmationModal
+        isOpen={confirmConfig.isOpen}
+        onClose={() => setConfirmConfig({ ...confirmConfig, isOpen: false })}
+        onConfirm={confirmConfig.onConfirm}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        confirmText={confirmConfig.confirmText}
+        cancelText={confirmConfig.cancelText}
+        type={confirmConfig.type}
+      />
       <Footer />
     </div>
   );

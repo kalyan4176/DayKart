@@ -6,6 +6,7 @@ import { useSelector } from 'react-redux';
 import { MapPin, CreditCard, ShieldCheck, ShoppingBag, PlusCircle, CheckCircle2, Ticket, AlertCircle } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { useToast } from '@/components/ToastProvider';
 import { useGetCartQuery, useCheckoutMutation, useValidateCouponMutation } from '@/store/api';
 
 const GATEWAYS = [
@@ -17,18 +18,24 @@ const GATEWAYS = [
 function CheckoutPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { showToast } = useToast();
   const initialCoupon = searchParams.get('coupon') || '';
 
   const { user, isAuthenticated } = useSelector(state => state.auth);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted && !isAuthenticated) {
       router.push('/login');
     }
-  }, [isAuthenticated, router]);
+  }, [mounted, isAuthenticated, router]);
 
   // API Hooks
-  const { data: cartRes, isLoading } = useGetCartQuery(undefined, { skip: !isAuthenticated });
+  const { data: cartRes, isLoading } = useGetCartQuery(undefined, { skip: !isAuthenticated || !mounted });
   const [checkoutApi, { isLoading: orderPlacing }] = useCheckoutMutation();
   const [validateCoupon, { isLoading: couponValidating }] = useValidateCouponMutation();
 
@@ -119,7 +126,7 @@ function CheckoutPageContent() {
 
   const handlePlaceOrder = async () => {
     if (!selectedAddress) {
-      alert('Please select a shipping address.');
+      showToast('Please select a shipping address.', 'error');
       return;
     }
 
@@ -131,12 +138,13 @@ function CheckoutPageContent() {
       }).unwrap();
 
       setOrderSuccess(res.data);
+      showToast('Order placed successfully!', 'success');
     } catch (err) {
-      alert(err.data?.message || 'Failed to place order.');
+      showToast(err.data?.message || 'Failed to place order.', 'error');
     }
   };
 
-  if (!isAuthenticated) {
+  if (!mounted || !isAuthenticated) {
     return null;
   }
 

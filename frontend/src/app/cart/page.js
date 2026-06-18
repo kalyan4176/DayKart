@@ -12,15 +12,20 @@ import { useGetCartQuery, useUpdateCartMutation, useValidateCouponMutation } fro
 export default function CartPage() {
   const router = useRouter();
   const { isAuthenticated } = useSelector((state) => state.auth);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted && !isAuthenticated) {
       router.push('/login');
     }
-  }, [isAuthenticated, router]);
+  }, [mounted, isAuthenticated, router]);
   
   // API hooks
-  const { data: cartRes, isLoading } = useGetCartQuery(undefined, { skip: !isAuthenticated });
+  const { data: cartRes, isLoading } = useGetCartQuery(undefined, { skip: !isAuthenticated || !mounted });
   const [updateCart] = useUpdateCartMutation();
   const [validateCoupon, { isLoading: couponValidating }] = useValidateCouponMutation();
 
@@ -111,7 +116,7 @@ export default function CartPage() {
   const discount = discountInfo?.discount || 0;
   const grandTotal = Math.max(0, subtotal + shippingCharges + tax - discount);
 
-  if (!isAuthenticated) {
+  if (!mounted || !isAuthenticated) {
     return null;
   }
 
@@ -157,19 +162,24 @@ export default function CartPage() {
                 const isVariant = !!item.variantSku;
                 const variant = isVariant ? product?.variants?.find(v => v.sku === item.variantSku) : null;
                 const price = isVariant ? variant?.price : product?.price;
+                const productId = product?._id || item.product;
 
                 return (
                   <div key={idx} className="flex gap-4 p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
                     {/* Image */}
                     <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-xl overflow-hidden flex-shrink-0">
-                      <img src={product?.images[0]} alt={product?.title} className="w-full h-full object-cover" />
+                      <img src={product?.images?.[0] || '/placeholder.png'} alt={product?.title || 'Product'} className="w-full h-full object-cover" />
                     </div>
 
                     {/* Title & variants descriptions */}
                     <div className="flex-1 flex flex-col justify-between">
                       <div>
                         <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 line-clamp-1">
-                          <Link href={`/product/${product?._id}`}>{product?.title}</Link>
+                          {product ? (
+                            <Link href={`/product/${productId}`}>{product.title}</Link>
+                          ) : (
+                            <span className="text-slate-400 italic">Deleted Product</span>
+                          )}
                         </h3>
                         {isVariant && (
                           <p className="text-xxs text-slate-400 font-bold mt-1 uppercase tracking-wider">
@@ -182,14 +192,14 @@ export default function CartPage() {
                         {/* Qty pickers */}
                         <div className="flex items-center border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden bg-slate-50 dark:bg-slate-800">
                           <button
-                            onClick={() => handleQtyChange(product._id, item.variantSku, item.quantity, item.quantity - 1)}
+                            onClick={() => handleQtyChange(productId, item.variantSku, item.quantity, item.quantity - 1)}
                             className="px-2.5 py-1 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold transition"
                           >
                             -
                           </button>
                           <span className="px-3.5 py-1 text-xs font-bold text-slate-800 dark:text-slate-200">{item.quantity}</span>
                           <button
-                            onClick={() => handleQtyChange(product._id, item.variantSku, item.quantity, item.quantity + 1)}
+                            onClick={() => handleQtyChange(productId, item.variantSku, item.quantity, item.quantity + 1)}
                             className="px-2.5 py-1 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold transition"
                           >
                             +
@@ -198,14 +208,14 @@ export default function CartPage() {
 
                         {/* Price */}
                         <span className="font-extrabold text-sm text-slate-900 dark:text-slate-100">
-                          ₹{(price * item.quantity).toLocaleString('en-IN')}
+                          ₹{((price || 0) * item.quantity).toLocaleString('en-IN')}
                         </span>
                       </div>
                     </div>
 
                     {/* Delete button */}
                     <button
-                      onClick={() => handleRemoveItem(product._id, item.variantSku)}
+                      onClick={() => handleRemoveItem(productId, item.variantSku)}
                       className="p-1 text-slate-400 hover:text-red-500 rounded-lg h-fit self-start transition-all"
                       title="Remove Item"
                     >
