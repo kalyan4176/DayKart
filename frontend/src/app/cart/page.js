@@ -100,7 +100,14 @@ export default function CartPage() {
 
   // Checkout totals
   const shippingCharges = subtotal > 1000 || (discountInfo && discountInfo.type === 'free_shipping') ? 0 : 99;
-  const tax = Math.round(subtotal * 0.18); // estimate
+  const calculatedTax = cartItems.reduce((acc, item) => {
+    const price = item.variantSku 
+      ? item.product?.variants.find(v => v.sku === item.variantSku)?.price || item.product?.price || 0
+      : item.product?.price || 0;
+    const gstRate = item.product?.gstRate !== undefined ? item.product.gstRate : 18;
+    return acc + ((price * item.quantity * gstRate) / 100);
+  }, 0);
+  const tax = Math.round(calculatedTax);
   const discount = discountInfo?.discount || 0;
   const grandTotal = Math.max(0, subtotal + shippingCharges + tax - discount);
 
@@ -259,7 +266,7 @@ export default function CartPage() {
                     <span>₹{subtotal.toLocaleString('en-IN')}</span>
                   </div>
                   <div className="flex justify-between text-slate-500">
-                    <span>GST (18% Estimate)</span>
+                    <span>GST</span>
                     <span>₹{tax.toLocaleString('en-IN')}</span>
                   </div>
                   <div className="flex justify-between text-slate-500">

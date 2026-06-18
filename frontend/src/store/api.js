@@ -42,7 +42,7 @@ const baseQueryWithReauth = async (args, apiInstance, extraOptions) => {
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['User', 'Product', 'Cart', 'Order', 'Coupon', 'Review', 'Support', 'Wishlist'],
+  tagTypes: ['User', 'Product', 'Cart', 'Order', 'Coupon', 'Review', 'Support', 'Wishlist', 'SellerProfile'],
   endpoints: (builder) => ({
     login: builder.mutation({
       query: (credentials) => ({
@@ -81,6 +81,12 @@ export const api = createApi({
         params,
       }),
       providesTags: ['Product'],
+    }),
+    getCategories: builder.query({
+      query: () => '/products/categories',
+    }),
+    getBrands: builder.query({
+      query: () => '/products/brands',
     }),
     getProductById: builder.query({
       query: (id) => `/products/${id}`,
@@ -259,6 +265,31 @@ export const api = createApi({
       }),
       invalidatesTags: ['Product'],
     }),
+
+    getSellerProfile: builder.query({
+      query: () => '/users/seller-profile',
+      providesTags: ['SellerProfile'],
+    }),
+    createSellerProfile: builder.mutation({
+      query: (profileData) => ({
+        url: '/users/seller-profile',
+        method: 'POST',
+        body: profileData,
+      }),
+      invalidatesTags: ['SellerProfile'],
+    }),
+    getMyTickets: builder.query({
+      query: () => '/support/my-tickets',
+      providesTags: ['Support'],
+    }),
+    createTicket: builder.mutation({
+      query: (ticketData) => ({
+        url: '/support',
+        method: 'POST',
+        body: ticketData,
+      }),
+      invalidatesTags: ['Support'],
+    }),
   }),
 });
 
@@ -274,6 +305,8 @@ export const {
   useAddAddressMutation,
   useRemoveAddressMutation,
   useGetProductsQuery,
+  useGetCategoriesQuery,
+  useGetBrandsQuery,
   useGetProductByIdQuery,
   useCreateProductMutation,
   useUpdateProductMutation,
@@ -297,4 +330,8 @@ export const {
   useGetAdminUsersQuery,
   useApproveSellerMutation,
   useApproveProductMutation,
+  useGetSellerProfileQuery,
+  useCreateSellerProfileMutation,
+  useGetMyTicketsQuery,
+  useCreateTicketMutation,
 } = api;

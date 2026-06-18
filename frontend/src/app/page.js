@@ -34,7 +34,7 @@ export default function Home() {
 
       <main className="flex-1 pb-16">
         {/* Hero Banner Section */}
-        <section className="relative overflow-hidden bg-slate-900 text-white py-20 lg:py-28">
+        <section className="relative overflow-hidden bg-slate-900 text-white pt-10 pb-12 sm:py-16 lg:py-28">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,#1e293b,transparent_70%)]" />
           <div className="absolute right-0 bottom-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl" />
           <div className="absolute left-10 top-10 w-72 h-72 bg-orange-500/10 rounded-full blur-3xl" />
@@ -42,7 +42,7 @@ export default function Home() {
           <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
               <div>
-                <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-xs text-orange-400 font-bold mb-6">
+                <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-xs text-orange-400 font-bold mb-4 sm:mb-6">
                   <Sparkles className="w-4 h-4 text-orange-400 animate-spin" />
                   THE ULTIMATE SHOPPING EXPERIENCE
                 </div>
@@ -54,11 +54,11 @@ export default function Home() {
                   </span>
                 </h1>
 
-                <p className="mt-6 text-base sm:text-lg text-slate-400 max-w-lg leading-relaxed">
+                <p className="mt-4 sm:mt-6 text-base sm:text-lg text-slate-400 max-w-lg leading-relaxed">
                   Daykart brings together verified sellers, high-end tech, stylish fashion, and smart product bundles under a lag-free custom user interface.
                 </p>
 
-                <div className="mt-10 flex flex-wrap gap-4">
+                <div className="mt-6 sm:mt-8 lg:mt-10 flex flex-wrap gap-4">
                   <Link
                     href="/products"
                     className="inline-flex items-center gap-2 bg-secondary hover:bg-cyan-600 text-white font-bold px-8 py-3.5 rounded-full shadow-lg transition duration-300 transform hover:scale-103"

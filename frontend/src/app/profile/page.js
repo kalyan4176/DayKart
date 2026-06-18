@@ -285,7 +285,7 @@ export default function ProfilePage() {
 
                 <button
                   type="submit"
-                  className="w-full md:col-span-2 inline-flex items-center justify-center gap-1.5 bg-accent hover:bg-orange-600 text-white font-bold py-3 rounded-xl text-xs shadow-md mt-2 transition"
+                  className="w-full md:col-span-2 inline-flex items-center justify-center gap-1.5 bg-secondary hover:bg-cyan-600 text-white font-bold py-3 rounded-xl text-xs shadow-md mt-2 transition"
                 >
                   <ShieldCheck className="w-4 h-4" /> Save Address Details
                 </button>

@@ -11,6 +11,11 @@ const outfit = Outfit({
 export const metadata = {
   title: "Daykart | Premium Multi-Vendor E-Commerce Platform",
   description: "Experience lag-free, ultra-secure, and modern e-commerce shopping. Shop top-brand electronics, custom fashion, and kitchen appliances with smart recommendations and fast checkout.",
+  icons: {
+    icon: "/logo-circular.png",
+    shortcut: "/logo-circular.png",
+    apple: "/logo-circular.png",
+  },
   openGraph: {
     title: "Daykart | Premium Multi-Vendor E-Commerce Platform",
     description: "Shop high-quality tech, clothing, and home products on the Daykart online marketplace.",

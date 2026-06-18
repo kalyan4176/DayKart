@@ -3,10 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSelector } from 'react-redux';
-import { MapPin, CreditCard, ShieldCheck, ShoppingBag, PlusCircle, CheckCircle2 } from 'lucide-react';
+import { MapPin, CreditCard, ShieldCheck, ShoppingBag, PlusCircle, CheckCircle2, Ticket, AlertCircle } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import { useGetCartQuery, useCheckoutMutation } from '@/store/api';
+import { useGetCartQuery, useCheckoutMutation, useValidateCouponMutation } from '@/store/api';
 
 const GATEWAYS = [
   { id: 'cod', name: 'Cash on Delivery (COD)', desc: 'Pay with cash upon package delivery.' },
@@ -17,7 +17,7 @@ const GATEWAYS = [
 function CheckoutPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const couponCode = searchParams.get('coupon') || '';
+  const initialCoupon = searchParams.get('coupon') || '';
 
   const { user, isAuthenticated } = useSelector(state => state.auth);
 
@@ -30,13 +30,92 @@ function CheckoutPageContent() {
   // API Hooks
   const { data: cartRes, isLoading } = useGetCartQuery(undefined, { skip: !isAuthenticated });
   const [checkoutApi, { isLoading: orderPlacing }] = useCheckoutMutation();
+  const [validateCoupon, { isLoading: couponValidating }] = useValidateCouponMutation();
 
   const [selectedAddress, setSelectedAddress] = useState(user?.addresses?.find(a => a.isDefault)?._id || user?.addresses?.[0]?._id || '');
   const [selectedGateway, setSelectedGateway] = useState('cod');
-  
   const [orderSuccess, setOrderSuccess] = useState(null);
 
+  const [couponInput, setCouponInput] = useState(initialCoupon);
+  const [discountInfo, setDiscountInfo] = useState(null);
+  const [couponError, setCouponError] = useState('');
+  const [animateDiscount, setAnimateDiscount] = useState(false);
+
   const cartItems = cartRes?.data?.cart || [];
+
+  // Calculate Subtotal
+  const subtotal = cartItems.reduce((acc, item) => {
+    const price = item.variantSku 
+      ? item.product?.variants.find(v => v.sku === item.variantSku)?.price || item.product?.price || 0
+      : item.product?.price || 0;
+    return acc + (price * item.quantity);
+  }, 0);
+
+  // Validate initial coupon on load if subtotal is available
+  useEffect(() => {
+    if (initialCoupon && subtotal > 0 && !discountInfo && !couponError) {
+      const runInitialValidation = async () => {
+        try {
+          const res = await validateCoupon({ code: initialCoupon, cartValue: subtotal }).unwrap();
+          const coupon = res.data.coupon;
+          
+          let discountAmount = 0;
+          if (coupon.discountType === 'percentage') {
+            discountAmount = (subtotal * coupon.discountValue) / 100;
+            if (coupon.maxDiscount && discountAmount > coupon.maxDiscount) {
+              discountAmount = coupon.maxDiscount;
+            }
+          } else if (coupon.discountType === 'flat') {
+            discountAmount = coupon.discountValue;
+          }
+
+          setDiscountInfo({
+            code: coupon.code,
+            discount: discountAmount,
+            type: coupon.discountType
+          });
+          setAnimateDiscount(true);
+        } catch (err) {
+          setCouponError(err.data?.message || 'Invalid coupon code.');
+        }
+      };
+      runInitialValidation();
+    }
+  }, [initialCoupon, subtotal]);
+
+  const handleApplyCoupon = async (e) => {
+    e.preventDefault();
+    setCouponError('');
+    setDiscountInfo(null);
+    setAnimateDiscount(false);
+
+    if (!couponInput.trim()) return;
+
+    try {
+      const res = await validateCoupon({ code: couponInput, cartValue: subtotal }).unwrap();
+      const coupon = res.data.coupon;
+      
+      let discountAmount = 0;
+      if (coupon.discountType === 'percentage') {
+        discountAmount = (subtotal * coupon.discountValue) / 100;
+        if (coupon.maxDiscount && discountAmount > coupon.maxDiscount) {
+          discountAmount = coupon.maxDiscount;
+        }
+      } else if (coupon.discountType === 'flat') {
+        discountAmount = coupon.discountValue;
+      }
+
+      setDiscountInfo({
+        code: coupon.code,
+        discount: discountAmount,
+        type: coupon.discountType
+      });
+      setAnimateDiscount(true);
+      setTimeout(() => setAnimateDiscount(false), 1000);
+    } catch (err) {
+      setCouponError(err.data?.message || 'Invalid coupon code.');
+    }
+  };
 
   const handlePlaceOrder = async () => {
     if (!selectedAddress) {
@@ -47,7 +126,7 @@ function CheckoutPageContent() {
     try {
       const res = await checkoutApi({
         addressId: selectedAddress,
-        couponCode: couponCode || undefined,
+        couponCode: discountInfo ? discountInfo.code : undefined,
         gateway: selectedGateway,
       }).unwrap();
 
@@ -101,6 +180,18 @@ function CheckoutPageContent() {
       </div>
     );
   }
+
+  const shippingCharges = subtotal > 1000 || (discountInfo && discountInfo.type === 'free_shipping') ? 0 : 99;
+  const calculatedTax = cartItems.reduce((acc, item) => {
+    const price = item.variantSku 
+      ? item.product?.variants.find(v => v.sku === item.variantSku)?.price || item.product?.price || 0
+      : item.product?.price || 0;
+    const gstRate = item.product?.gstRate !== undefined ? item.product.gstRate : 18;
+    return acc + ((price * item.quantity * gstRate) / 100);
+  }, 0);
+  const tax = Math.round(calculatedTax);
+  const discount = discountInfo?.discount || 0;
+  const grandTotal = Math.max(0, subtotal + shippingCharges + tax - discount);
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -197,20 +288,86 @@ function CheckoutPageContent() {
 
           {/* Place Order box */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-5">
-            <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2">
-              <ShoppingBag className="w-5 h-5 text-secondary" /> 3. Review Order Items
-            </h3>
+            {/* Promo Coupon (Placed at the top of the sidebar/product items) */}
+            <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+              <h3 className="font-extrabold text-sm text-slate-800 dark:text-slate-200 flex items-center gap-2 mb-3">
+                <Ticket className="w-4.5 h-4.5 text-secondary" /> Apply Promo Coupon
+              </h3>
+              <form onSubmit={handleApplyCoupon} className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="DAYKART10"
+                  value={couponInput}
+                  onChange={e => setCouponInput(e.target.value)}
+                  className="flex-1 bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3 py-2 rounded-xl text-xs outline-none uppercase dark:text-slate-200"
+                />
+                <button
+                  type="submit"
+                  disabled={couponValidating}
+                  className="bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl text-xs transition active:scale-95 flex-shrink-0"
+                >
+                  Apply
+                </button>
+              </form>
 
-            <div className="max-h-56 overflow-y-auto space-y-3 pr-2 scrollbar-thin">
-              {cartItems.map((item, idx) => (
-                <div key={idx} className="flex gap-2.5 items-center">
-                  <img src={item.product?.images[0]} alt="" className="w-9 h-9 rounded-lg object-cover" />
-                  <div className="flex-1 min-w-0 text-xs">
-                    <p className="font-bold text-slate-800 dark:text-slate-200 truncate">{item.product?.title}</p>
-                    <p className="text-slate-400 mt-0.5">Qty: {item.quantity}</p>
+              {couponError && (
+                <p className="text-[10px] text-red-500 mt-2 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> {couponError}
+                </p>
+              )}
+
+              {discountInfo && (
+                <p className="text-[10px] text-emerald-500 font-bold mt-2 flex items-center gap-1 animate-bounce">
+                  <span>🎉 Coupon Applied! Saving ₹{discountInfo.discount.toLocaleString('en-IN')}</span>
+                </p>
+              )}
+            </div>
+
+            {/* Review Order Items */}
+            <div>
+              <h3 className="font-extrabold text-sm text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2">
+                <ShoppingBag className="w-4.5 h-4.5 text-secondary" /> Review Order Items
+              </h3>
+
+              <div className="max-h-48 overflow-y-auto space-y-3 pr-2 scrollbar-thin">
+                {cartItems.map((item, idx) => (
+                  <div key={idx} className="flex gap-2.5 items-center">
+                    <img src={item.product?.images[0]} alt="" className="w-9 h-9 rounded-lg object-cover" />
+                    <div className="flex-1 min-w-0 text-xs">
+                      <p className="font-bold text-slate-800 dark:text-slate-200 truncate">{item.product?.title}</p>
+                      <p className="text-slate-400 mt-0.5">Qty: {item.quantity}</p>
+                    </div>
                   </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Order Summary Pricing Breakdown */}
+            <div className="border-t border-slate-100 dark:border-slate-800 pt-4 space-y-2.5 text-xs">
+              <div className="flex justify-between text-slate-500">
+                <span>Bag Subtotal</span>
+                <span>₹{subtotal.toLocaleString('en-IN')}</span>
+              </div>
+              <div className="flex justify-between text-slate-500">
+                <span>GST</span>
+                <span>₹{tax.toLocaleString('en-IN')}</span>
+              </div>
+              <div className="flex justify-between text-slate-500">
+                <span>Delivery Charges</span>
+                <span>{shippingCharges === 0 ? 'FREE' : `₹${shippingCharges}`}</span>
+              </div>
+              {discount > 0 && (
+                <div className={`flex justify-between text-emerald-500 font-bold ${animateDiscount ? 'animate-coupon-success' : ''}`}>
+                  <span>Discount</span>
+                  <span>-₹{discount.toLocaleString('en-IN')}</span>
                 </div>
-              ))}
+              )}
+              <div className="flex justify-between font-extrabold text-sm text-slate-800 dark:text-slate-100 border-t border-slate-100 dark:border-slate-800 pt-3">
+                <span>Grand Total</span>
+                <span className={animateDiscount ? 'animate-coupon-success text-emerald-600' : ''}>
+                  ₹{grandTotal.toLocaleString('en-IN')}
+                </span>
+              </div>
             </div>
 
             <button
