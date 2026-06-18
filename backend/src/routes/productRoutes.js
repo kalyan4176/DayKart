@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { getProducts, getProductById, createProduct, updateProduct, deleteProduct, importCSVProducts, getCategories, getBrands } from '../controllers/productController.js';
+import { getProducts, getProductById, createProduct, updateProduct, deleteProduct, importCSVProducts, getCategories, getBrands, uploadProductImage } from '../controllers/productController.js';
 import { protect, restrictTo } from '../middlewares/auth.js';
 
 const router = express.Router();
@@ -22,6 +22,7 @@ router.use(protect);
 router.post('/', restrictTo('seller', 'admin'), createProduct);
 router.patch('/:id', restrictTo('seller', 'admin'), updateProduct);
 router.delete('/:id', restrictTo('seller', 'admin'), deleteProduct);
+router.post('/upload-image', restrictTo('seller', 'admin'), upload.single('image'), uploadProductImage);
 router.post('/import-csv', restrictTo('seller'), upload.single('file'), importCSVProducts);
 
 export default router;

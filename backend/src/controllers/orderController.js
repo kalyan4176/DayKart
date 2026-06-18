@@ -279,15 +279,17 @@ export const cancelOrder = async (req, res, next) => {
     // Restore stock back to inventory
     for (const item of order.items) {
       const product = await Product.findById(item.product);
-      if (item.variantSku) {
-        const variantIndex = product.variants.findIndex(v => v.sku === item.variantSku);
-        if (variantIndex > -1) {
-          product.variants[variantIndex].inventory += item.quantity;
+      if (product) {
+        if (item.variantSku) {
+          const variantIndex = product.variants.findIndex(v => v.sku === item.variantSku);
+          if (variantIndex > -1) {
+            product.variants[variantIndex].inventory += item.quantity;
+          }
+        } else {
+          product.inventory.quantity += item.quantity;
         }
-      } else {
-        product.inventory.quantity += item.quantity;
+        await product.save();
       }
-      await product.save();
     }
 
     await logAuditEvent({
@@ -358,13 +360,39 @@ export const updateOrderStatus = async (req, res, next) => {
     }
 
     // Progress status
+    let timelineMessage = message;
+    if (status === 'cancelled' && req.user.role === 'seller') {
+      timelineMessage = 'Order rejected by seller.';
+    } else {
+      timelineMessage = message || `Status updated by ${req.user.role}.`;
+    }
+
+    const previousStatus = order.status;
     order.status = status;
     order.statusTimeline.push({
       status,
-      message: message || `Status updated by ${req.user.role}.`,
+      message: timelineMessage,
     });
     
     await order.save();
+
+    // If order transitioned to cancelled, restore stock to inventory
+    if (status === 'cancelled' && previousStatus !== 'cancelled') {
+      for (const item of order.items) {
+        const product = await Product.findById(item.product);
+        if (product) {
+          if (item.variantSku) {
+            const variantIndex = product.variants.findIndex(v => v.sku === item.variantSku);
+            if (variantIndex > -1) {
+              product.variants[variantIndex].inventory += item.quantity;
+            }
+          } else {
+            product.inventory.quantity += item.quantity;
+          }
+          await product.save();
+        }
+      }
+    }
 
     // If order delivered, credit seller revenue
     if (status === 'delivered') {

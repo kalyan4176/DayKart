@@ -177,9 +177,17 @@ export const getCart = async (req, res, next) => {
       await cart.save();
     }
 
+    const items = cart.items.map(item => {
+      const obj = item.toObject();
+      if (!item.product) {
+        obj.product = item.populated('product')?.toString() || null;
+      }
+      return obj;
+    });
+
     res.status(200).json({
       status: 'success',
-      data: { cart: cart.items },
+      data: { cart: items },
     });
   } catch (error) {
     next(error);
@@ -228,10 +236,18 @@ export const updateCart = async (req, res, next) => {
     await cart.save();
     await cart.populate('items.product');
 
+    const items = cart.items.map(item => {
+      const obj = item.toObject();
+      if (!item.product) {
+        obj.product = item.populated('product')?.toString() || null;
+      }
+      return obj;
+    });
+
     res.status(200).json({
       status: 'success',
       message: 'Cart updated successfully.',
-      data: { cart: cart.items },
+      data: { cart: items },
     });
   } catch (error) {
     next(error);
@@ -254,14 +270,33 @@ export const createSellerProfile = async (req, res, next) => {
   try {
     const { storeName, storeDescription, gstin, pan, bankDetails, storeAddress } = req.body;
 
-    const existingSeller = await Seller.findOne({ $or: [{ user: req.user._id }, { storeName }] });
-    if (existingSeller) {
-      return next(new BadRequestError('Seller profile already exists or store name is taken.'));
+    const storeNameTaken = await Seller.findOne({ storeName, user: { $ne: req.user._id } });
+    if (storeNameTaken) {
+      return next(new BadRequestError('Store name is already taken.'));
+    }
+
+    let seller = await Seller.findOne({ user: req.user._id });
+    if (seller) {
+      // Update existing seller profile
+      seller.storeName = storeName;
+      seller.storeDescription = storeDescription;
+      seller.gstin = gstin;
+      seller.pan = pan;
+      seller.bankDetails = bankDetails;
+      if (storeAddress) seller.storeAddress = storeAddress;
+
+      await seller.save();
+
+      return res.status(200).json({
+        status: 'success',
+        message: 'Seller profile updated successfully.',
+        data: { seller },
+      });
     }
 
     const status = process.env.NODE_ENV === 'development' ? 'approved' : 'pending';
 
-    const seller = new Seller({
+    seller = new Seller({
       user: req.user._id,
       storeName,
       storeDescription,

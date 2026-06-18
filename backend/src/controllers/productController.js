@@ -3,19 +3,26 @@ import Category from '../models/Category.js';
 import Brand from '../models/Brand.js';
 import Seller from '../models/Seller.js';
 import redisClient from '../config/redis.js';
+import { uploadFile } from '../services/storageService.js';
 import { logAuditEvent } from '../services/auditService.js';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../utils/customErrors.js';
 import logger from '../config/logger.js';
 
 export const getProducts = async (req, res, next) => {
   try {
-    const { category, brand, minPrice, maxPrice, sort, page = 1, limit = 10, search, status } = req.query;
+    const { category, brand, minPrice, maxPrice, sort, page = 1, limit = 10, search, status, seller } = req.query;
 
     const query = {};
     if (status) {
-      query.status = status;
+      if (status !== 'all') {
+        query.status = status;
+      }
     } else {
       query.status = 'approved';
+    }
+
+    if (seller) {
+      query.seller = seller;
     }
 
     // Filter by category slug
@@ -163,7 +170,7 @@ export const createProduct = async (req, res, next) => {
       description,
       seller: seller._id,
       category,
-      brand,
+      brand: (brand && brand !== '') ? brand : null,
       price,
       compareAtPrice,
       gstRate: gstRate !== undefined ? Number(gstRate) : undefined,
@@ -199,13 +206,13 @@ export const updateProduct = async (req, res, next) => {
   try {
     const { id } = req.params;
     const seller = await Seller.findOne({ user: req.user._id });
-    if (!seller) return next(new ForbiddenError('Access denied.'));
+    if (!seller && req.user.role !== 'admin') return next(new ForbiddenError('Access denied.'));
 
     const product = await Product.findById(id);
     if (!product) return next(new NotFoundError('Product not found.'));
 
     // Verify ownership
-    if (product.seller.toString() !== seller._id.toString() && req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && product.seller.toString() !== seller?._id.toString()) {
       return next(new ForbiddenError('You do not own this product listing.'));
     }
 
@@ -253,13 +260,13 @@ export const deleteProduct = async (req, res, next) => {
   try {
     const { id } = req.params;
     const seller = await Seller.findOne({ user: req.user._id });
-    if (!seller) return next(new ForbiddenError('Access denied.'));
+    if (!seller && req.user.role !== 'admin') return next(new ForbiddenError('Access denied.'));
 
     const product = await Product.findById(id);
     if (!product) return next(new NotFoundError('Product not found.'));
 
     // Verify ownership
-    if (product.seller.toString() !== seller._id.toString() && req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && product.seller.toString() !== seller?._id.toString()) {
       return next(new ForbiddenError('You do not own this product listing.'));
     }
 
@@ -319,11 +326,18 @@ export const importCSVProducts = async (req, res, next) => {
         }
 
         const categoryDoc = await Category.findOne({ slug: categorySlug });
-        const brandDoc = await Brand.findOne({ slug: brandSlug });
-
-        if (!categoryDoc || !brandDoc) {
-          errors.push(`Row ${i}: Invalid category/brand slug.`);
+        if (!categoryDoc) {
+          errors.push(`Row ${i}: Invalid category slug.`);
           continue;
+        }
+
+        let brandDoc = null;
+        if (brandSlug && brandSlug !== '') {
+          brandDoc = await Brand.findOne({ slug: brandSlug });
+          if (!brandDoc) {
+            errors.push(`Row ${i}: Invalid brand slug.`);
+            continue;
+          }
         }
 
         const product = new Product({
@@ -332,7 +346,7 @@ export const importCSVProducts = async (req, res, next) => {
           description,
           seller: seller._id,
           category: categoryDoc._id,
-          brand: brandDoc._id,
+          brand: brandDoc ? brandDoc._id : null,
           price: Number(price),
           compareAtPrice: compareAtPrice ? Number(compareAtPrice) : undefined,
           gstRate: gstRate ? Number(gstRate) : 18,
@@ -387,6 +401,23 @@ export const getBrands = async (req, res, next) => {
     res.status(200).json({
       status: 'success',
       data: { brands },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const uploadProductImage = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return next(new BadRequestError('No image file provided.'));
+    }
+
+    const imageUrl = await uploadFile(req.file, 'products');
+
+    res.status(200).json({
+      status: 'success',
+      data: { imageUrl }
     });
   } catch (error) {
     next(error);
