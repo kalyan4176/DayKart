@@ -96,7 +96,23 @@ export const checkout = async (req, res, next) => {
 
     // 5. Calculate taxes and shipping
     const shippingCharges = subtotal > 1000 || (couponDoc && couponDoc.discountType === 'free_shipping') ? 0 : 99;
-    const tax = Math.round(subtotal * 0.18); // 18% GST estimate
+    
+    let taxAccumulator = 0;
+    for (const item of cart.items) {
+      const product = item.product;
+      const gstRate = product.gstRate !== undefined ? product.gstRate : 18;
+      
+      let itemPrice = 0;
+      if (item.variantSku) {
+        const variant = product.variants.find(v => v.sku === item.variantSku);
+        itemPrice = variant ? variant.price : product.price;
+      } else {
+        itemPrice = product.price;
+      }
+      
+      taxAccumulator += (itemPrice * item.quantity * gstRate) / 100;
+    }
+    const tax = Math.round(taxAccumulator);
     const total = Math.round(subtotal + shippingCharges + tax - discount);
 
     // 6. Generate IDs

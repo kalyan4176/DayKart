@@ -47,3 +47,26 @@ export const addressSchema = z.object({
     isDefault: z.boolean().optional(),
   }),
 });
+
+export const sellerProfileSchema = z.object({
+  body: z.object({
+    storeName: z.string().min(2, 'Store name must be at least 2 characters'),
+    storeDescription: z.string().optional(),
+    gstin: z.string().min(15, 'GSTIN must be 15 characters').max(15, 'GSTIN must be 15 characters'),
+    pan: z.string().min(10, 'PAN must be 10 characters').max(10, 'PAN must be 10 characters'),
+    bankDetails: z.object({
+      accountNumber: z.string().min(1, 'Account number is required'),
+      ifsc: z.string().min(1, 'IFSC is required'),
+      bankName: z.string().min(1, 'Bank name is required'),
+      accountHolderName: z.string().min(1, 'Account holder name is required'),
+    }),
+    storeAddress: z.object({
+      street: z.string().min(1, 'Street is required'),
+      city: z.string().min(1, 'City is required'),
+      state: z.string().min(1, 'State is required'),
+      country: z.string().min(1, 'Country is required'),
+      postalCode: z.string().min(1, 'Postal code is required'),
+    }).optional(),
+  }),
+});
+

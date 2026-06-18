@@ -1,6 +1,7 @@
 import User from '../models/User.js';
 import Wishlist from '../models/Wishlist.js';
 import Cart from '../models/Cart.js';
+import Seller from '../models/Seller.js';
 import redisClient from '../config/redis.js';
 import { NotFoundError, BadRequestError } from '../utils/customErrors.js';
 
@@ -231,6 +232,52 @@ export const updateCart = async (req, res, next) => {
       status: 'success',
       message: 'Cart updated successfully.',
       data: { cart: cart.items },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getSellerProfile = async (req, res, next) => {
+  try {
+    const seller = await Seller.findOne({ user: req.user._id });
+    res.status(200).json({
+      status: 'success',
+      data: { seller },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createSellerProfile = async (req, res, next) => {
+  try {
+    const { storeName, storeDescription, gstin, pan, bankDetails, storeAddress } = req.body;
+
+    const existingSeller = await Seller.findOne({ $or: [{ user: req.user._id }, { storeName }] });
+    if (existingSeller) {
+      return next(new BadRequestError('Seller profile already exists or store name is taken.'));
+    }
+
+    const status = process.env.NODE_ENV === 'development' ? 'approved' : 'pending';
+
+    const seller = new Seller({
+      user: req.user._id,
+      storeName,
+      storeDescription,
+      gstin,
+      pan,
+      bankDetails,
+      storeAddress,
+      status,
+    });
+
+    await seller.save();
+
+    res.status(201).json({
+      status: 'success',
+      message: 'Seller profile created successfully.',
+      data: { seller },
     });
   } catch (error) {
     next(error);

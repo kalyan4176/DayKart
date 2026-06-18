@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { getProducts, getProductById, createProduct, updateProduct, deleteProduct, importCSVProducts } from '../controllers/productController.js';
+import { getProducts, getProductById, createProduct, updateProduct, deleteProduct, importCSVProducts, getCategories, getBrands } from '../controllers/productController.js';
 import { protect, restrictTo } from '../middlewares/auth.js';
 
 const router = express.Router();
@@ -13,6 +13,8 @@ const upload = multer({
 
 // Public catalog routes
 router.get('/', getProducts);
+router.get('/categories', getCategories);
+router.get('/brands', getBrands);
 router.get('/:id', getProductById);
 
 // Seller/Admin protected catalog updates

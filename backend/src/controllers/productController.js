@@ -150,7 +150,7 @@ export const createProduct = async (req, res, next) => {
       return next(new ForbiddenError('Your seller account has not been approved yet.'));
     }
 
-    const { sku, title, description, category, brand, price, compareAtPrice, images, videos, variants, attributes, inventory, tags } = req.body;
+    const { sku, title, description, category, brand, price, compareAtPrice, gstRate, images, videos, variants, attributes, inventory, tags } = req.body;
 
     const existingProduct = await Product.findOne({ sku });
     if (existingProduct) {
@@ -166,6 +166,7 @@ export const createProduct = async (req, res, next) => {
       brand,
       price,
       compareAtPrice,
+      gstRate: gstRate !== undefined ? Number(gstRate) : undefined,
       images,
       videos,
       variants,
@@ -209,7 +210,7 @@ export const updateProduct = async (req, res, next) => {
     }
 
     const fieldsToUpdate = [
-      'title', 'description', 'price', 'compareAtPrice', 'images', 
+      'title', 'description', 'price', 'compareAtPrice', 'gstRate', 'images', 
       'videos', 'variants', 'attributes', 'inventory', 'tags'
     ];
 
@@ -308,7 +309,7 @@ export const importCSVProducts = async (req, res, next) => {
       const row = rows[i];
       if (row.length < 8 || !row[0]) continue;
 
-      const [sku, title, description, price, compareAtPrice, inventoryQuantity, categorySlug, brandSlug, tags] = row.map(cell => cell?.trim());
+      const [sku, title, description, price, compareAtPrice, inventoryQuantity, categorySlug, brandSlug, tags, gstRate] = row.map(cell => cell?.trim());
 
       try {
         const existingProduct = await Product.findOne({ sku });
@@ -334,6 +335,7 @@ export const importCSVProducts = async (req, res, next) => {
           brand: brandDoc._id,
           price: Number(price),
           compareAtPrice: compareAtPrice ? Number(compareAtPrice) : undefined,
+          gstRate: gstRate ? Number(gstRate) : 18,
           inventory: { quantity: Number(inventoryQuantity), lowStockThreshold: 5 },
           images: ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=800'], // default image
           tags: tags ? tags.split(';') : [],
@@ -361,6 +363,30 @@ export const importCSVProducts = async (req, res, next) => {
         totalImported: importedProducts.length,
         failedRows: errors,
       }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getCategories = async (req, res, next) => {
+  try {
+    const categories = await Category.find().sort({ name: 1 });
+    res.status(200).json({
+      status: 'success',
+      data: { categories },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getBrands = async (req, res, next) => {
+  try {
+    const brands = await Brand.find().sort({ name: 1 });
+    res.status(200).json({
+      status: 'success',
+      data: { brands },
     });
   } catch (error) {
     next(error);

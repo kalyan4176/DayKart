@@ -18,6 +18,7 @@ const productSchema = new mongoose.Schema({
   brand: { type: mongoose.Schema.Types.ObjectId, ref: 'Brand', required: true },
   price: { type: Number, required: true },
   compareAtPrice: { type: Number },
+  gstRate: { type: Number, required: true, default: 18 },
   images: [{ type: String, required: true }],
   videos: [{ type: String }],
   variants: [variantSchema],
