@@ -7,6 +7,8 @@ import User from '../models/User.js';
 import Seller from '../models/Seller.js';
 import { logAuditEvent } from '../services/auditService.js';
 import { BadRequestError, NotFoundError, ForbiddenError } from '../utils/customErrors.js';
+import { sendInAppNotification } from '../utils/notificationHelper.js';
+
 
 export const checkout = async (req, res, next) => {
   try {
@@ -175,11 +177,66 @@ export const checkout = async (req, res, next) => {
       await couponDoc.save();
     }
 
+    // Get product details for notification before clearing cart
+    const firstProductTitle = cart.items[0]?.product?.title || 'Product';
+    const itemsCount = cart.items.length;
+    const itemsDescription = itemsCount > 1 
+      ? `"${firstProductTitle}" and ${itemsCount - 1} other item${itemsCount > 2 ? 's' : ''}`
+      : `"${firstProductTitle}"`;
+
+    // Send in-app notification to associated sellers
+    try {
+      const uniqueSellerIds = [...new Set(orderItems.map(item => item.seller.toString()))];
+      for (const sId of uniqueSellerIds) {
+        const sellerDoc = await Seller.findById(sId);
+        if (sellerDoc && sellerDoc.user) {
+          const sellerCartItems = cart.items.filter(item => item.product?.seller?.toString() === sId);
+          if (sellerCartItems.length > 0) {
+            const firstItemTitle = sellerCartItems[0].product.title;
+            const sellerItemsCount = sellerCartItems.length;
+            const sellerItemsDesc = sellerItemsCount > 1
+              ? `"${firstItemTitle}" and ${sellerItemsCount - 1} other item${sellerItemsCount > 2 ? 's' : ''}`
+              : `"${firstItemTitle}"`;
+
+            const sellerTotal = sellerCartItems.reduce((acc, item) => {
+              const price = item.variantSku 
+                ? item.product.variants.find(v => v.sku === item.variantSku).price 
+                : item.product.price;
+              return acc + (price * item.quantity);
+            }, 0);
+
+            const totalQty = sellerCartItems.reduce((acc, item) => acc + item.quantity, 0);
+
+            await sendInAppNotification(
+              sellerDoc.user,
+              'order',
+              'New Order Received',
+              `You received a new order for ${sellerItemsDesc} (Qty: ${totalQty}). Total value: ₹${sellerTotal.toLocaleString('en-IN')}.`,
+              `/orders/${orderId}`
+            );
+          }
+        }
+      }
+    } catch (notifErr) {
+      console.error('Error sending seller checkout notifications:', notifErr);
+    }
+
     // 10. Clear Cart
     cart.items = [];
     await cart.save();
 
+    // Send in-app notification to customer
+    await sendInAppNotification(
+      req.user._id,
+      'order',
+      'Order Placed Successfully',
+      `Your order for ${itemsDescription} totaling ₹${total.toLocaleString('en-IN')} has been placed successfully.`,
+      `/orders/${orderId}`
+    );
+
+
     await logAuditEvent({
+
       actor: req.user._id,
       action: 'CUSTOMER_PLACE_ORDER',
       req,
@@ -292,7 +349,54 @@ export const cancelOrder = async (req, res, next) => {
       }
     }
 
+    // Fetch product details for notification
+    const orderWithProducts = await Order.findOne({ orderId: id }).populate('items.product');
+    const firstProductTitle = orderWithProducts?.items?.[0]?.product?.title || 'Product';
+    const itemsCount = orderWithProducts?.items?.length || 1;
+    const itemsDescription = itemsCount > 1 
+      ? `"${firstProductTitle}" and ${itemsCount - 1} other item${itemsCount > 2 ? 's' : ''}`
+      : `"${firstProductTitle}"`;
+
+    // Send in-app notification to the customer
+    await sendInAppNotification(
+      order.customer,
+      'order',
+      'Order Cancelled',
+      `Your order for ${itemsDescription} has been cancelled.`,
+      `/orders/${id}`
+    );
+
+    // Send in-app notifications to associated sellers
+    try {
+      const uniqueSellerIds = [...new Set(order.items.map(item => item.seller.toString()))];
+      for (const sId of uniqueSellerIds) {
+        const sellerDoc = await Seller.findById(sId);
+        if (sellerDoc && sellerDoc.user) {
+          const sellerItems = orderWithProducts.items.filter(item => item.seller.toString() === sId);
+          if (sellerItems.length > 0) {
+            const firstItemTitle = sellerItems[0]?.product?.title || 'Product';
+            const sellerItemsCount = sellerItems.length;
+            const sellerItemsDesc = sellerItemsCount > 1
+              ? `"${firstItemTitle}" and ${sellerItemsCount - 1} other item${sellerItemsCount > 2 ? 's' : ''}`
+              : `"${firstItemTitle}"`;
+
+            await sendInAppNotification(
+              sellerDoc.user,
+              'order',
+              'Order Cancelled by Customer',
+              `The order for ${sellerItemsDesc} has been cancelled by the customer.`,
+              `/orders/${id}`
+            );
+          }
+        }
+      }
+    } catch (notifErr) {
+      console.error('Error sending seller cancellation notifications:', notifErr);
+    }
+
+
     await logAuditEvent({
+
       actor: req.user._id,
       action: 'CANCEL_ORDER',
       req,
@@ -405,7 +509,33 @@ export const updateOrderStatus = async (req, res, next) => {
       }
     }
 
+    // Send in-app notification to the customer about status change
+    let statusLabel = status;
+    if (status === 'processed') statusLabel = 'approved by seller';
+    else if (status === 'shipped') statusLabel = 'shipped';
+    else if (status === 'out_for_delivery') statusLabel = 'out for delivery';
+    else if (status === 'delivered') statusLabel = 'delivered';
+    else if (status === 'cancelled') statusLabel = 'cancelled';
+
+    // Fetch product details for notification
+    const orderWithProducts = await Order.findOne({ orderId: id }).populate('items.product');
+    const firstProductTitle = orderWithProducts?.items?.[0]?.product?.title || 'Product';
+    const itemsCount = orderWithProducts?.items?.length || 1;
+    const itemsDescription = itemsCount > 1 
+      ? `"${firstProductTitle}" and ${itemsCount - 1} other item${itemsCount > 2 ? 's' : ''}`
+      : `"${firstProductTitle}"`;
+
+    await sendInAppNotification(
+      order.customer,
+      'order',
+      `Order Update: ${status === 'processed' ? 'Approved' : status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}`,
+      `Your order for ${itemsDescription} status is now ${statusLabel}.`,
+      `/orders/${id}`
+    );
+
+
     await logAuditEvent({
+
       actor: req.user._id,
       action: 'UPDATE_ORDER_STATUS',
       req,
@@ -465,3 +595,94 @@ export const assignDeliveryPartner = async (req, res, next) => {
     next(error);
   }
 };
+
+export const returnOrder = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { type, reason } = req.body;
+    const order = await Order.findOne({ orderId: id });
+
+    if (!order) return next(new NotFoundError('Order not found.'));
+
+    if (req.user.role === 'customer' && order.customer.toString() !== req.user._id.toString()) {
+      return next(new ForbiddenError('Access denied.'));
+    }
+
+    if (order.status !== 'delivered') {
+      return next(new BadRequestError('Only delivered orders can be returned or replaced.'));
+    }
+
+    order.status = 'returned';
+    order.statusTimeline.push({
+      status: 'returned',
+      message: `Return/Replacement requested by Customer. Type: ${type === 'replace' ? 'Replacement' : 'Return'}. Reason: ${reason || 'None'}.`,
+    });
+    await order.save();
+
+    // Restore stock back to inventory on order return/replacement
+    for (const item of order.items) {
+      const product = await Product.findById(item.product);
+      if (product) {
+        if (item.variantSku) {
+          const variantIndex = product.variants.findIndex(v => v.sku === item.variantSku);
+          if (variantIndex > -1) {
+            product.variants[variantIndex].inventory += item.quantity;
+          }
+        } else {
+          product.inventory.quantity += item.quantity;
+        }
+        await product.save();
+      }
+    }
+
+    // Fetch product details for notification
+    const orderWithProducts = await Order.findOne({ orderId: id }).populate('items.product');
+    const firstProductTitle = orderWithProducts?.items?.[0]?.product?.title || 'Product';
+    const itemsCount = orderWithProducts?.items?.length || 1;
+    const itemsDescription = itemsCount > 1 
+      ? `"${firstProductTitle}" and ${itemsCount - 1} other item${itemsCount > 2 ? 's' : ''}`
+      : `"${firstProductTitle}"`;
+
+    // Send notifications to sellers and customers
+    // 1. Notify the customer
+    await sendInAppNotification(
+      order.customer,
+      'Return Request Submitted',
+      `Your return/replacement request for ${itemsDescription} has been successfully submitted and is under review.`,
+      `/orders/${order.orderId}`
+    );
+
+    // 2. Notify sellers
+    const uniqueSellers = [...new Set(order.items.map(item => item.seller.toString()))];
+    for (const sellerId of uniqueSellers) {
+      const sellerProfile = await Seller.findById(sellerId);
+      if (sellerProfile) {
+        await sendInAppNotification(
+          sellerProfile.user,
+          'Return/Replacement Requested',
+          `Customer has requested a return/replacement for items in order ${order.orderId}. Type: ${type === 'replace' ? 'Replacement' : 'Return'}. Reason: ${reason || 'None'}.`,
+          `/orders`
+        );
+      }
+    }
+
+    // 3. Notify admins
+    const admins = await User.find({ role: 'admin' });
+    for (const admin of admins) {
+      await sendInAppNotification(
+        admin._id,
+        'Order Return/Replacement Request',
+        `Order ${order.orderId} return/replacement requested. Reason: ${reason || 'None'}.`,
+        `/orders`
+      );
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: { order },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

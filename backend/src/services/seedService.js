@@ -4,6 +4,7 @@ import Category from '../models/Category.js';
 import Brand from '../models/Brand.js';
 import Product from '../models/Product.js';
 import Coupon from '../models/Coupon.js';
+import HeroSlide from '../models/HeroSlide.js';
 import logger from '../config/logger.js';
 
 export const seedDatabase = async () => {
@@ -317,6 +318,80 @@ export const seedDatabase = async () => {
       });
       await c2.save();
       logger.info('Seeded default coupons successfully.');
+    }
+
+    // 7. Seed Hero Slides
+    const slideCount = await HeroSlide.countDocuments();
+    if (slideCount === 0) {
+      logger.info('Seeding default hero slides...');
+      const defaultSlides = [
+        {
+          tagline: 'THE ULTIMATE SHOPPING EXPERIENCE',
+          title: 'Discover the Future of',
+          titleAccent: 'Smart Shopping',
+          description: 'Daykart brings together verified sellers, high-end tech, stylish fashion, and smart product bundles under a lag-free custom user interface.',
+          ctaText: 'Shop Collection',
+          ctaLink: '/products',
+          secondaryCtaText: 'Sell on Daykart',
+          secondaryCtaLink: '/register?role=seller',
+          glowColor1: 'bg-cyan-500/10',
+          glowColor2: 'bg-orange-500/10',
+          categoryName: 'Trending Now',
+          categorySlug: null,
+          products: [],
+          order: 0
+        },
+        {
+          tagline: 'HIGH-PERFORMANCE GADGETS',
+          title: 'Power Your Setup',
+          titleAccent: 'with Premium Tech',
+          description: 'Explore the latest laptops, smartphones, and mobile accessories. Verified specifications, official warranties, and zero-interest payment options.',
+          ctaText: 'Explore Electronics',
+          ctaLink: '/products?category=laptops',
+          secondaryCtaText: 'Browse Mobiles',
+          secondaryCtaLink: '/products?category=mobiles',
+          glowColor1: 'bg-blue-600/10',
+          glowColor2: 'bg-indigo-500/10',
+          categoryName: 'Premium Tech',
+          categorySlug: 'laptops',
+          products: [],
+          order: 1
+        },
+        {
+          tagline: 'STEP INTO STYLE & COMFORT',
+          title: 'Redefine Your',
+          titleAccent: 'Everyday Wardrobe',
+          description: 'Shop the newest seasonal drops, classic streetwear, and comfortable daily wear. Handpicked fabrics, custom designs, and verified size charts.',
+          ctaText: 'Shop Fashion',
+          ctaLink: '/products?category=fashion',
+          secondaryCtaText: 'View Collection',
+          secondaryCtaLink: '/products',
+          glowColor1: 'bg-rose-500/10',
+          glowColor2: 'bg-amber-500/10',
+          categoryName: 'Fashion Apparel',
+          categorySlug: 'fashion',
+          products: [],
+          order: 2
+        },
+        {
+          tagline: 'SMART HOUSEHOLD GEAR',
+          title: 'Transform Your',
+          titleAccent: 'Home & Kitchen Spaces',
+          description: 'Upgrade your kitchen with energy-efficient smart appliances, cookware, and sleek organizers. Durable materials backed by verified product reviews.',
+          ctaText: 'Shop Kitchen Gear',
+          ctaLink: '/products?category=home-kitchen',
+          secondaryCtaText: 'View All Deals',
+          secondaryCtaLink: '/products',
+          glowColor1: 'bg-emerald-600/10',
+          glowColor2: 'bg-teal-500/10',
+          categoryName: 'Home & Kitchen',
+          categorySlug: 'home-kitchen',
+          products: [],
+          order: 3
+        }
+      ];
+      await HeroSlide.insertMany(defaultSlides);
+      logger.info('Seeded default hero slides successfully.');
     }
 
     logger.info('Database seeding checks completed successfully!');

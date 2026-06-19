@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { MapPin, CreditCard, ShieldCheck, ShoppingBag, PlusCircle, CheckCircle2, Ticket, AlertCircle } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useToast } from '@/components/ToastProvider';
-import { useGetCartQuery, useCheckoutMutation, useValidateCouponMutation } from '@/store/api';
+import { useGetCartQuery, useCheckoutMutation, useValidateCouponMutation, useAddAddressMutation } from '@/store/api';
+import { updateUser } from '@/store/authSlice';
 
 const GATEWAYS = [
   { id: 'cod', name: 'Cash on Delivery (COD)', desc: 'Pay with cash upon package delivery.' },
@@ -17,6 +18,7 @@ const GATEWAYS = [
 
 function CheckoutPageContent() {
   const router = useRouter();
+  const dispatch = useDispatch();
   const searchParams = useSearchParams();
   const { showToast } = useToast();
   const initialCoupon = searchParams.get('coupon') || '';
@@ -38,10 +40,94 @@ function CheckoutPageContent() {
   const { data: cartRes, isLoading } = useGetCartQuery(undefined, { skip: !isAuthenticated || !mounted });
   const [checkoutApi, { isLoading: orderPlacing }] = useCheckoutMutation();
   const [validateCoupon, { isLoading: couponValidating }] = useValidateCouponMutation();
+  const [addAddressApi, { isLoading: addressAdding }] = useAddAddressMutation();
 
   const [selectedAddress, setSelectedAddress] = useState(user?.addresses?.find(a => a.isDefault)?._id || user?.addresses?.[0]?._id || '');
   const [selectedGateway, setSelectedGateway] = useState('cod');
   const [orderSuccess, setOrderSuccess] = useState(null);
+  const [fetchingLocation, setFetchingLocation] = useState(false);
+
+  const handleGetLocationAddress = () => {
+    if (!navigator.geolocation) {
+      showToast('Geolocation is not supported by your browser.', 'error');
+      return;
+    }
+
+    setFetchingLocation(true);
+    showToast('Requesting location permission from browser...', 'info');
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        showToast('Translating coordinates to street address...', 'info');
+        
+        try {
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
+          );
+          
+          if (!response.ok) {
+            throw new Error('Reverse geocoding failed');
+          }
+
+          const data = await response.json();
+          const addr = data.address;
+
+          if (!addr) {
+            throw new Error('No address details returned');
+          }
+
+          const streetParts = [];
+          if (addr.house_number) streetParts.push(addr.house_number);
+          if (addr.road) streetParts.push(addr.road);
+          if (addr.suburb || addr.neighbourhood) streetParts.push(addr.suburb || addr.neighbourhood);
+          
+          const street = streetParts.join(', ') || addr.amenity || data.name || 'Current Location';
+          const city = addr.city || addr.town || addr.village || addr.city_district || 'Bangalore';
+          const state = addr.state || 'Karnataka';
+          const country = addr.country || 'India';
+          const postalCode = addr.postcode || '560001';
+
+          const res = await addAddressApi({
+            street,
+            city,
+            state,
+            country,
+            postalCode,
+            isDefault: true,
+          }).unwrap();
+
+          dispatch(updateUser({ addresses: res.data.addresses }));
+          
+          const newAddress = res.data.addresses?.find(addr => addr.isDefault) || res.data.addresses?.[res.data.addresses.length - 1];
+          if (newAddress) {
+            setSelectedAddress(newAddress._id);
+          }
+          
+          showToast(`Address detected: ${street}, ${city}`, 'success');
+        } catch (err) {
+          console.error(err);
+          showToast('Failed to retrieve address from map coordinate translation.', 'error');
+        } finally {
+          setFetchingLocation(false);
+        }
+      },
+      (error) => {
+        console.error(error);
+        setFetchingLocation(false);
+        let errorMsg = 'Failed to retrieve your location.';
+        if (error.code === error.PERMISSION_DENIED) {
+          errorMsg = 'Location permission denied by user.';
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          errorMsg = 'Location position unavailable.';
+        } else if (error.code === error.TIMEOUT) {
+          errorMsg = 'Location request timed out.';
+        }
+        showToast(errorMsg, 'error');
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+  };
 
   const [couponInput, setCouponInput] = useState(initialCoupon);
   const [discountInfo, setDiscountInfo] = useState(null);
@@ -213,19 +299,39 @@ function CheckoutPageContent() {
           <div className="lg:col-span-2 space-y-6">
             {/* Address Selection */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
-              <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 flex items-center gap-2 mb-4">
-                <MapPin className="w-5 h-5 text-secondary" /> 1. Shipping Address
-              </h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-secondary" /> 1. Shipping Address
+                </h3>
+                {user?.addresses?.length > 0 && (
+                  <button
+                    onClick={handleGetLocationAddress}
+                    disabled={fetchingLocation || addressAdding}
+                    className="inline-flex items-center gap-1 text-xxs font-bold text-secondary hover:underline disabled:opacity-50"
+                  >
+                    📍 {fetchingLocation ? 'Fetching...' : 'Get Address from Maps'}
+                  </button>
+                )}
+              </div>
 
               {user?.addresses?.length === 0 ? (
                 <div className="text-center py-6">
                   <p className="text-xs text-slate-400 italic">No addresses saved. Please add one in profile settings.</p>
-                  <button
-                    onClick={() => router.push('/profile')}
-                    className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-secondary hover:underline"
-                  >
-                    <PlusCircle className="w-4 h-4" /> Add New Address
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center mt-4">
+                    <button
+                      onClick={handleGetLocationAddress}
+                      disabled={fetchingLocation || addressAdding}
+                      className="inline-flex items-center justify-center gap-1.5 bg-cyan-600 hover:bg-cyan-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition active:scale-95 disabled:opacity-50 shadow-sm"
+                    >
+                      📍 {fetchingLocation ? 'Fetching location...' : 'Get Address from Maps'}
+                    </button>
+                    <button
+                      onClick={() => router.push('/profile')}
+                      className="inline-flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-355 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold px-4 py-2.5 rounded-xl text-xs transition"
+                    >
+                      Go to Profile Settings
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-3">

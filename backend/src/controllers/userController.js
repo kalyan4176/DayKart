@@ -4,6 +4,7 @@ import Cart from '../models/Cart.js';
 import Seller from '../models/Seller.js';
 import redisClient from '../config/redis.js';
 import { NotFoundError, BadRequestError } from '../utils/customErrors.js';
+import { sendInAppNotification } from '../utils/notificationHelper.js';
 
 export const getProfile = async (req, res, next) => {
   try {
@@ -36,6 +37,15 @@ export const updateProfile = async (req, res, next) => {
     if (redisClient.isOpen) {
       await redisClient.del(`user:${user._id}`);
     }
+
+    // Send in-app notification
+    await sendInAppNotification(
+      user._id,
+      'info',
+      'Profile Updated',
+      'Your profile details have been updated successfully.',
+      '/profile'
+    );
 
     res.status(200).json({
       status: 'success',
@@ -74,6 +84,15 @@ export const addAddress = async (req, res, next) => {
       await redisClient.del(`user:${user._id}`);
     }
 
+    // Send in-app notification
+    await sendInAppNotification(
+      user._id,
+      'info',
+      'Address Added',
+      'A new address was successfully added to your account.',
+      '/profile'
+    );
+
     res.status(200).json({
       status: 'success',
       message: 'Address added successfully.',
@@ -103,6 +122,15 @@ export const removeAddress = async (req, res, next) => {
     if (redisClient.isOpen) {
       await redisClient.del(`user:${user._id}`);
     }
+
+    // Send in-app notification
+    await sendInAppNotification(
+      user._id,
+      'info',
+      'Address Removed',
+      'An address was removed from your profile.',
+      '/profile'
+    );
 
     res.status(200).json({
       status: 'success',
@@ -287,6 +315,15 @@ export const createSellerProfile = async (req, res, next) => {
 
       await seller.save();
 
+      // Send in-app notification
+      await sendInAppNotification(
+        req.user._id,
+        'info',
+        'Seller Profile Updated',
+        'Your seller store profile details have been updated successfully.',
+        '/seller/dashboard'
+      );
+
       return res.status(200).json({
         status: 'success',
         message: 'Seller profile updated successfully.',
@@ -308,6 +345,35 @@ export const createSellerProfile = async (req, res, next) => {
     });
 
     await seller.save();
+
+    // Send in-app notification
+    await sendInAppNotification(
+      req.user._id,
+      'info',
+      'Seller Profile Submitted',
+      status === 'approved'
+        ? 'Your seller store profile was created and auto-approved!'
+        : 'Your seller store profile has been submitted and is awaiting administrator approval.',
+      '/seller/dashboard'
+    );
+
+    // Send in-app notification to admins if pending review
+    if (status === 'pending') {
+      try {
+        const admins = await User.find({ role: 'admin' });
+        for (const admin of admins) {
+          await sendInAppNotification(
+            admin._id,
+            'alert',
+            'New Seller Store Registration',
+            `Merchant store "${storeName}" has registered and is awaiting administrator approval.`,
+            '/admin/dashboard'
+          );
+        }
+      } catch (adminNotifErr) {
+        console.error('Error sending admin store registration notification:', adminNotifErr);
+      }
+    }
 
     res.status(201).json({
       status: 'success',

@@ -6,6 +6,7 @@ import { sendTokenResponse } from '../utils/token.js';
 import { logAuditEvent } from '../services/auditService.js';
 import { AppError, BadRequestError, UnauthorizedError, NotFoundError } from '../utils/customErrors.js';
 import logger from '../config/logger.js';
+import { sendInAppNotification } from '../utils/notificationHelper.js';
 
 // Helper to generate 6 digit OTP
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
@@ -97,6 +98,15 @@ export const verifyOtp = async (req, res, next) => {
     user.otp = undefined;
     user.otpExpires = undefined;
     await user.save();
+
+    // Send in-app welcome notification
+    await sendInAppNotification(
+      user._id,
+      'info',
+      'Welcome to Daykart!',
+      `Welcome to Daykart, ${user.name}! We are thrilled to have you here. Start exploring our smart marketplace!`,
+      '/products'
+    );
 
     await logAuditEvent({
       actor: user._id,

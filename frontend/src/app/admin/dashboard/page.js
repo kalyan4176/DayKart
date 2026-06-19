@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSelector, useDispatch } from 'react-redux';
-import { LayoutDashboard, Users, ShoppingBag, ShieldCheck, CheckCircle2, XCircle, User, Mail, Phone, AlertTriangle, Store, Plus, Trash2, Edit, FolderOpen, ClipboardList, RefreshCw, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Users, ShoppingBag, ShieldCheck, CheckCircle2, XCircle, User, Mail, Phone, AlertTriangle, Store, Plus, Trash2, Edit, FolderOpen, ClipboardList, RefreshCw, ChevronRight, Sliders } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ConfirmationModal from '@/components/ConfirmationModal';
@@ -23,7 +23,11 @@ import {
   useCreateSellerDirectlyMutation,
   useDeleteSellerMutation,
   useDeleteProductMutation,
-  useGetAdminOrdersQuery,
+   useGetAdminOrdersQuery,
+   useGetHeroSlidesQuery,
+   useCreateHeroSlideMutation,
+   useUpdateHeroSlideMutation,
+   useDeleteHeroSlideMutation,
 } from '@/store/api';
 
 export default function AdminDashboard() {
@@ -74,6 +78,125 @@ export default function AdminDashboard() {
   const { data: statsRes, isLoading: statsLoading } = useGetAdminStatsQuery(undefined, { skip: activeTab !== 'overview' || !isAdmin || !mounted });
   const { data: sellersRes, refetch: refetchSellers } = useGetAdminUsersQuery({ role: 'seller' }, { skip: (activeTab !== 'sellers' && activeTab !== 'approvals') || !isAdmin || !mounted });
   const { data: productsRes, refetch: refetchProducts } = useGetProductsQuery({ status: activeTab === 'approvals' ? 'pending' : productFilter, limit: 100 }, { skip: (activeTab !== 'products' && activeTab !== 'approvals') || !isAdmin || !mounted });
+
+  // Carousel manager state and queries
+  const { data: slidesRes, refetch: refetchSlides } = useGetHeroSlidesQuery(undefined, { skip: activeTab !== 'carousel' || !isAdmin || !mounted });
+  const { data: approvedProductsRes } = useGetProductsQuery({ status: 'approved', limit: 100 }, { skip: activeTab !== 'carousel' || !isAdmin || !mounted });
+
+  const [createHeroSlide] = useCreateHeroSlideMutation();
+  const [updateHeroSlide] = useUpdateHeroSlideMutation();
+  const [deleteHeroSlide] = useDeleteHeroSlideMutation();
+
+  const [editingSlide, setEditingSlide] = useState(null);
+  const [slideTagline, setSlideTagline] = useState('');
+  const [slideTitle, setSlideTitle] = useState('');
+  const [slideTitleAccent, setSlideTitleAccent] = useState('');
+  const [slideDescription, setSlideDescription] = useState('');
+  const [slideCtaText, setSlideCtaText] = useState('');
+  const [slideCtaLink, setSlideCtaLink] = useState('');
+  const [slideSecondaryCtaText, setSlideSecondaryCtaText] = useState('');
+  const [slideSecondaryCtaLink, setSlideSecondaryCtaLink] = useState('');
+  const [slideCategoryName, setSlideCategoryName] = useState('');
+  const [slideCategorySlug, setSlideCategorySlug] = useState('');
+  const [slideGlowColor1, setSlideGlowColor1] = useState('bg-cyan-500/10');
+  const [slideGlowColor2, setSlideGlowColor2] = useState('bg-orange-500/10');
+  const [slideOrder, setSlideOrder] = useState(0);
+  const [slideSelectedProducts, setSlideSelectedProducts] = useState([]);
+  const [slideSearchQuery, setSlideSearchQuery] = useState('');
+
+  const resetSlideForm = () => {
+    setEditingSlide(null);
+    setSlideTagline('');
+    setSlideTitle('');
+    setSlideTitleAccent('');
+    setSlideDescription('');
+    setSlideCtaText('');
+    setSlideCtaLink('');
+    setSlideSecondaryCtaText('');
+    setSlideSecondaryCtaLink('');
+    setSlideCategoryName('');
+    setSlideCategorySlug('');
+    setSlideGlowColor1('bg-cyan-500/10');
+    setSlideGlowColor2('bg-orange-500/10');
+    setSlideOrder(0);
+    setSlideSelectedProducts([]);
+    setSlideSearchQuery('');
+  };
+
+  const handleSaveSlide = async (e) => {
+    e.preventDefault();
+    if (!slideTagline || !slideTitle || !slideTitleAccent || !slideDescription || !slideCtaText || !slideCtaLink) {
+      showToast('Please fill in all required fields.', 'error');
+      return;
+    }
+
+    const slideData = {
+      tagline: slideTagline,
+      title: slideTitle,
+      titleAccent: slideTitleAccent,
+      description: slideDescription,
+      ctaText: slideCtaText,
+      ctaLink: slideCtaLink,
+      secondaryCtaText: slideSecondaryCtaText,
+      secondaryCtaLink: slideSecondaryCtaLink,
+      categoryName: slideCategoryName,
+      categorySlug: slideCategorySlug || null,
+      glowColor1: slideGlowColor1,
+      glowColor2: slideGlowColor2,
+      order: Number(slideOrder),
+      products: slideSelectedProducts
+    };
+
+    try {
+      if (editingSlide) {
+        await updateHeroSlide({ id: editingSlide._id, ...slideData }).unwrap();
+        showToast('Hero slide updated successfully!', 'success');
+      } else {
+        await createHeroSlide(slideData).unwrap();
+        showToast('Hero slide created successfully!', 'success');
+      }
+      resetSlideForm();
+      if (refetchSlides) refetchSlides();
+    } catch (err) {
+      showToast(err.data?.message || 'Failed to save hero slide.', 'error');
+    }
+  };
+
+  const handleEditSlide = (slide) => {
+    setEditingSlide(slide);
+    setSlideTagline(slide.tagline);
+    setSlideTitle(slide.title);
+    setSlideTitleAccent(slide.titleAccent);
+    setSlideDescription(slide.description);
+    setSlideCtaText(slide.ctaText);
+    setSlideCtaLink(slide.ctaLink);
+    setSlideSecondaryCtaText(slide.secondaryCtaText || '');
+    setSlideSecondaryCtaLink(slide.secondaryCtaLink || '');
+    setSlideCategoryName(slide.categoryName || '');
+    setSlideCategorySlug(slide.categorySlug || '');
+    setSlideGlowColor1(slide.glowColor1 || 'bg-cyan-500/10');
+    setSlideGlowColor2(slide.glowColor2 || 'bg-orange-500/10');
+    setSlideOrder(slide.order || 0);
+    setSlideSelectedProducts(slide.products?.map(p => p._id || p) || []);
+  };
+
+  const handleDeleteSlide = (slideId) => {
+    triggerConfirmation({
+      title: 'Delete Hero Slide',
+      message: 'Are you sure you want to delete this hero slide? This will remove it from the home page carousel.',
+      type: 'danger',
+      onConfirm: async () => {
+        setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+        try {
+          await deleteHeroSlide(slideId).unwrap();
+          showToast('Hero slide deleted successfully!', 'success');
+          if (refetchSlides) refetchSlides();
+        } catch (err) {
+          showToast(err.data?.message || 'Failed to delete hero slide.', 'error');
+        }
+      }
+    });
+  };
   const { data: categoriesRes, refetch: refetchCategories } = useGetCategoriesQuery(undefined, { skip: activeTab !== 'categories' || !isAdmin || !mounted });
   const { data: adminOrdersRes, refetch: refetchAdminOrders, isLoading: ordersLoading } = useGetAdminOrdersQuery(
     undefined,
@@ -402,6 +525,16 @@ export default function AdminDashboard() {
               }`}
             >
               <FolderOpen className="w-4.5 h-4.5" /> Manage Categories
+            </button>
+            <button
+              onClick={() => setActiveTab('carousel')}
+              className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                activeTab === 'carousel'
+                  ? 'bg-secondary text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Sliders className="w-4.5 h-4.5" /> Manage Carousel
             </button>
             <button
               onClick={() => setActiveTab('profile')}
@@ -1190,6 +1323,315 @@ export default function AdminDashboard() {
                               onClick={() => handleDeleteCategory(cat._id)}
                               className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-xl"
                               title="Delete Category"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'carousel' && (
+              /* Hero Carousel Slides Management Panel */
+              <div className="space-y-6">
+                {/* Form to Create/Update Slide */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-4">
+                  <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2">
+                    <Sliders className="w-5 h-5 text-secondary" /> {editingSlide ? 'Update Hero Slide' : 'Create New Hero Slide'}
+                  </h3>
+
+                  <form onSubmit={handleSaveSlide} className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">Tagline *</label>
+                        <input
+                          type="text"
+                          required
+                          value={slideTagline}
+                          onChange={e => setSlideTagline(e.target.value)}
+                          placeholder="e.g. HIGH-PERFORMANCE GADGETS"
+                          className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-4 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">Primary Title *</label>
+                        <input
+                          type="text"
+                          required
+                          value={slideTitle}
+                          onChange={e => setSlideTitle(e.target.value)}
+                          placeholder="e.g. Power Your Setup"
+                          className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-4 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">Gradient Accent Title *</label>
+                        <input
+                          type="text"
+                          required
+                          value={slideTitleAccent}
+                          onChange={e => setSlideTitleAccent(e.target.value)}
+                          placeholder="e.g. with Premium Tech"
+                          className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-4 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">Slide Description *</label>
+                      <textarea
+                        required
+                        value={slideDescription}
+                        onChange={e => setSlideDescription(e.target.value)}
+                        placeholder="Detailed slide descriptive subtitle text..."
+                        rows={2}
+                        className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-4 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">Primary CTA Text *</label>
+                        <input
+                          type="text"
+                          required
+                          value={slideCtaText}
+                          onChange={e => setSlideCtaText(e.target.value)}
+                          placeholder="e.g. Shop Collection"
+                          className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-4 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">Primary CTA Link *</label>
+                        <input
+                          type="text"
+                          required
+                          value={slideCtaLink}
+                          onChange={e => setSlideCtaLink(e.target.value)}
+                          placeholder="e.g. /products?category=laptops"
+                          className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-4 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">Secondary CTA Text</label>
+                        <input
+                          type="text"
+                          value={slideSecondaryCtaText}
+                          onChange={e => setSlideSecondaryCtaText(e.target.value)}
+                          placeholder="e.g. Sell on Daykart"
+                          className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-4 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">Secondary CTA Link</label>
+                        <input
+                          type="text"
+                          value={slideSecondaryCtaLink}
+                          onChange={e => setSlideSecondaryCtaLink(e.target.value)}
+                          placeholder="e.g. /register?role=seller"
+                          className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-4 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">Category Name badge</label>
+                        <input
+                          type="text"
+                          value={slideCategoryName}
+                          onChange={e => setSlideCategoryName(e.target.value)}
+                          placeholder="e.g. Premium Tech"
+                          className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-4 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">Category Slug</label>
+                        <select
+                          value={slideCategorySlug}
+                          onChange={e => setSlideCategorySlug(e.target.value)}
+                          className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-4 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                        >
+                          <option value="">None (Generic / Trending)</option>
+                          <option value="mobiles">Mobiles</option>
+                          <option value="laptops">Laptops</option>
+                          <option value="fashion">Fashion</option>
+                          <option value="home-kitchen">Home & Kitchen</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">Banner Glow Color 1</label>
+                        <select
+                          value={slideGlowColor1}
+                          onChange={e => setSlideGlowColor1(e.target.value)}
+                          className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-4 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                        >
+                          <option value="bg-cyan-500/10">Cyan Glow</option>
+                          <option value="bg-blue-600/10">Blue Glow</option>
+                          <option value="bg-rose-500/10">Rose Glow</option>
+                          <option value="bg-emerald-600/10">Emerald Glow</option>
+                          <option value="bg-purple-600/10">Purple Glow</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">Banner Glow Color 2</label>
+                        <select
+                          value={slideGlowColor2}
+                          onChange={e => setSlideGlowColor2(e.target.value)}
+                          className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-4 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                        >
+                          <option value="bg-orange-500/10">Orange Glow</option>
+                          <option value="bg-indigo-500/10">Indigo Glow</option>
+                          <option value="bg-amber-500/10">Amber Glow</option>
+                          <option value="bg-teal-500/10">Teal Glow</option>
+                          <option value="bg-pink-500/10">Pink Glow</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">Sorting Order Index</label>
+                        <input
+                          type="number"
+                          value={slideOrder}
+                          onChange={e => setSlideOrder(e.target.value)}
+                          className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-4 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Searchable Custom Product Multi-selector */}
+                    <div className="space-y-2.5 border-t border-slate-100 dark:border-slate-800 pt-4">
+                      <div className="flex justify-between items-center flex-wrap gap-2">
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase">
+                          Select Sub-Carousel Products (Max 3 - Selected: {slideSelectedProducts.length}/3)
+                        </label>
+                        <span className="text-[10px] font-semibold text-slate-400 italic">
+                          If none selected, falls back to fetching products by category.
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Search catalog products to link..."
+                        value={slideSearchQuery}
+                        onChange={e => setSlideSearchQuery(e.target.value)}
+                        className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-4 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                      />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-44 overflow-y-auto p-1.5 border border-slate-100 dark:border-slate-800/80 rounded-2xl bg-slate-50/20 dark:bg-slate-900/10">
+                        {approvedProductsRes?.data?.products
+                          ?.filter(p => p.title.toLowerCase().includes(slideSearchQuery.toLowerCase()))
+                          .map(p => {
+                            const isSelected = slideSelectedProducts.includes(p._id);
+                            return (
+                              <div
+                                key={p._id}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSlideSelectedProducts(slideSelectedProducts.filter(id => id !== p._id));
+                                  } else {
+                                    if (slideSelectedProducts.length >= 3) {
+                                      showToast('You can only select up to 3 products.', 'error');
+                                    } else {
+                                      setSlideSelectedProducts([...slideSelectedProducts, p._id]);
+                                    }
+                                  }
+                                }}
+                                className={`p-2.5 rounded-xl border text-left cursor-pointer transition flex items-center gap-2.5 ${
+                                  isSelected
+                                    ? 'border-secondary bg-secondary/10 dark:bg-secondary/5'
+                                    : 'border-slate-200 dark:border-slate-800 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 bg-white dark:bg-slate-900'
+                                }`}
+                              >
+                                <img
+                                  src={p.images?.[0] || '/placeholder.png'}
+                                  alt=""
+                                  className="w-8 h-8 rounded object-cover flex-shrink-0"
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[10px] font-bold text-slate-800 dark:text-slate-200 truncate">{p.title}</p>
+                                  <p className="text-[9px] text-slate-400">₹{p.price.toLocaleString('en-IN')}</p>
+                                </div>
+                                {isSelected && <CheckCircle2 className="w-4 h-4 text-secondary flex-shrink-0" />}
+                              </div>
+                            );
+                          })
+                        }
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3 pt-2">
+                      <button
+                        type="submit"
+                        className="flex-1 bg-secondary hover:bg-cyan-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-md transition"
+                      >
+                        {editingSlide ? 'Update Hero Slide' : 'Save Hero Slide'}
+                      </button>
+                      {editingSlide && (
+                        <button
+                          type="button"
+                          onClick={resetSlideForm}
+                          className="bg-slate-200 hover:bg-slate-350 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold px-6 py-2.5 rounded-xl text-xs transition"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </form>
+                </div>
+
+                {/* List of Active Slides */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
+                  <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-3 mb-4 flex items-center gap-2">
+                    <Sliders className="w-5 h-5 text-secondary" /> Active Banner Slides ({slidesRes?.data?.slides?.length || 0})
+                  </h3>
+
+                  {!slidesRes?.data?.slides || slidesRes.data.slides.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic py-2">No custom hero slides configured. Homepage defaults to pre-seeded carousel.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4">
+                      {slidesRes.data.slides.map(slide => (
+                        <div key={slide._id} className="p-4 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-wrap justify-between items-center gap-4 bg-slate-50/20 dark:bg-slate-900/10">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded uppercase">Order: {slide.order}</span>
+                              <span className="text-[10px] font-black text-secondary uppercase">{slide.tagline}</span>
+                            </div>
+                            <h4 className="text-sm font-extrabold text-slate-800 dark:text-slate-200 mt-1">
+                              {slide.title} <span className="text-cyan-500">{slide.titleAccent}</span>
+                            </h4>
+                            <p className="text-[11px] text-slate-450 dark:text-slate-400 mt-0.5 line-clamp-1">{slide.description}</p>
+                            <div className="flex gap-4 mt-2 text-[10px] font-semibold text-slate-450">
+                              <span>CTA Text: <strong className="text-slate-650 dark:text-slate-350">{slide.ctaText}</strong></span>
+                              <span>Category Slug: <strong className="text-slate-650 dark:text-slate-350">{slide.categorySlug || 'None'}</strong></span>
+                              <span>Products: <strong className="text-slate-650 dark:text-slate-350">{slide.products?.length || 0} selected</strong></span>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleEditSlide(slide)}
+                              className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 p-2 rounded-xl text-slate-600 dark:text-slate-300 transition"
+                              title="Edit Slide"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteSlide(slide._id)}
+                              className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-xl transition"
+                              title="Delete Slide"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>

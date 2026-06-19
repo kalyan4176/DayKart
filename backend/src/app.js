@@ -15,6 +15,8 @@ import couponRouter from './routes/couponRoutes.js';
 import reviewRouter from './routes/reviewRoutes.js';
 import supportRouter from './routes/supportRoutes.js';
 import recommendationRouter from './routes/recommendationRoutes.js';
+import notificationRouter from './routes/notificationRoutes.js';
+import heroSlideRouter from './routes/heroSlideRoutes.js';
 
 import errorHandler from './middlewares/errorHandler.js';
 import { NotFoundError } from './utils/customErrors.js';
@@ -85,6 +87,9 @@ app.use('/api/v1/coupons', couponRouter);
 app.use('/api/v1/reviews', reviewRouter);
 app.use('/api/v1/support', supportRouter);
 app.use('/api/v1/recommendations', recommendationRouter);
+app.use('/api/v1/notifications', notificationRouter);
+app.use('/api/v1/hero-slides', heroSlideRouter);
+
 
 // 8. 404 Route handler
 app.all('*', (req, res, next) => {

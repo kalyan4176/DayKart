@@ -7,6 +7,9 @@ import { uploadFile } from '../services/storageService.js';
 import { logAuditEvent } from '../services/auditService.js';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../utils/customErrors.js';
 import logger from '../config/logger.js';
+import User from '../models/User.js';
+import { sendInAppNotification } from '../utils/notificationHelper.js';
+
 
 export const getProducts = async (req, res, next) => {
   try {
@@ -184,6 +187,30 @@ export const createProduct = async (req, res, next) => {
     });
 
     await product.save();
+
+    // Send in-app notifications to seller and admins
+    try {
+      await sendInAppNotification(
+        req.user._id,
+        'info',
+        'Product Listing Submitted',
+        `Your product "${product.title}" has been submitted and is awaiting administrator approval.`,
+        '/seller/dashboard'
+      );
+
+      const admins = await User.find({ role: 'admin' });
+      for (const admin of admins) {
+        await sendInAppNotification(
+          admin._id,
+          'alert',
+          'New Product Submission',
+          `Product "${product.title}" has been submitted by "${seller.storeName}" and is awaiting review.`,
+          '/admin/dashboard'
+        );
+      }
+    } catch (notifErr) {
+      console.error('Error sending product creation notifications:', notifErr);
+    }
 
     await logAuditEvent({
       actor: req.user._id,

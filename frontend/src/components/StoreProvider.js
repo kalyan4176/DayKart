@@ -5,6 +5,7 @@ import { store } from '@/store';
 import { useEffect } from 'react';
 import { initTheme } from '@/store/authSlice';
 import ToastProvider from '@/components/ToastProvider';
+import NotificationListener from '@/components/NotificationListener';
 
 export default function StoreProvider({ children }) {
   useEffect(() => {
@@ -14,8 +15,10 @@ export default function StoreProvider({ children }) {
   return (
     <Provider store={store}>
       <ToastProvider>
+        <NotificationListener />
         {children}
       </ToastProvider>
     </Provider>
   );
 }
+

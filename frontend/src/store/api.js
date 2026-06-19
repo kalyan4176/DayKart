@@ -42,7 +42,7 @@ const baseQueryWithReauth = async (args, apiInstance, extraOptions) => {
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['User', 'Product', 'Cart', 'Order', 'Coupon', 'Review', 'Support', 'Wishlist', 'SellerProfile', 'Category'],
+  tagTypes: ['User', 'Product', 'Cart', 'Order', 'Coupon', 'Review', 'Support', 'Wishlist', 'SellerProfile', 'Category', 'Notifications', 'HeroSlide'],
   endpoints: (builder) => ({
     login: builder.mutation({
       query: (credentials) => ({
@@ -330,6 +330,32 @@ export const api = createApi({
         method: 'DELETE',
       }),
     }),
+    getNotifications: builder.query({
+      query: () => '/notifications',
+      providesTags: ['Notifications'],
+    }),
+    markNotificationRead: builder.mutation({
+      query: (id) => ({
+        url: `/notifications/${id}/read`,
+        method: 'PATCH',
+      }),
+      invalidatesTags: ['Notifications'],
+    }),
+    markAllNotificationsRead: builder.mutation({
+      query: () => ({
+        url: '/notifications/read-all',
+        method: 'PATCH',
+      }),
+      invalidatesTags: ['Notifications'],
+    }),
+    deleteNotification: builder.mutation({
+      query: (id) => ({
+        url: `/notifications/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Notifications'],
+    }),
+
     getMyTickets: builder.query({
       query: () => '/support/my-tickets',
       providesTags: ['Support'],
@@ -341,6 +367,42 @@ export const api = createApi({
         body: ticketData,
       }),
       invalidatesTags: ['Support'],
+    }),
+
+    getHeroSlides: builder.query({
+      query: () => '/hero-slides',
+      providesTags: ['HeroSlide'],
+    }),
+    createHeroSlide: builder.mutation({
+      query: (slideData) => ({
+        url: '/hero-slides',
+        method: 'POST',
+        body: slideData,
+      }),
+      invalidatesTags: ['HeroSlide'],
+    }),
+    updateHeroSlide: builder.mutation({
+      query: ({ id, ...slideData }) => ({
+        url: `/hero-slides/${id}`,
+        method: 'PATCH',
+        body: slideData,
+      }),
+      invalidatesTags: ['HeroSlide'],
+    }),
+    deleteHeroSlide: builder.mutation({
+      query: (id) => ({
+        url: `/hero-slides/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['HeroSlide'],
+    }),
+    returnOrder: builder.mutation({
+      query: ({ id, ...returnData }) => ({
+        url: `/orders/${id}/return`,
+        method: 'POST',
+        body: returnData,
+      }),
+      invalidatesTags: ['Order'],
     }),
   }),
 });
@@ -386,6 +448,10 @@ export const {
   useApproveProductMutation,
   useGetSellerProfileQuery,
   useCreateSellerProfileMutation,
+  useGetNotificationsQuery,
+  useMarkNotificationReadMutation,
+  useMarkAllNotificationsReadMutation,
+  useDeleteNotificationMutation,
   useGetMyTicketsQuery,
   useCreateTicketMutation,
   useCreateCategoryMutation,
@@ -394,4 +460,9 @@ export const {
   useUploadProductImageMutation,
   useCreateSellerDirectlyMutation,
   useDeleteSellerMutation,
+  useGetHeroSlidesQuery,
+  useCreateHeroSlideMutation,
+  useUpdateHeroSlideMutation,
+  useDeleteHeroSlideMutation,
+  useReturnOrderMutation,
 } = api;

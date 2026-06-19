@@ -65,9 +65,9 @@ export default function ToastProvider({ children }) {
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
               {toast.type === 'success' ? 'Success' : toast.type === 'error' ? 'Error' : 'Notification'}
             </p>
-            <p className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-snug truncate">
+            <div className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-snug">
               {toast.message}
-            </p>
+            </div>
           </div>
 
           <button

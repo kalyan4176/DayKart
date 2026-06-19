@@ -7,6 +7,8 @@ import { useSelector, useDispatch } from 'react-redux';
 import { ShoppingCart, Heart, User, Search, LogOut, LayoutDashboard, Sparkles, Menu, X, ChevronRight, ShoppingBag } from 'lucide-react';
 import { logoutUser } from '@/store/authSlice';
 import { useGetCartQuery, useLogoutMutation } from '@/store/api';
+import NotificationBell from './NotificationBell';
+
 
 export default function Navbar() {
   const router = useRouter();
@@ -120,9 +122,15 @@ export default function Navbar() {
               <Heart className="w-5 h-5" />
             </Link>
 
+            {/* Notifications Bell */}
+            {mounted && isAuthenticated && (
+              <NotificationBell />
+            )}
+
             {/* Cart */}
             <Link
               href={mounted && isAuthenticated ? "/cart" : "/login"}
+
               className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-secondary hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-all duration-300 relative"
               title="Cart"
             >

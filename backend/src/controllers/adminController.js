@@ -7,6 +7,7 @@ import Category from '../models/Category.js';
 import redisClient from '../config/redis.js';
 import { logAuditEvent } from '../services/auditService.js';
 import { NotFoundError, BadRequestError } from '../utils/customErrors.js';
+import { sendInAppNotification } from '../utils/notificationHelper.js';
 
 export const getDashboardStats = async (req, res, next) => {
   try {
@@ -101,6 +102,17 @@ export const approveSeller = async (req, res, next) => {
     seller.status = status;
     await seller.save();
 
+    // Send in-app notification to the seller user
+    await sendInAppNotification(
+      seller.user,
+      'info',
+      status === 'approved' ? 'Seller Account Approved' : 'Seller Account Rejected',
+      status === 'approved' 
+        ? `Your seller store profile for "${seller.storeName}" has been approved! Welcome to Daykart.`
+        : `Your seller store profile for "${seller.storeName}" was rejected by the administrator.`,
+      '/seller/dashboard'
+    );
+
     await logAuditEvent({
       actor: req.user._id,
       action: `ADMIN_${status.toUpperCase()}_SELLER`,
@@ -136,6 +148,20 @@ export const approveProduct = async (req, res, next) => {
     // Invalidate Redis caches
     if (redisClient.isOpen) {
       await redisClient.del(`product:detail:${productId}`);
+    }
+
+    // Send in-app notification to the seller user
+    const sellerDoc = await Seller.findById(product.seller);
+    if (sellerDoc) {
+      await sendInAppNotification(
+        sellerDoc.user,
+        'info',
+        status === 'approved' ? 'Product Listing Approved' : 'Product Listing Rejected',
+        status === 'approved'
+          ? `Your product listing "${product.title}" has been approved and is now live on Daykart.`
+          : `Your product listing "${product.title}" was rejected by the administrator.`,
+        '/seller/dashboard'
+      );
     }
 
     await logAuditEvent({
@@ -279,6 +305,15 @@ export const deleteSeller = async (req, res, next) => {
     if (user) {
       user.role = 'customer';
       await user.save();
+
+      // Send in-app notification to the user
+      await sendInAppNotification(
+        user._id,
+        'alert',
+        'Seller Store Removed',
+        `Your seller store profile for "${seller.storeName}" has been removed by the administrator and your account has been reverted to customer.`,
+        '/profile'
+      );
     }
 
     // 3. Delete seller profile
@@ -355,6 +390,15 @@ export const createSellerDirectly = async (req, res, next) => {
       status: 'approved'
     });
     await seller.save();
+
+    // Send welcome and approval notifications to the user
+    await sendInAppNotification(
+      user._id,
+      'info',
+      'Welcome to Daykart!',
+      `Welcome, ${name}! Your seller account has been directly registered and approved by the administrator.`,
+      '/seller/dashboard'
+    );
 
     await logAuditEvent({
       actor: req.user._id,
