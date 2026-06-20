@@ -5,6 +5,7 @@ import Brand from '../models/Brand.js';
 import Product from '../models/Product.js';
 import Coupon from '../models/Coupon.js';
 import HeroSlide from '../models/HeroSlide.js';
+import ShippingRule from '../models/ShippingRule.js';
 import logger from '../config/logger.js';
 
 export const seedDatabase = async () => {
@@ -299,7 +300,7 @@ export const seedDatabase = async () => {
         endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
         usageLimit: 1000,
         userLimit: 2,
-        active: true,
+        active: false,
       });
       await c1.save();
 
@@ -314,7 +315,7 @@ export const seedDatabase = async () => {
         endDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000), // 60 days
         usageLimit: 500,
         userLimit: 1,
-        active: true,
+        active: false,
       });
       await c2.save();
       logger.info('Seeded default coupons successfully.');
@@ -392,6 +393,20 @@ export const seedDatabase = async () => {
       ];
       await HeroSlide.insertMany(defaultSlides);
       logger.info('Seeded default hero slides successfully.');
+    }
+
+    // 7. Seed Shipping Rules
+    logger.info('Checking/Seeding default shipping rules...');
+    const shippingRuleCount = await ShippingRule.countDocuments();
+    if (shippingRuleCount === 0) {
+      logger.info('Creating default shipping rules...');
+      const defaultRules = [
+        { minCartValue: 0, maxCartValue: 150, charge: 50 },
+        { minCartValue: 151, maxCartValue: 299, charge: 20 },
+        { minCartValue: 300, maxCartValue: null, charge: 0 }
+      ];
+      await ShippingRule.insertMany(defaultRules);
+      logger.info('Seeded default shipping rules successfully.');
     }
 
     logger.info('Database seeding checks completed successfully!');

@@ -39,6 +39,19 @@ const PORT = process.env.PORT || 5000;
 const startServer = async () => {
   await connectDB();
   await seedDatabase();
+
+  // Deactivate test coupons on startup
+  try {
+    const Coupon = (await import('./models/Coupon.js')).default;
+    await Coupon.updateMany(
+      { code: { $in: ['DAYKART10', 'FLAT500'] } },
+      { active: false }
+    );
+    logger.info('Deactivated seeded testing coupons (DAYKART10, FLAT500) in database.');
+  } catch (err) {
+    logger.error('Error deactivating test coupons:', err);
+  }
+
   await runAprioriPipeline();
 
   server.listen(PORT, () => {

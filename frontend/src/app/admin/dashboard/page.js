@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSelector, useDispatch } from 'react-redux';
-import { LayoutDashboard, Users, ShoppingBag, ShieldCheck, CheckCircle2, XCircle, User, Mail, Phone, AlertTriangle, Store, Plus, Trash2, Edit, FolderOpen, ClipboardList, RefreshCw, ChevronRight, Sliders } from 'lucide-react';
+import { LayoutDashboard, Users, ShoppingBag, ShieldCheck, CheckCircle2, XCircle, User, Mail, Phone, AlertTriangle, Store, Plus, Trash2, Edit, FolderOpen, ClipboardList, RefreshCw, ChevronRight, Sliders, Tag, Gift, Percent, Calendar, Truck } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ConfirmationModal from '@/components/ConfirmationModal';
@@ -28,6 +28,14 @@ import {
    useCreateHeroSlideMutation,
    useUpdateHeroSlideMutation,
    useDeleteHeroSlideMutation,
+   useGetCouponsQuery,
+   useCreateCouponMutation,
+   useUpdateCouponMutation,
+   useDeleteCouponMutation,
+   useGetShippingRulesQuery,
+   useCreateShippingRuleMutation,
+   useUpdateShippingRuleMutation,
+   useDeleteShippingRuleMutation,
 } from '@/store/api';
 
 export default function AdminDashboard() {
@@ -86,6 +94,111 @@ export default function AdminDashboard() {
   const [createHeroSlide] = useCreateHeroSlideMutation();
   const [updateHeroSlide] = useUpdateHeroSlideMutation();
   const [deleteHeroSlide] = useDeleteHeroSlideMutation();
+
+  // Coupon manager state and queries
+  const { data: couponsRes, refetch: refetchCoupons } = useGetCouponsQuery(undefined, { skip: activeTab !== 'coupons' || !isAdmin || !mounted });
+  const [createCoupon] = useCreateCouponMutation();
+  const [updateCoupon] = useUpdateCouponMutation();
+  const [deleteCoupon] = useDeleteCouponMutation();
+
+  // Shipping rule manager state and queries
+  const { data: shippingRulesRes, refetch: refetchShippingRules } = useGetShippingRulesQuery(undefined, { skip: activeTab !== 'shipping' || !isAdmin || !mounted });
+  const [createShippingRule] = useCreateShippingRuleMutation();
+  const [updateShippingRule] = useUpdateShippingRuleMutation();
+  const [deleteShippingRule] = useDeleteShippingRuleMutation();
+
+  const [editingShippingRule, setEditingShippingRule] = useState(null);
+  const [minCartValue, setMinCartValue] = useState(0);
+  const [maxCartValue, setMaxCartValue] = useState('');
+  const [noUpperLimit, setNoUpperLimit] = useState(false);
+  const [shippingCharge, setShippingCharge] = useState(0);
+
+  const resetShippingForm = () => {
+    setEditingShippingRule(null);
+    setMinCartValue(0);
+    setMaxCartValue('');
+    setNoUpperLimit(false);
+    setShippingCharge(0);
+  };
+
+  const handleSaveShippingRule = async (e) => {
+    e.preventDefault();
+    if (minCartValue < 0 || shippingCharge < 0) {
+      showToast('Values cannot be negative.', 'error');
+      return;
+    }
+    const maxVal = noUpperLimit ? null : (maxCartValue === '' ? null : Number(maxCartValue));
+    if (maxVal !== null && minCartValue > maxVal) {
+      showToast('Min cart value cannot be greater than Max cart value.', 'error');
+      return;
+    }
+
+    const ruleData = {
+      minCartValue: Number(minCartValue),
+      maxCartValue: maxVal,
+      charge: Number(shippingCharge)
+    };
+
+    try {
+      if (editingShippingRule) {
+        await updateShippingRule({ id: editingShippingRule._id, ...ruleData }).unwrap();
+        showToast('Shipping rule updated successfully!', 'success');
+      } else {
+        await createShippingRule(ruleData).unwrap();
+        showToast('Shipping rule created successfully!', 'success');
+      }
+      resetShippingForm();
+      if (refetchShippingRules) refetchShippingRules();
+    } catch (err) {
+      showToast(err.data?.message || 'Failed to save shipping rule.', 'error');
+    }
+  };
+
+  const handleEditShippingRule = (rule) => {
+    setEditingShippingRule(rule);
+    setMinCartValue(rule.minCartValue);
+    if (rule.maxCartValue === null || rule.maxCartValue === undefined) {
+      setMaxCartValue('');
+      setNoUpperLimit(true);
+    } else {
+      setMaxCartValue(rule.maxCartValue);
+      setNoUpperLimit(false);
+    }
+    setShippingCharge(rule.charge);
+  };
+
+  const handleDeleteShippingRule = async (id) => {
+    triggerConfirmation({
+      title: 'Delete Shipping Rule',
+      message: 'Are you sure you want to permanently delete this shipping rule range?',
+      confirmText: 'Delete Rule',
+      cancelText: 'Cancel',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteShippingRule(id).unwrap();
+          showToast('Shipping rule deleted successfully!', 'success');
+          if (refetchShippingRules) refetchShippingRules();
+        } catch (err) {
+          showToast(err.data?.message || 'Failed to delete shipping rule.', 'error');
+        }
+      }
+    });
+  };
+
+  const [couponTab, setCouponTab] = useState('standard'); // 'standard' or 'random'
+  const [editingCoupon, setEditingCoupon] = useState(null);
+  const [couponCode, setCouponCode] = useState('');
+  const [couponDescription, setCouponDescription] = useState('');
+  const [couponDiscountType, setCouponDiscountType] = useState('flat'); // 'flat', 'percentage'
+  const [couponDiscountValue, setCouponDiscountValue] = useState(0);
+  const [couponMinOrderValue, setCouponMinOrderValue] = useState(0);
+  const [couponMaxDiscount, setCouponMaxDiscount] = useState('');
+  const [couponStartDate, setCouponStartDate] = useState('');
+  const [couponEndDate, setCouponEndDate] = useState('');
+  const [couponUsageLimit, setCouponUsageLimit] = useState('');
+  const [couponUserLimit, setCouponUserLimit] = useState(1);
+  const [couponFirstNOrders, setCouponFirstNOrders] = useState(0);
 
   const [editingSlide, setEditingSlide] = useState(null);
   const [slideTagline, setSlideTagline] = useState('');
@@ -197,6 +310,108 @@ export default function AdminDashboard() {
       }
     });
   };
+
+  const resetCouponForm = () => {
+    setEditingCoupon(null);
+    setCouponCode('');
+    setCouponDescription('');
+    setCouponDiscountType('flat');
+    setCouponDiscountValue(0);
+    setCouponMinOrderValue(0);
+    setCouponMaxDiscount('');
+    setCouponStartDate('');
+    setCouponEndDate('');
+    setCouponUsageLimit('');
+    setCouponUserLimit(1);
+    setCouponFirstNOrders(0);
+  };
+
+  const handleEditCoupon = (coupon) => {
+    setEditingCoupon(coupon);
+    setCouponCode(coupon.code);
+    setCouponDescription(coupon.description || '');
+    setCouponDiscountType(coupon.discountType);
+    setCouponDiscountValue(coupon.discountValue);
+    setCouponMinOrderValue(coupon.minOrderValue || 0);
+    setCouponMaxDiscount(coupon.maxDiscount || '');
+    setCouponStartDate(new Date(coupon.startDate).toISOString().split('T')[0]);
+    setCouponEndDate(new Date(coupon.endDate).toISOString().split('T')[0]);
+    setCouponUsageLimit(coupon.usageLimit || '');
+    setCouponUserLimit(coupon.userLimit || 1);
+    setCouponFirstNOrders(coupon.firstNOrders || 0);
+  };
+
+  const handleSaveCoupon = async (e) => {
+    e.preventDefault();
+    if (!couponCode.trim()) {
+      showToast('Coupon code is required.', 'error');
+      return;
+    }
+    if (!couponStartDate || !couponEndDate) {
+      showToast('Start and end dates are required.', 'error');
+      return;
+    }
+
+    const payload = {
+      code: couponCode.toUpperCase().trim(),
+      description: couponDescription,
+      discountType: couponDiscountType,
+      discountValue: Number(couponDiscountValue),
+      minOrderValue: Number(couponMinOrderValue),
+      maxDiscount: couponMaxDiscount ? Number(couponMaxDiscount) : undefined,
+      startDate: new Date(couponStartDate).toISOString(),
+      endDate: new Date(couponEndDate).toISOString(),
+      usageLimit: couponUsageLimit ? Number(couponUsageLimit) : undefined,
+      userLimit: Number(couponUserLimit),
+      firstNOrders: Number(couponFirstNOrders),
+      isRandomPool: couponTab === 'random',
+    };
+
+    try {
+      if (editingCoupon) {
+        await updateCoupon({ id: editingCoupon._id, ...payload }).unwrap();
+        showToast('Coupon updated successfully.', 'success');
+      } else {
+        await createCoupon(payload).unwrap();
+        showToast('Coupon created successfully.', 'success');
+      }
+      resetCouponForm();
+      if (refetchCoupons) refetchCoupons();
+    } catch (err) {
+      showToast(err.data?.message || 'Failed to save coupon.', 'error');
+    }
+  };
+
+  const handleToggleCouponActive = async (coupon) => {
+    try {
+      await updateCoupon({ id: coupon._id, active: !coupon.active }).unwrap();
+      showToast(`Coupon "${coupon.code}" ${!coupon.active ? 'enabled' : 'disabled'} successfully.`, 'success');
+      if (refetchCoupons) refetchCoupons();
+    } catch (err) {
+      showToast(err.data?.message || 'Failed to update coupon status.', 'error');
+    }
+  };
+
+  const handleDeleteCoupon = (couponId, couponCode) => {
+    triggerConfirmation({
+      title: 'Delete Coupon Code',
+      message: `Are you sure you want to permanently delete coupon "${couponCode}"? This action cannot be undone.`,
+      confirmText: 'Delete Coupon',
+      cancelText: 'Cancel',
+      type: 'danger',
+      onConfirm: async () => {
+        setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+        try {
+          await deleteCoupon(couponId).unwrap();
+          showToast(`Coupon "${couponCode}" deleted successfully.`, 'success');
+          if (refetchCoupons) refetchCoupons();
+        } catch (err) {
+          showToast(err.data?.message || 'Failed to delete coupon.', 'error');
+        }
+      }
+    });
+  };
+
   const { data: categoriesRes, refetch: refetchCategories } = useGetCategoriesQuery(undefined, { skip: activeTab !== 'categories' || !isAdmin || !mounted });
   const { data: adminOrdersRes, refetch: refetchAdminOrders, isLoading: ordersLoading } = useGetAdminOrdersQuery(
     undefined,
@@ -535,6 +750,26 @@ export default function AdminDashboard() {
               }`}
             >
               <Sliders className="w-4.5 h-4.5" /> Manage Carousel
+            </button>
+            <button
+              onClick={() => setActiveTab('coupons')}
+              className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                activeTab === 'coupons'
+                  ? 'bg-secondary text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Tag className="w-4.5 h-4.5" /> Manage Coupons
+            </button>
+            <button
+              onClick={() => setActiveTab('shipping')}
+              className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                activeTab === 'shipping'
+                  ? 'bg-secondary text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Truck className="w-4.5 h-4.5" /> Manage Shipping
             </button>
             <button
               onClick={() => setActiveTab('profile')}
@@ -1640,6 +1875,542 @@ export default function AdminDashboard() {
                       ))}
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'coupons' && (
+              <div className="space-y-8">
+                {/* Headers and Tabs */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-3xl shadow-sm">
+                  <div>
+                    <h3 className="font-extrabold text-base text-black dark:text-white flex items-center gap-2">
+                      <Tag className="w-5 h-5 text-secondary" /> Coupon Management System
+                    </h3>
+                    <p className="text-xxs text-slate-400 mt-1">Create, update, enable/disable discount coupons and manage random coupon pools.</p>
+                  </div>
+                  
+                  {/* Tab switches */}
+                  <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl self-start sm:self-auto">
+                    <button
+                      onClick={() => { setCouponTab('standard'); resetCouponForm(); }}
+                      className={`px-4 py-2 rounded-lg text-xxs font-bold transition-all ${
+                        couponTab === 'standard'
+                          ? 'bg-white dark:bg-slate-900 text-slate-850 dark:text-white shadow-sm'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                      }`}
+                    >
+                      Standard Coupons
+                    </button>
+                    <button
+                      onClick={() => { setCouponTab('random'); resetCouponForm(); }}
+                      className={`px-4 py-2 rounded-lg text-xxs font-bold transition-all ${
+                        couponTab === 'random'
+                          ? 'bg-white dark:bg-slate-900 text-slate-850 dark:text-white shadow-sm'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                      }`}
+                    >
+                      Random Coupons Pool
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-8">
+                  {/* Coupon Form */}
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
+                    <h4 className="font-extrabold text-sm text-black dark:text-white mb-4 pb-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Plus className="w-4 h-4 text-secondary" />
+                        {editingCoupon ? 'Edit Coupon' : couponTab === 'standard' ? 'Create Standard Coupon' : 'Create Random Coupon'}
+                      </span>
+                      {editingCoupon && (
+                        <span className="bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 text-xxs px-2.5 py-1 rounded-full font-bold border border-amber-100 dark:border-amber-900/30">
+                          Editing Mode
+                        </span>
+                      )}
+                    </h4>
+
+                    <form onSubmit={handleSaveCoupon} className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {/* Coupon Code */}
+                        <div className="md:col-span-2 lg:col-span-2">
+                          <label className="block text-xs font-extrabold text-black dark:text-white uppercase tracking-wider mb-1">Coupon Code</label>
+                          <input
+                            type="text"
+                            required
+                            value={couponCode}
+                            onChange={e => setCouponCode(e.target.value)}
+                            placeholder="e.g. SAVE20"
+                            className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3 py-2 rounded-xl text-xs outline-none uppercase dark:text-slate-200"
+                          />
+                        </div>
+
+                        {/* Discount Type */}
+                        <div>
+                          <label className="block text-xs font-extrabold text-black dark:text-white uppercase tracking-wider mb-1">Discount Type</label>
+                          <select
+                            value={couponDiscountType}
+                            onChange={e => setCouponDiscountType(e.target.value)}
+                            className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3 py-2 rounded-xl text-xs outline-none dark:text-slate-200"
+                          >
+                            <option value="flat">Flat Amount (₹)</option>
+                            <option value="percentage">Percentage (%)</option>
+                          </select>
+                        </div>
+
+                        {/* Value */}
+                        <div>
+                          <label className="block text-xs font-extrabold text-black dark:text-white uppercase tracking-wider mb-1">Value</label>
+                          <input
+                            type="number"
+                            required
+                            min={1}
+                            value={couponDiscountValue || ''}
+                            onChange={e => setCouponDiscountValue(e.target.value)}
+                            placeholder="e.g. 100"
+                            className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3 py-2 rounded-xl text-xs outline-none dark:text-slate-200"
+                          />
+                        </div>
+
+                        {/* Description */}
+                        <div className="md:col-span-2 lg:col-span-2">
+                          <label className="block text-xs font-extrabold text-black dark:text-white uppercase tracking-wider mb-1">Description</label>
+                          <textarea
+                            rows={1}
+                            value={couponDescription}
+                            onChange={e => setCouponDescription(e.target.value)}
+                            placeholder="Coupon details..."
+                            className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3 py-2 rounded-xl text-xs outline-none dark:text-slate-200 resize-none h-[38px]"
+                          />
+                        </div>
+
+                        {/* Min Order Value */}
+                        <div>
+                          <label className="block text-xs font-extrabold text-black dark:text-white uppercase tracking-wider mb-1">Min order value</label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={couponMinOrderValue || ''}
+                            onChange={e => setCouponMinOrderValue(e.target.value)}
+                            placeholder="e.g. 500"
+                            className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3 py-2 rounded-xl text-xs outline-none dark:text-slate-200"
+                          />
+                        </div>
+
+                        {/* Max Discount */}
+                        <div>
+                          <label className="block text-xs font-extrabold text-black dark:text-white uppercase tracking-wider mb-1">Max discount</label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={couponMaxDiscount || ''}
+                            disabled={couponDiscountType === 'flat'}
+                            onChange={e => setCouponMaxDiscount(e.target.value)}
+                            placeholder="Optional"
+                            className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3 py-2 rounded-xl text-xs outline-none dark:text-slate-200 disabled:opacity-50"
+                          />
+                        </div>
+
+                        {/* Start Date */}
+                        <div>
+                          <label className="block text-xs font-extrabold text-black dark:text-white uppercase tracking-wider mb-1">Start Date</label>
+                          <input
+                            type="date"
+                            required
+                            value={couponStartDate}
+                            onChange={e => setCouponStartDate(e.target.value)}
+                            className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3 py-2 rounded-xl text-xs outline-none dark:text-slate-200"
+                          />
+                        </div>
+
+                        {/* End Date */}
+                        <div>
+                          <label className="block text-xs font-extrabold text-black dark:text-white uppercase tracking-wider mb-1">End Date</label>
+                          <input
+                            type="date"
+                            required
+                            value={couponEndDate}
+                            onChange={e => setCouponEndDate(e.target.value)}
+                            className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3 py-2 rounded-xl text-xs outline-none dark:text-slate-200"
+                          />
+                        </div>
+
+                        {couponTab === 'standard' ? (
+                          <>
+                            {/* Usage Limit */}
+                            <div>
+                              <label className="block text-xs font-extrabold text-black dark:text-white uppercase tracking-wider mb-1">Usage Limit</label>
+                              <input
+                                type="number"
+                                min={1}
+                                value={couponUsageLimit || ''}
+                                onChange={e => setCouponUsageLimit(e.target.value)}
+                                placeholder="Total limit"
+                                className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3 py-2 rounded-xl text-xs outline-none dark:text-slate-200"
+                              />
+                            </div>
+
+                            {/* User Limit */}
+                            <div>
+                              <label className="block text-xs font-extrabold text-black dark:text-white uppercase tracking-wider mb-1">User Limit</label>
+                              <input
+                                type="number"
+                                min={1}
+                                value={couponUserLimit || ''}
+                                onChange={e => setCouponUserLimit(e.target.value)}
+                                placeholder="Per user limit"
+                                className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3 py-2 rounded-xl text-xs outline-none dark:text-slate-200"
+                              />
+                            </div>
+
+                            {/* Valid for first N orders */}
+                            <div className="md:col-span-2 lg:col-span-2">
+                              <label className="block text-xs font-extrabold text-black dark:text-white uppercase tracking-wider mb-1">Valid for first N orders</label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={couponFirstNOrders || ''}
+                                onChange={e => setCouponFirstNOrders(e.target.value)}
+                                placeholder="e.g. 1 for first order only"
+                                className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3 py-2 rounded-xl text-xs outline-none dark:text-slate-200"
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <div className="md:col-span-2 lg:col-span-2 flex items-center">
+                            <p className="text-[10px] text-slate-400 font-medium bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-xl border border-dashed border-slate-200 dark:border-slate-700/60 w-full text-center">
+                              Surprise coupons are automatically awarded to customers after checkout.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="pt-2 flex justify-end gap-2.5">
+                        {editingCoupon && (
+                          <button
+                            type="button"
+                            onClick={resetCouponForm}
+                            className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2 px-5 rounded-xl text-xs transition"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                        <button
+                          type="submit"
+                          className="bg-secondary hover:bg-cyan-600 text-white font-bold py-2 px-6 rounded-xl text-xs shadow-md transition"
+                        >
+                          {editingCoupon ? 'Update Coupon' : 'Create Coupon'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* Coupon List */}
+                  <div className="space-y-4">
+                    {/* List Wrapper */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
+                      <h4 className="font-extrabold text-sm text-black dark:text-white mb-4 pb-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                        <span>{couponTab === 'standard' ? 'Active Standard Coupons' : 'Random Coupons Pool List'}</span>
+                        <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xxs px-2.5 py-1 rounded-full font-bold">
+                          Total: {
+                            couponsRes?.data?.coupons?.filter(c => couponTab === 'standard' ? !c.isRandomPool : c.isRandomPool).length || 0
+                          }
+                        </span>
+                      </h4>
+
+                      {!couponsRes?.data?.coupons || couponsRes.data.coupons.filter(c => couponTab === 'standard' ? !c.isRandomPool : c.isRandomPool).length === 0 ? (
+                        <div className="text-center py-12">
+                          <p className="text-xs text-slate-400 italic">No coupons found in this category.</p>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto text-xxs sm:text-xs">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead>
+                              <tr className="border-b border-slate-100 dark:border-slate-800 text-black dark:text-white">
+                                <th className="pb-3 font-extrabold uppercase tracking-wider text-xxs">Code</th>
+                                <th className="pb-3 font-extrabold uppercase tracking-wider text-xxs">Details</th>
+                                <th className="pb-3 font-extrabold uppercase tracking-wider text-xxs">Dates</th>
+                                {couponTab === 'standard' ? (
+                                  <th className="pb-3 font-extrabold uppercase tracking-wider text-xxs text-center">Limits</th>
+                                ) : (
+                                  <th className="pb-3 font-extrabold uppercase tracking-wider text-xxs">Status / User</th>
+                                )}
+                                <th className="pb-3 font-extrabold uppercase tracking-wider text-xxs text-right">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {couponsRes.data.coupons
+                                .filter(c => couponTab === 'standard' ? !c.isRandomPool : c.isRandomPool)
+                                .map((coupon) => {
+                                  const isExpired = new Date(coupon.endDate) < new Date();
+                                  return (
+                                    <tr key={coupon._id} className="border-b border-slate-100 dark:border-slate-800 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/10">
+                                      <td className="py-4 font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">
+                                        {coupon.code}
+                                        <div className="mt-1 flex gap-1">
+                                          <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                                            coupon.active && !isExpired
+                                              ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
+                                              : 'bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-400'
+                                          }`}>
+                                            {coupon.active && !isExpired ? 'Active' : isExpired ? 'Expired' : 'Inactive'}
+                                          </span>
+                                        </div>
+                                      </td>
+                                      <td className="py-4">
+                                        <div className="font-bold text-slate-800 dark:text-slate-300">
+                                          {coupon.discountType === 'percentage' ? `${coupon.discountValue}% Off` : `₹${coupon.discountValue} Off`}
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">Min Order: ₹{coupon.minOrderValue}</div>
+                                        {coupon.firstNOrders > 0 && (
+                                          <div className="text-[10px] text-secondary mt-0.5 font-bold">1st {coupon.firstNOrders} orders</div>
+                                        )}
+                                      </td>
+                                      <td className="py-4 text-[10px] text-slate-400">
+                                        <div>S: {new Date(coupon.startDate).toLocaleDateString('en-IN')}</div>
+                                        <div>E: {new Date(coupon.endDate).toLocaleDateString('en-IN')}</div>
+                                      </td>
+                                      {couponTab === 'standard' ? (
+                                        <td className="py-4 text-center">
+                                          <div className="font-bold text-slate-700 dark:text-slate-300">
+                                            {coupon.usedCount} / {coupon.usageLimit || '∞'}
+                                          </div>
+                                          <div className="text-[10px] text-slate-400">Per User: {coupon.userLimit}</div>
+                                        </td>
+                                      ) : (
+                                        <td className="py-4">
+                                          {coupon.assignedTo ? (
+                                            <div>
+                                              <span className="bg-green-100 dark:bg-green-955 text-emerald-600 dark:text-emerald-400 text-[9px] font-bold px-2 py-0.5 rounded-full">
+                                                Assigned
+                                              </span>
+                                              <div className="text-[9px] font-mono text-slate-400 mt-1 truncate max-w-[120px]" title={coupon.assignedTo}>
+                                                ID: {coupon.assignedTo}
+                                              </div>
+                                            </div>
+                                          ) : (
+                                            <span className="bg-blue-100 dark:bg-blue-955 text-blue-600 dark:text-blue-400 text-[9px] font-bold px-2 py-0.5 rounded-full">
+                                              In Pool (Available)
+                                            </span>
+                                          )}
+                                        </td>
+                                      )}
+                                      <td className="py-4 text-right">
+                                        <div className="flex justify-end items-center gap-2">
+                                          {/* Toggle Status Slider */}
+                                          <button
+                                            type="button"
+                                            onClick={() => handleToggleCouponActive(coupon)}
+                                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out outline-none ${
+                                              coupon.active ? 'bg-secondary' : 'bg-slate-200 dark:bg-slate-700'
+                                            }`}
+                                          >
+                                            <span
+                                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                                coupon.active ? 'translate-x-4' : 'translate-x-0'
+                                              }`}
+                                            />
+                                          </button>
+                                          <button
+                                            onClick={() => handleEditCoupon(coupon)}
+                                            className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 p-1.5 rounded-lg text-slate-600 dark:text-slate-300 transition"
+                                            title="Edit Coupon"
+                                          >
+                                            <Edit className="w-3.5 h-3.5" />
+                                          </button>
+                                          <button
+                                            onClick={() => handleDeleteCoupon(coupon._id, coupon.code)}
+                                            className="bg-red-100 hover:bg-red-200 dark:bg-red-955/40 dark:hover:bg-red-900/60 p-1.5 rounded-lg text-red-600 dark:text-red-400 transition"
+                                            title="Delete Coupon"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'shipping' && (
+              <div className="space-y-8">
+                {/* Header */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-3xl shadow-sm">
+                  <div>
+                    <h3 className="font-extrabold text-base text-black dark:text-white flex items-center gap-2">
+                      <Truck className="w-5 h-5 text-secondary" /> Manage Shipping Charges
+                    </h3>
+                    <p className="text-xxs text-slate-400 mt-1">Configure shipping rates dynamically based on the customer's cart value (subtotal).</p>
+                  </div>
+                </div>
+
+                {/* Form & List */}
+                <div className="space-y-8">
+                  {/* Form */}
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
+                    <h4 className="font-extrabold text-sm text-black dark:text-white mb-4 pb-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Plus className="w-4 h-4 text-secondary" />
+                        {editingShippingRule ? 'Edit Shipping Rule' : 'Create Shipping Rule'}
+                      </span>
+                      {editingShippingRule && (
+                        <span className="bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 text-xxs px-2.5 py-1 rounded-full font-bold border border-amber-100 dark:border-amber-900/30">
+                          Editing Mode
+                        </span>
+                      )}
+                    </h4>
+
+                    <form onSubmit={handleSaveShippingRule} className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Min Cart Value */}
+                        <div>
+                          <label className="block text-xs font-extrabold text-black dark:text-white uppercase tracking-wider mb-1">Min Cart Value (₹)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={minCartValue}
+                            onChange={(e) => setMinCartValue(Number(e.target.value))}
+                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-xs text-slate-850 dark:text-white font-semibold focus:outline-none focus:border-secondary transition-all"
+                            required
+                          />
+                        </div>
+
+                        {/* Max Cart Value */}
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label className="block text-xs font-extrabold text-black dark:text-white uppercase tracking-wider">Max Cart Value (₹)</label>
+                            <label className="flex items-center gap-1 text-xxs text-slate-500 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={noUpperLimit}
+                                onChange={(e) => {
+                                  setNoUpperLimit(e.target.checked);
+                                  if (e.target.checked) setMaxCartValue('');
+                                }}
+                                className="rounded text-secondary focus:ring-secondary cursor-pointer"
+                              />
+                              No Upper Limit
+                            </label>
+                          </div>
+                          <input
+                            type="number"
+                            min="0"
+                            value={maxCartValue}
+                            onChange={(e) => setMaxCartValue(e.target.value)}
+                            disabled={noUpperLimit}
+                            placeholder={noUpperLimit ? 'Infinity' : 'e.g., 299'}
+                            className={`w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-xs text-slate-850 dark:text-white font-semibold focus:outline-none focus:border-secondary transition-all ${
+                              noUpperLimit ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                            required={!noUpperLimit}
+                          />
+                        </div>
+
+                        {/* Shipping Charge */}
+                        <div>
+                          <label className="block text-xs font-extrabold text-black dark:text-white uppercase tracking-wider mb-1">Shipping Charge (₹)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={shippingCharge}
+                            onChange={(e) => setShippingCharge(Number(e.target.value))}
+                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-xs text-slate-850 dark:text-white font-semibold focus:outline-none focus:border-secondary transition-all"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="flex gap-3 justify-end pt-2">
+                        {editingShippingRule && (
+                          <button
+                            type="button"
+                            onClick={resetShippingForm}
+                            className="px-5 py-3 rounded-xl text-xxs font-bold text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 transition"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                        <button
+                          type="submit"
+                          className="bg-secondary hover:bg-cyan-600 text-white px-6 py-3 rounded-xl text-xxs font-bold shadow-md transition"
+                        >
+                          {editingShippingRule ? 'Update Rule' : 'Add Rule'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* Rules Table */}
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
+                    <h4 className="font-extrabold text-sm text-black dark:text-white mb-4 flex items-center gap-1.5">
+                      <ClipboardList className="w-4 h-4 text-secondary" /> Active Shipping Rules
+                    </h4>
+
+                    {!shippingRulesRes?.data?.shippingRules || shippingRulesRes.data.shippingRules.length === 0 ? (
+                      <div className="text-center py-10">
+                        <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto opacity-50 mb-3" />
+                        <p className="text-xs font-semibold text-slate-500">No shipping rules found. Set default rules above.</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="border-b border-slate-100 dark:border-slate-800">
+                              <th className="pb-3 text-xxs font-extrabold text-slate-400 uppercase tracking-wider">Cart Value Range (₹)</th>
+                              <th className="pb-3 text-xxs font-extrabold text-slate-400 uppercase tracking-wider">Shipping Charge (₹)</th>
+                              <th className="pb-3 text-xxs font-extrabold text-slate-400 uppercase tracking-wider text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {shippingRulesRes.data.shippingRules.map((rule) => {
+                              const isNoLimit = rule.maxCartValue === null || rule.maxCartValue === undefined;
+                              return (
+                                <tr key={rule._id} className="border-b border-slate-50 dark:border-slate-850 hover:bg-slate-50/50 dark:hover:bg-slate-850/20 transition-all">
+                                  <td className="py-3.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                                    {isNoLimit ? `₹${rule.minCartValue} and above` : `₹${rule.minCartValue} - ₹${rule.maxCartValue}`}
+                                  </td>
+                                  <td className="py-3.5 text-xs font-semibold">
+                                    {rule.charge === 0 ? (
+                                      <span className="text-emerald-500 font-bold bg-emerald-50 dark:bg-emerald-950/20 px-2.5 py-1 rounded-full text-xxs border border-emerald-100 dark:border-emerald-900/30">FREE SHIPPING</span>
+                                    ) : (
+                                      <span className="text-slate-700 dark:text-slate-350">₹{rule.charge}</span>
+                                    )}
+                                  </td>
+                                  <td className="py-3.5 text-right">
+                                    <div className="flex gap-2 justify-end">
+                                      <button
+                                        onClick={() => handleEditShippingRule(rule)}
+                                        className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 p-1.5 rounded-lg text-slate-600 dark:text-slate-300 transition"
+                                        title="Edit Rule"
+                                      >
+                                        <Edit className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteShippingRule(rule._id)}
+                                        className="bg-red-100 hover:bg-red-200 dark:bg-red-955/40 dark:hover:bg-red-900/60 p-1.5 rounded-lg text-red-600 dark:text-red-400 transition"
+                                        title="Delete Rule"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}

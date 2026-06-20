@@ -411,7 +411,7 @@ export default function OrderDetailsPage({ params }) {
       {isReturnModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md rounded-3xl p-6 shadow-2xl relative animate-scale-up">
-            <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2 mb-4">
+            <h3 className="text-base font-extrabold text-black dark:text-white flex items-center gap-2 mb-4">
               <RefreshCw className="w-5 h-5 text-secondary" /> Return or Replace Order
             </h3>
             

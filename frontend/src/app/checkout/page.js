@@ -7,7 +7,7 @@ import { MapPin, CreditCard, ShieldCheck, ShoppingBag, PlusCircle, CheckCircle2,
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useToast } from '@/components/ToastProvider';
-import { useGetCartQuery, useCheckoutMutation, useValidateCouponMutation, useAddAddressMutation } from '@/store/api';
+import { useGetCartQuery, useCheckoutMutation, useValidateCouponMutation, useAddAddressMutation, useGetShippingRulesQuery } from '@/store/api';
 import { updateUser } from '@/store/authSlice';
 
 const GATEWAYS = [
@@ -41,6 +41,8 @@ function CheckoutPageContent() {
   const [checkoutApi, { isLoading: orderPlacing }] = useCheckoutMutation();
   const [validateCoupon, { isLoading: couponValidating }] = useValidateCouponMutation();
   const [addAddressApi, { isLoading: addressAdding }] = useAddAddressMutation();
+  const { data: shippingRulesRes } = useGetShippingRulesQuery(undefined, { skip: !isAuthenticated || !mounted });
+  const shippingRules = shippingRulesRes?.data?.shippingRules || [];
 
   const [selectedAddress, setSelectedAddress] = useState(user?.addresses?.find(a => a.isDefault)?._id || user?.addresses?.[0]?._id || '');
   const [selectedGateway, setSelectedGateway] = useState('cod');
@@ -154,7 +156,7 @@ function CheckoutPageContent() {
           
           let discountAmount = 0;
           if (coupon.discountType === 'percentage') {
-            discountAmount = (subtotal * coupon.discountValue) / 100;
+            discountAmount = Math.round((subtotal * coupon.discountValue) / 100);
             if (coupon.maxDiscount && discountAmount > coupon.maxDiscount) {
               discountAmount = coupon.maxDiscount;
             }
@@ -190,7 +192,7 @@ function CheckoutPageContent() {
       
       let discountAmount = 0;
       if (coupon.discountType === 'percentage') {
-        discountAmount = (subtotal * coupon.discountValue) / 100;
+        discountAmount = Math.round((subtotal * coupon.discountValue) / 100);
         if (coupon.maxDiscount && discountAmount > coupon.maxDiscount) {
           discountAmount = coupon.maxDiscount;
         }
@@ -275,7 +277,24 @@ function CheckoutPageContent() {
     );
   }
 
-  const shippingCharges = subtotal > 1000 || (discountInfo && discountInfo.type === 'free_shipping') ? 0 : 99;
+  // Dynamic Shipping Calculation
+  let shippingCharges = 0;
+  if (discountInfo && discountInfo.type === 'free_shipping') {
+    shippingCharges = 0;
+  } else if (shippingRules.length > 0) {
+    const matchedRule = shippingRules.find(rule => {
+      if (rule.maxCartValue === null || rule.maxCartValue === undefined) {
+        return subtotal >= rule.minCartValue;
+      }
+      return subtotal >= rule.minCartValue && subtotal <= rule.maxCartValue;
+    });
+    shippingCharges = matchedRule ? matchedRule.charge : 0;
+  } else {
+    // Default fallback rules matching database seeds
+    if (subtotal <= 150) shippingCharges = 50;
+    else if (subtotal < 300) shippingCharges = 20;
+    else shippingCharges = 0;
+  }
   const calculatedTax = cartItems.reduce((acc, item) => {
     const price = item.variantSku 
       ? item.product?.variants.find(v => v.sku === item.variantSku)?.price || item.product?.price || 0
@@ -285,7 +304,7 @@ function CheckoutPageContent() {
   }, 0);
   const tax = Math.round(calculatedTax);
   const discount = discountInfo?.discount || 0;
-  const grandTotal = Math.max(0, subtotal + shippingCharges + tax - discount);
+  const grandTotal = Math.max(0, Math.round(subtotal + shippingCharges + tax - discount));
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950">

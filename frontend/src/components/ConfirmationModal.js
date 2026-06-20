@@ -64,7 +64,7 @@ export default function ConfirmationModal({
           </div>
 
           <div className="space-y-1.5 flex-1 pr-6">
-            <h3 className="font-extrabold text-base text-slate-900 dark:text-white leading-tight">
+            <h3 className="font-extrabold text-base text-black dark:text-white leading-tight">
               {title}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">

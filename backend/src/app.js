@@ -17,6 +17,7 @@ import supportRouter from './routes/supportRoutes.js';
 import recommendationRouter from './routes/recommendationRoutes.js';
 import notificationRouter from './routes/notificationRoutes.js';
 import heroSlideRouter from './routes/heroSlideRoutes.js';
+import shippingRouter from './routes/shippingRoutes.js';
 
 import errorHandler from './middlewares/errorHandler.js';
 import { NotFoundError } from './utils/customErrors.js';
@@ -89,6 +90,7 @@ app.use('/api/v1/support', supportRouter);
 app.use('/api/v1/recommendations', recommendationRouter);
 app.use('/api/v1/notifications', notificationRouter);
 app.use('/api/v1/hero-slides', heroSlideRouter);
+app.use('/api/v1/shipping-rules', shippingRouter);
 
 
 // 8. 404 Route handler

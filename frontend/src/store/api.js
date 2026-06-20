@@ -42,7 +42,7 @@ const baseQueryWithReauth = async (args, apiInstance, extraOptions) => {
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['User', 'Product', 'Cart', 'Order', 'Coupon', 'Review', 'Support', 'Wishlist', 'SellerProfile', 'Category', 'Notifications', 'HeroSlide'],
+  tagTypes: ['User', 'Product', 'Cart', 'Order', 'Coupon', 'Review', 'Support', 'Wishlist', 'SellerProfile', 'Category', 'Notifications', 'HeroSlide', 'ShippingRule'],
   endpoints: (builder) => ({
     login: builder.mutation({
       query: (credentials) => ({
@@ -236,6 +236,36 @@ export const api = createApi({
         body: { code, cartValue },
       }),
     }),
+    getCoupons: builder.query({
+      query: (params) => ({
+        url: '/coupons',
+        params,
+      }),
+      providesTags: ['Coupon'],
+    }),
+    createCoupon: builder.mutation({
+      query: (couponData) => ({
+        url: '/coupons',
+        method: 'POST',
+        body: couponData,
+      }),
+      invalidatesTags: ['Coupon'],
+    }),
+    updateCoupon: builder.mutation({
+      query: ({ id, ...couponData }) => ({
+        url: `/coupons/${id}`,
+        method: 'PATCH',
+        body: couponData,
+      }),
+      invalidatesTags: ['Coupon'],
+    }),
+    deleteCoupon: builder.mutation({
+      query: (id) => ({
+        url: `/coupons/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Coupon'],
+    }),
 
     getProductReviews: builder.query({
       query: (productId) => `/reviews/product/${productId}`,
@@ -404,6 +434,33 @@ export const api = createApi({
       }),
       invalidatesTags: ['Order'],
     }),
+    getShippingRules: builder.query({
+      query: () => '/shipping-rules',
+      providesTags: ['ShippingRule'],
+    }),
+    createShippingRule: builder.mutation({
+      query: (ruleData) => ({
+        url: '/shipping-rules',
+        method: 'POST',
+        body: ruleData,
+      }),
+      invalidatesTags: ['ShippingRule'],
+    }),
+    updateShippingRule: builder.mutation({
+      query: ({ id, ...ruleData }) => ({
+        url: `/shipping-rules/${id}`,
+        method: 'PUT',
+        body: ruleData,
+      }),
+      invalidatesTags: ['ShippingRule'],
+    }),
+    deleteShippingRule: builder.mutation({
+      query: (id) => ({
+        url: `/shipping-rules/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['ShippingRule'],
+    }),
   }),
 });
 
@@ -440,6 +497,10 @@ export const {
   useGetSellerOrdersQuery,
   useGetAdminOrdersQuery,
   useValidateCouponMutation,
+  useGetCouponsQuery,
+  useCreateCouponMutation,
+  useUpdateCouponMutation,
+  useDeleteCouponMutation,
   useGetProductReviewsQuery,
   useCreateReviewMutation,
   useGetAdminStatsQuery,
@@ -465,4 +526,8 @@ export const {
   useUpdateHeroSlideMutation,
   useDeleteHeroSlideMutation,
   useReturnOrderMutation,
+  useGetShippingRulesQuery,
+  useCreateShippingRuleMutation,
+  useUpdateShippingRuleMutation,
+  useDeleteShippingRuleMutation,
 } = api;

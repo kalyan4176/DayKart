@@ -15,6 +15,9 @@ const couponSchema = new mongoose.Schema({
   usedCount: { type: Number, default: 0 },
   userLimit: { type: Number, default: 1 },
   active: { type: Boolean, default: true },
+  firstNOrders: { type: Number, default: 0 },
+  isRandomPool: { type: Boolean, default: false },
+  assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 }, {
   timestamps: true,
 });

@@ -4,6 +4,7 @@ import Coupon from '../models/Coupon.js';
 import Payment from '../models/Payment.js';
 import Cart from '../models/Cart.js';
 import User from '../models/User.js';
+import ShippingRule from '../models/ShippingRule.js';
 import Seller from '../models/Seller.js';
 import { logAuditEvent } from '../services/auditService.js';
 import { BadRequestError, NotFoundError, ForbiddenError } from '../utils/customErrors.js';
@@ -69,35 +70,64 @@ export const checkout = async (req, res, next) => {
     if (couponCode) {
       couponDoc = await Coupon.findOne({ code: couponCode.toUpperCase(), active: true });
       if (!couponDoc) {
-        return next(new BadRequestError('Invalid or expired coupon code.'));
+        return next(new BadRequestError('Coupon code is not available.'));
       }
       if (couponDoc.startDate > new Date() || couponDoc.endDate < new Date()) {
-        return next(new BadRequestError('Coupon code is not active yet or has expired.'));
+        return next(new BadRequestError('Coupon code is not available.'));
       }
+      // Random pool or assignedTo check
+      if (couponDoc.isRandomPool || couponDoc.assignedTo) {
+        if (!couponDoc.assignedTo || couponDoc.assignedTo.toString() !== req.user._id.toString()) {
+          return next(new BadRequestError('Coupon code is not available.'));
+        }
+      }
+      // First N orders check
+      if (couponDoc.firstNOrders && couponDoc.firstNOrders > 0) {
+        const orderCount = await Order.countDocuments({ customer: req.user._id, status: { $ne: 'cancelled' } });
+        if (orderCount >= couponDoc.firstNOrders) {
+          return next(new BadRequestError('Coupon code is not available.'));
+        }
+      }
+      // Check overall usage limits
+      if (couponDoc.usageLimit && couponDoc.usedCount >= couponDoc.usageLimit) {
+        return next(new BadRequestError('Coupon code is not available.'));
+      }
+      // Min value check
       if (subtotal < couponDoc.minOrderValue) {
         return next(new BadRequestError(`Minimum order value of ₹${couponDoc.minOrderValue} required for coupon.`));
       }
       
       // Calculate
       if (couponDoc.discountType === 'percentage') {
-        discount = (subtotal * couponDoc.discountValue) / 100;
+        discount = Math.round((subtotal * couponDoc.discountValue) / 100);
         if (couponDoc.maxDiscount && discount > couponDoc.maxDiscount) {
           discount = couponDoc.maxDiscount;
         }
       } else if (couponDoc.discountType === 'flat') {
         discount = couponDoc.discountValue;
-      } else if (couponDoc.discountType === 'free_shipping') {
-        // Free shipping handled below
-      }
-
-      // Check overall usage limits
-      if (couponDoc.usageLimit && couponDoc.usedCount >= couponDoc.usageLimit) {
-        return next(new BadRequestError('Coupon code limit reached.'));
       }
     }
 
     // 5. Calculate taxes and shipping
-    const shippingCharges = subtotal > 1000 || (couponDoc && couponDoc.discountType === 'free_shipping') ? 0 : 99;
+    let shippingCharges = 0;
+    if (couponDoc && couponDoc.discountType === 'free_shipping') {
+      shippingCharges = 0;
+    } else {
+      const shippingRules = await ShippingRule.find().sort({ minCartValue: 1 });
+      if (shippingRules.length === 0) {
+        // Fallback to default user logic: 0-150 -> 50, 150-300 -> 20, 300+ -> 0
+        if (subtotal <= 150) shippingCharges = 50;
+        else if (subtotal < 300) shippingCharges = 20;
+        else shippingCharges = 0;
+      } else {
+        const matchedRule = shippingRules.find(rule => {
+          const minMatch = subtotal >= rule.minCartValue;
+          const maxMatch = rule.maxCartValue === null || rule.maxCartValue === undefined || subtotal <= rule.maxCartValue;
+          return minMatch && maxMatch;
+        });
+        shippingCharges = matchedRule ? matchedRule.charge : 0;
+      }
+    }
     
     let taxAccumulator = 0;
     for (const item of cart.items) {
@@ -115,7 +145,7 @@ export const checkout = async (req, res, next) => {
       taxAccumulator += (itemPrice * item.quantity * gstRate) / 100;
     }
     const tax = Math.round(taxAccumulator);
-    const total = Math.round(subtotal + shippingCharges + tax - discount);
+    const total = Math.max(0, Math.round(subtotal + shippingCharges + tax - discount));
 
     // 6. Generate IDs
     const orderId = `DK-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -175,6 +205,26 @@ export const checkout = async (req, res, next) => {
     if (couponDoc) {
       couponDoc.usedCount += 1;
       await couponDoc.save();
+    }
+
+    // Award a random coupon if available in the random pool
+    try {
+      const randomCoupons = await Coupon.find({ isRandomPool: true, assignedTo: null, active: true, endDate: { $gt: new Date() } });
+      if (randomCoupons.length > 0) {
+        const chosenCoupon = randomCoupons[Math.floor(Math.random() * randomCoupons.length)];
+        chosenCoupon.assignedTo = req.user._id;
+        await chosenCoupon.save();
+        
+        await sendInAppNotification(
+          req.user._id,
+          'coupon',
+          'Surprise Coupon Unlocked!',
+          `Congratulations! You received a surprise coupon: "${chosenCoupon.code}". View it in your dashboard coupons section.`,
+          '/profile'
+        );
+      }
+    } catch (couponErr) {
+      console.error('Error awarding random coupon:', couponErr);
     }
 
     // Get product details for notification before clearing cart

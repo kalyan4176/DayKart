@@ -7,7 +7,7 @@ import { useSelector } from 'react-redux';
 import { ShoppingBag, Trash2, ArrowRight, Ticket, AlertCircle } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import { useGetCartQuery, useUpdateCartMutation, useValidateCouponMutation } from '@/store/api';
+import { useGetCartQuery, useUpdateCartMutation, useValidateCouponMutation, useGetShippingRulesQuery } from '@/store/api';
 
 export default function CartPage() {
   const router = useRouter();
@@ -28,6 +28,8 @@ export default function CartPage() {
   const { data: cartRes, isLoading } = useGetCartQuery(undefined, { skip: !isAuthenticated || !mounted });
   const [updateCart] = useUpdateCartMutation();
   const [validateCoupon, { isLoading: couponValidating }] = useValidateCouponMutation();
+  const { data: shippingRulesRes } = useGetShippingRulesQuery(undefined, { skip: !isAuthenticated || !mounted });
+  const shippingRules = shippingRulesRes?.data?.shippingRules || [];
 
   const [couponCode, setCouponCode] = useState('');
   const [discountInfo, setDiscountInfo] = useState(null);
@@ -104,7 +106,24 @@ export default function CartPage() {
   };
 
   // Checkout totals
-  const shippingCharges = subtotal > 1000 || (discountInfo && discountInfo.type === 'free_shipping') ? 0 : 99;
+  // Dynamic Shipping Calculation
+  let shippingCharges = 0;
+  if (discountInfo && discountInfo.type === 'free_shipping') {
+    shippingCharges = 0;
+  } else if (shippingRules.length > 0) {
+    const matchedRule = shippingRules.find(rule => {
+      if (rule.maxCartValue === null || rule.maxCartValue === undefined) {
+        return subtotal >= rule.minCartValue;
+      }
+      return subtotal >= rule.minCartValue && subtotal <= rule.maxCartValue;
+    });
+    shippingCharges = matchedRule ? matchedRule.charge : 0;
+  } else {
+    // Default fallback rules matching database seeds
+    if (subtotal <= 150) shippingCharges = 50;
+    else if (subtotal < 300) shippingCharges = 20;
+    else shippingCharges = 0;
+  }
   const calculatedTax = cartItems.reduce((acc, item) => {
     const price = item.variantSku 
       ? item.product?.variants.find(v => v.sku === item.variantSku)?.price || item.product?.price || 0

@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { User, MapPin, Plus, Trash2, ShieldCheck, Mail, Phone, AlertTriangle, Store } from 'lucide-react';
+import { User, MapPin, Plus, Trash2, ShieldCheck, Mail, Phone, AlertTriangle, Store, Ticket } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { api } from '@/store/api';
@@ -72,6 +72,9 @@ export default function ProfilePage() {
 
   const { data: sellerProfileRes, refetch: refetchSellerProfile } = api.useGetSellerProfileQuery(undefined, {
     skip: !isAuthenticated || user?.role !== 'seller' || !mounted,
+  });
+  const { data: couponsRes } = api.useGetCouponsQuery({ view: 'customer' }, {
+    skip: !isAuthenticated || !['customer', 'seller', 'admin'].includes(user?.role) || !mounted,
   });
   const [updateSellerProfileApi, { isLoading: isSellerUpdating }] = api.useCreateSellerProfileMutation();
 
@@ -200,6 +203,18 @@ export default function ProfilePage() {
             >
               <MapPin className="w-4.5 h-4.5" /> Shipping Addresses
             </button>
+            {['customer', 'seller', 'admin'].includes(user?.role) && (
+              <button
+                onClick={() => setActiveTab('coupons')}
+                className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                  activeTab === 'coupons'
+                    ? 'bg-secondary text-white shadow-md'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                }`}
+              >
+                <Ticket className="w-4.5 h-4.5" /> My Coupons
+              </button>
+            )}
             {user?.role === 'seller' && (
               <button
                 onClick={() => setActiveTab('company')}
@@ -592,6 +607,79 @@ export default function ProfilePage() {
                     <ShieldCheck className="w-4 h-4" /> {isSellerUpdating ? 'Saving details...' : 'Save Company Details'}
                   </button>
                 </form>
+              </div>
+            )}
+
+            {activeTab === 'coupons' && ['customer', 'seller', 'admin'].includes(user?.role) && (
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-6">
+                <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2">
+                  <Ticket className="w-5 h-5 text-secondary" /> My Coupons
+                </h3>
+
+                <p className="text-xs text-slate-500">
+                  Here are your available discount coupons. Apply these coupon codes at checkout to receive discounts on your orders.
+                </p>
+
+                {!couponsRes?.data?.coupons || couponsRes.data.coupons.length === 0 ? (
+                  <div className="text-center py-10">
+                    <p className="text-xs text-slate-400 italic">No coupons available at the moment.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {couponsRes.data.coupons.map((coupon) => {
+                      const isExpired = new Date(coupon.endDate) < new Date();
+                      const isFirstN = coupon.firstNOrders > 0;
+                      return (
+                        <div
+                          key={coupon._id}
+                          className="relative border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-5 hover:border-secondary transition bg-slate-50/55 dark:bg-slate-900/30 flex flex-col justify-between"
+                        >
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-start">
+                              <span className="bg-cyan-100 dark:bg-cyan-950 text-secondary dark:text-cyan-400 text-xxs font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider">
+                                {coupon.discountType === 'percentage' ? `${coupon.discountValue}% OFF` : `₹${coupon.discountValue} OFF`}
+                              </span>
+                              {coupon.isRandomPool && (
+                                <span className="bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 text-xxs font-bold px-2 py-0.5 rounded-full">
+                                  🎁 Surprise
+                                </span>
+                              )}
+                            </div>
+
+                            <h4 className="font-extrabold text-sm text-slate-800 dark:text-slate-200">
+                              {coupon.code}
+                            </h4>
+                            <p className="text-xxs text-slate-500 leading-relaxed">
+                              {coupon.description || 'No description provided.'}
+                            </p>
+                            
+                            <div className="space-y-1 pt-2 text-[10px] text-slate-400">
+                              <div>Min Order Value: ₹{coupon.minOrderValue}</div>
+                              {isFirstN && (
+                                <div className="text-secondary font-semibold">
+                                  Valid for first {coupon.firstNOrders} order(s) only
+                                </div>
+                              )}
+                              <div>Expires: {new Date(coupon.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(coupon.code);
+                                showToast(`Code "${coupon.code}" copied to clipboard!`, 'success');
+                              }}
+                              className="w-full bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white font-bold py-2 rounded-xl text-xxs transition active:scale-95 flex items-center justify-center gap-1.5"
+                            >
+                              Copy Code
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
