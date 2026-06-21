@@ -6,6 +6,7 @@ import Product from '../models/Product.js';
 import Coupon from '../models/Coupon.js';
 import HeroSlide from '../models/HeroSlide.js';
 import ShippingRule from '../models/ShippingRule.js';
+import SystemConfig from '../models/SystemConfig.js';
 import logger from '../config/logger.js';
 
 export const seedDatabase = async () => {
@@ -407,6 +408,40 @@ export const seedDatabase = async () => {
       ];
       await ShippingRule.insertMany(defaultRules);
       logger.info('Seeded default shipping rules successfully.');
+    }
+
+    // 8. Seed Referral Reward Config
+    logger.info('Checking/Seeding default referral configuration...');
+    const referralConfigCount = await SystemConfig.countDocuments({ key: 'referral_reward_amount' });
+    if (referralConfigCount === 0) {
+      logger.info('Creating default referral reward amount...');
+      await SystemConfig.create({ key: 'referral_reward_amount', value: 50 });
+      logger.info('Seeded default referral configuration successfully.');
+    }
+
+    // 9. Generate Referral Codes for Users lacking them
+    logger.info('Verifying referral codes for existing users...');
+    const usersWithoutCode = await User.find({ 
+      $or: [
+        { referralCode: { $exists: false } },
+        { referralCode: null },
+        { referralCode: '' }
+      ]
+    });
+    if (usersWithoutCode.length > 0) {
+      logger.info(`Generating referral codes for ${usersWithoutCode.length} users...`);
+      for (const u of usersWithoutCode) {
+        const cleanName = u.name.replace(/[^a-zA-Z]/g, '').toUpperCase().substring(0, 6);
+        let randCode = `${cleanName}${Math.floor(1000 + Math.random() * 9000)}`;
+        let exists = await User.findOne({ referralCode: randCode });
+        while (exists) {
+          randCode = `${cleanName}${Math.floor(1000 + Math.random() * 9000)}`;
+          exists = await User.findOne({ referralCode: randCode });
+        }
+        u.referralCode = randCode;
+        await u.save();
+      }
+      logger.info('Completed generating referral codes for all users.');
     }
 
     logger.info('Database seeding checks completed successfully!');

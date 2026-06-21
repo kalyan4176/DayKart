@@ -42,7 +42,7 @@ const baseQueryWithReauth = async (args, apiInstance, extraOptions) => {
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['User', 'Product', 'Cart', 'Order', 'Coupon', 'Review', 'Support', 'Wishlist', 'SellerProfile', 'Category', 'Notifications', 'HeroSlide', 'ShippingRule'],
+  tagTypes: ['User', 'Product', 'Cart', 'Order', 'Coupon', 'Review', 'Support', 'Wishlist', 'SellerProfile', 'Category', 'Notifications', 'HeroSlide', 'ShippingRule', 'Wallet', 'Referral'],
   endpoints: (builder) => ({
     login: builder.mutation({
       query: (credentials) => ({
@@ -461,6 +461,26 @@ export const api = createApi({
       }),
       invalidatesTags: ['ShippingRule'],
     }),
+    getWallet: builder.query({
+      query: () => '/users/wallet',
+      providesTags: ['Wallet'],
+    }),
+    getReferralSettings: builder.query({
+      query: () => '/admin/referral-settings',
+      providesTags: ['Referral'],
+    }),
+    updateReferralSettings: builder.mutation({
+      query: (amountData) => ({
+        url: '/admin/referral-settings',
+        method: 'POST',
+        body: amountData,
+      }),
+      invalidatesTags: ['Referral'],
+    }),
+    getAdminReferrals: builder.query({
+      query: () => '/admin/referrals',
+      providesTags: ['Referral'],
+    }),
   }),
 });
 
@@ -530,4 +550,8 @@ export const {
   useCreateShippingRuleMutation,
   useUpdateShippingRuleMutation,
   useDeleteShippingRuleMutation,
+  useGetWalletQuery,
+  useGetReferralSettingsQuery,
+  useUpdateReferralSettingsMutation,
+  useGetAdminReferralsQuery,
 } = api;

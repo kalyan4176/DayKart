@@ -34,6 +34,17 @@ const userSchema = new mongoose.Schema({
   otp: { type: String },
   otpExpires: { type: Date },
   refreshToken: { type: String },
+  referralCode: { type: String, unique: true, sparse: true },
+  referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  wallet: {
+    balance: { type: Number, default: 0 },
+    transactions: [{
+      amount: { type: Number, required: true },
+      type: { type: String, enum: ['credit', 'debit'], required: true },
+      description: { type: String, required: true },
+      timestamp: { type: Date, default: Date.now }
+    }]
+  }
 }, {
   timestamps: true,
 });

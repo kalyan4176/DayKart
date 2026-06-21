@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { User, MapPin, Plus, Trash2, ShieldCheck, Mail, Phone, AlertTriangle, Store, Ticket } from 'lucide-react';
+import { User, MapPin, Plus, Trash2, ShieldCheck, Mail, Phone, AlertTriangle, Store, Ticket, Wallet, Gift, Copy, Check, ChevronDown } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { api } from '@/store/api';
@@ -85,6 +85,22 @@ export default function ProfilePage() {
   const [sellerSuccess, setSellerSuccess] = useState(false);
   const [sellerError, setSellerError] = useState('');
   const [activeTab, setActiveTab] = useState('profile');
+  const [isTabDropdownOpen, setIsTabDropdownOpen] = useState(false);
+
+  const { data: walletRes, isLoading: walletLoading } = api.useGetWalletQuery(undefined, {
+    skip: activeTab !== 'wallet' || !isAuthenticated || !mounted
+  });
+  const wallet = walletRes?.data?.wallet || { balance: 0, transactions: [] };
+
+  const [copied, setCopied] = useState(false);
+  const handleCopyCode = () => {
+    if (user?.referralCode) {
+      navigator.clipboard.writeText(user.referralCode);
+      setCopied(true);
+      showToast('Referral code copied to clipboard!', 'success');
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   const sellerProfile = sellerProfileRes?.data?.seller;
 
@@ -173,6 +189,27 @@ export default function ProfilePage() {
     }
   };
 
+  const tabConfig = {
+    profile: { name: 'Profile Details', icon: User },
+    addresses: { name: 'Shipping Addresses', icon: MapPin },
+    coupons: { name: 'My Coupons', icon: Ticket },
+    company: { name: 'Company Details', icon: Store },
+    wallet: { name: 'My Wallet', icon: Wallet },
+    referrals: { name: 'Referral Program', icon: Gift }
+  };
+
+  const getActiveTabs = () => {
+    const keys = ['profile', 'addresses'];
+    if (['customer', 'seller', 'admin'].includes(user?.role)) {
+      keys.push('coupons');
+    }
+    if (user?.role === 'seller') {
+      keys.push('company');
+    }
+    keys.push('wallet', 'referrals');
+    return keys.map(key => ({ key, ...tabConfig[key] }));
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950">
       <Navbar />
@@ -181,52 +218,69 @@ export default function ProfilePage() {
         <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-8">My Account</h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
-          {/* Sidebar Tabs */}
-          <div className="space-y-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
-            <button
-              onClick={() => setActiveTab('profile')}
-              className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === 'profile'
-                  ? 'bg-secondary text-white shadow-md'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
-              }`}
-            >
-              <User className="w-4.5 h-4.5" /> Profile Details
-            </button>
-            <button
-              onClick={() => setActiveTab('addresses')}
-              className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === 'addresses'
-                  ? 'bg-secondary text-white shadow-md'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
-              }`}
-            >
-              <MapPin className="w-4.5 h-4.5" /> Shipping Addresses
-            </button>
-            {['customer', 'seller', 'admin'].includes(user?.role) && (
+          {/* Mobile/Tablet Tab Dropdown Selector */}
+          <div className="lg:hidden w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
+            <label className="block text-xxs font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">
+              Select Account Section
+            </label>
+            <div className="relative">
               <button
-                onClick={() => setActiveTab('coupons')}
-                className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                  activeTab === 'coupons'
+                onClick={() => setIsTabDropdownOpen(!isTabDropdownOpen)}
+                className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-850 dark:text-white focus:outline-none focus:border-secondary transition-all flex items-center justify-between cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  {tabConfig[activeTab] && React.createElement(tabConfig[activeTab].icon, { className: "w-4.5 h-4.5 text-secondary" })}
+                  <span>{tabConfig[activeTab]?.name}</span>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-slate-400 dark:text-slate-500 transition-transform ${isTabDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isTabDropdownOpen && (
+                <>
+                  {/* Backdrop to close the dropdown when clicking outside */}
+                  <div 
+                    className="fixed inset-0 z-10" 
+                    onClick={() => setIsTabDropdownOpen(false)}
+                  />
+                  <div className="absolute left-0 right-0 mt-2 z-20 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg overflow-hidden py-1 max-h-60 overflow-y-auto">
+                    {getActiveTabs().map(({ key, name, icon: Icon }) => (
+                      <button
+                        key={key}
+                        onClick={() => {
+                          setActiveTab(key);
+                          setIsTabDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-4 py-2.5 text-xs font-bold transition-all flex items-center gap-2 ${
+                          activeTab === key
+                            ? 'bg-secondary text-white'
+                            : 'text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <Icon className={`w-4 h-4 ${activeTab === key ? 'text-white' : 'text-slate-400 dark:text-slate-500'}`} />
+                        <span>{name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Desktop Sidebar Tabs */}
+          <div className="hidden lg:flex lg:flex-col space-y-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
+            {getActiveTabs().map(({ key, name, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
+                  activeTab === key
                     ? 'bg-secondary text-white shadow-md'
                     : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
                 }`}
               >
-                <Ticket className="w-4.5 h-4.5" /> My Coupons
+                <Icon className="w-4.5 h-4.5" /> {name}
               </button>
-            )}
-            {user?.role === 'seller' && (
-              <button
-                onClick={() => setActiveTab('company')}
-                className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                  activeTab === 'company'
-                    ? 'bg-secondary text-white shadow-md'
-                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
-                }`}
-              >
-                <Store className="w-4.5 h-4.5" /> Company Details
-              </button>
-            )}
+            ))}
           </div>
 
           {/* Main Area */}
@@ -680,6 +734,127 @@ export default function ProfilePage() {
                     })}
                   </div>
                 )}
+              </div>
+            )}
+
+            {activeTab === 'wallet' && (
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-6">
+                <h3 className="font-extrabold text-base text-black dark:text-white border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2">
+                  <Wallet className="w-5 h-5 text-secondary" /> My Wallet
+                </h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Balance Card */}
+                  <div className="md:col-span-1 bg-gradient-to-br from-secondary to-cyan-600 text-white rounded-3xl p-6 shadow-md flex flex-col justify-between min-h-[160px]">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">Available Balance</p>
+                      <h4 className="text-3xl font-black mt-2">₹{wallet.balance}</h4>
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] font-bold opacity-90 bg-white/10 px-3 py-1.5 rounded-xl w-max">
+                      <ShieldCheck className="w-3.5 h-3.5" /> 100% Secured Wallet
+                    </div>
+                  </div>
+
+                  {/* Quick stats or info */}
+                  <div className="md:col-span-2 border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20 rounded-3xl p-6 flex flex-col justify-center space-y-3">
+                    <h5 className="font-bold text-xs text-black dark:text-white">Wallet Information</h5>
+                    <ul className="text-xxs text-slate-400 space-y-2 list-disc list-inside">
+                      <li>Use referral rewards to automatically top up your balance.</li>
+                      <li>Credits inside your wallet can be viewed by all roles (customer, seller, admin).</li>
+                      <li>Contact customer support if you experience any transaction issues.</li>
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Transactions Log */}
+                <div className="space-y-4 pt-4">
+                  <h4 className="font-extrabold text-sm text-black dark:text-white flex items-center gap-1.5">
+                    Transaction History
+                  </h4>
+
+                  {walletLoading ? (
+                    <p className="text-xxs text-slate-400 animate-pulse">Loading wallet transactions...</p>
+                  ) : !wallet.transactions || wallet.transactions.length === 0 ? (
+                    <p className="text-xxs text-slate-450 italic py-4">No wallet transactions recorded yet.</p>
+                  ) : (
+                    <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 text-[10px] uppercase font-bold text-black dark:text-white">
+                            <th className="px-4 py-3">Date</th>
+                            <th className="px-4 py-3">Description</th>
+                            <th className="px-4 py-3">Type</th>
+                            <th className="px-4 py-3 text-right">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {wallet.transactions.map((tx, idx) => {
+                            const isCredit = tx.type === 'credit';
+                            return (
+                              <tr key={idx} className="border-b border-slate-50 dark:border-slate-850 text-xxs text-slate-650 dark:text-slate-300 hover:bg-slate-50/50 dark:hover:bg-slate-850/10 transition-all">
+                                <td className="px-4 py-3 text-[10px] text-slate-400">
+                                  {new Date(tx.timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                </td>
+                                <td className="px-4 py-3 font-semibold">{tx.description}</td>
+                                <td className="px-4 py-3">
+                                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                                    isCredit 
+                                      ? 'bg-emerald-55/10 text-emerald-500 border border-emerald-100/20' 
+                                      : 'bg-red-50/10 text-red-500 border border-red-100/20'
+                                  }`}>
+                                    {tx.type.toUpperCase()}
+                                  </span>
+                                </td>
+                                <td className={`px-4 py-3 text-right font-bold ${isCredit ? 'text-emerald-500' : 'text-red-500'}`}>
+                                  {isCredit ? '+' : '-'}₹{tx.amount}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'referrals' && (
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-6">
+                <h3 className="font-extrabold text-base text-black dark:text-white border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2">
+                  <Gift className="w-5 h-5 text-secondary" /> Referral Program
+                </h3>
+
+                <p className="text-xs text-slate-500">
+                  Invite your friends to join Daykart! Share your unique referral code. When a friend registers and verifies their account, a referral bonus will be credited to your wallet.
+                </p>
+
+                <div className="bg-slate-50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-800 rounded-3xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div>
+                    <h4 className="font-extrabold text-xs text-black dark:text-white uppercase tracking-wide">Your Referral Code</h4>
+                    <p className="text-[10px] text-slate-455 mt-1">Copy this code and share it with your friends.</p>
+                  </div>
+                  
+                  <div className="flex items-center gap-2.5">
+                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-5 py-3 rounded-2xl font-mono text-sm font-black tracking-wider text-slate-800 dark:text-white select-all">
+                      {user?.referralCode || 'GENERATING...'}
+                    </div>
+                    <button
+                      onClick={handleCopyCode}
+                      className="bg-secondary hover:bg-cyan-600 text-white font-bold p-3 rounded-2xl shadow-md transition active:scale-95 flex items-center justify-center"
+                      title="Copy Code"
+                    >
+                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="border border-slate-100 dark:border-slate-800 rounded-3xl p-6 space-y-4">
+                  <h4 className="font-bold text-xs text-black dark:text-white">Invite History & Stats</h4>
+                  <p className="text-xxs text-slate-455">
+                    You can view the bonuses credited under your <span className="text-secondary font-bold cursor-pointer" onClick={() => setActiveTab('wallet')}>My Wallet</span> transactions. Invite friends via SMS, email, or social media!
+                  </p>
+                </div>
               </div>
             )}
           </div>

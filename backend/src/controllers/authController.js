@@ -7,6 +7,7 @@ import { logAuditEvent } from '../services/auditService.js';
 import { AppError, BadRequestError, UnauthorizedError, NotFoundError } from '../utils/customErrors.js';
 import logger from '../config/logger.js';
 import { sendInAppNotification } from '../utils/notificationHelper.js';
+import SystemConfig from '../models/SystemConfig.js';
 
 // Helper to generate 6 digit OTP
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
@@ -43,15 +44,48 @@ const sendOTPEmail = async (email, otp, name) => {
 
 export const register = async (req, res, next) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, referralCode } = req.body;
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return next(new BadRequestError('Email address is already in use.'));
     }
 
+    let referredByUser = null;
+    if (referralCode) {
+      referredByUser = await User.findOne({ referralCode: referralCode.trim().toUpperCase() });
+      if (!referredByUser) {
+        return next(new BadRequestError('Invalid referral code.'));
+      }
+    }
+
+    // Generate unique referral code for the registering user
+    const cleanName = name.replace(/[^a-zA-Z]/g, '').toUpperCase().substring(0, 6);
+    let randCode = `${cleanName}${Math.floor(1000 + Math.random() * 9000)}`;
+    let exists = await User.findOne({ referralCode: randCode });
+    while (exists) {
+      randCode = `${cleanName}${Math.floor(1000 + Math.random() * 9000)}`;
+      exists = await User.findOne({ referralCode: randCode });
+    }
+
     const otp = generateOTP();
     const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+
+    let initialWallet = { balance: 0, transactions: [] };
+    if (referredByUser) {
+      let rewardAmountConfig = await SystemConfig.findOne({ key: 'referral_reward_amount' });
+      const rewardAmount = rewardAmountConfig ? Number(rewardAmountConfig.value) : 50;
+
+      initialWallet = {
+        balance: rewardAmount,
+        transactions: [{
+          amount: rewardAmount,
+          type: 'credit',
+          description: `Referral sign-up bonus (referred by ${referredByUser.name})`,
+          timestamp: new Date()
+        }]
+      };
+    }
 
     const user = new User({
       name,
@@ -60,6 +94,9 @@ export const register = async (req, res, next) => {
       role: role || 'customer',
       otp,
       otpExpires,
+      referralCode: randCode,
+      referredBy: referredByUser ? referredByUser._id : undefined,
+      wallet: initialWallet
     });
 
     await user.save();
@@ -97,6 +134,46 @@ export const verifyOtp = async (req, res, next) => {
     user.isVerified = true;
     user.otp = undefined;
     user.otpExpires = undefined;
+
+    // Credit referral rewards to referrer
+    if (user.referredBy) {
+      try {
+        const referrer = await User.findById(user.referredBy);
+        if (referrer) {
+          let rewardAmountConfig = await SystemConfig.findOne({ key: 'referral_reward_amount' });
+          const rewardAmount = rewardAmountConfig ? Number(rewardAmountConfig.value) : 50;
+          
+          if (!referrer.wallet) {
+            referrer.wallet = { balance: 0, transactions: [] };
+          }
+          referrer.wallet.balance += rewardAmount;
+          referrer.wallet.transactions.push({
+            amount: rewardAmount,
+            type: 'credit',
+            description: `Referral bonus for referring ${user.name}`
+          });
+          
+          await referrer.save();
+          
+          // Delete referrer user Redis cache key to avoid stale user details
+          if (redisClient.isOpen) {
+            await redisClient.del(`user:${referrer._id}`);
+          }
+          
+          // Send notification to referrer
+          await sendInAppNotification(
+            referrer._id,
+            'info',
+            'Referral Bonus Credited!',
+            `Congratulations! You have received a ₹${rewardAmount} referral bonus for inviting ${user.name} to Daykart.`,
+            '/profile'
+          );
+        }
+      } catch (refErr) {
+        logger.error(`Error crediting referral bonus: ${refErr.message}`);
+      }
+    }
+
     await user.save();
 
     // Send in-app welcome notification

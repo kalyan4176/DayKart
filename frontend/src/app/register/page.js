@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { User, Mail, Lock, AlertTriangle, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { User, Mail, Lock, AlertTriangle, ArrowRight, CheckCircle2, Gift } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useToast } from '@/components/ToastProvider';
@@ -15,8 +15,14 @@ import { useRegisterMutation } from '@/store/api';
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string()
+    .min(8, 'Password must be at least 8 characters long')
+    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+    .regex(/[0-9]/, 'Password must contain at least one number')
+    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'),
   role: z.enum(['customer', 'seller', 'delivery_partner']),
+  referralCode: z.string().optional().or(z.literal('')),
 });
 
 export default function Register() {
@@ -150,6 +156,22 @@ export default function Register() {
                 <option value="delivery_partner">Delivery Partner (Ship Parcels)</option>
               </select>
               {errors.role && <p className="text-xxs text-red-500 mt-1">{errors.role.message}</p>}
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">
+                Referral Code (Optional)
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="e.g. KALYAN1234"
+                  {...register('referralCode')}
+                  className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary pl-10 pr-4 py-2.5 rounded-xl text-sm outline-none transition"
+                />
+                <Gift className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+              </div>
+              {errors.referralCode && <p className="text-xxs text-red-500 mt-1">{errors.referralCode.message}</p>}
             </div>
 
             <button

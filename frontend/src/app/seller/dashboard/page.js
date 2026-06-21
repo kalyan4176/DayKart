@@ -4,13 +4,13 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSelector, useDispatch } from 'react-redux';
 import { useForm } from 'react-hook-form';
-import { LayoutDashboard, ShoppingBag, PlusCircle, Upload, CheckCircle2, AlertTriangle, FileSpreadsheet, Store, Clock, User, Mail, Phone, ShieldCheck, UploadCloud, X, Image as ImageIcon, Trash2, RefreshCw, ClipboardList, XCircle } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, PlusCircle, Upload, CheckCircle2, AlertTriangle, FileSpreadsheet, Store, Clock, User, Mail, Phone, ShieldCheck, UploadCloud, X, Image as ImageIcon, Trash2, RefreshCw, ClipboardList, XCircle, Wallet } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import { useToast } from '@/components/ToastProvider';
 import { updateUser } from '@/store/authSlice';
-import { useCreateProductMutation, useGetSellerProfileQuery, useCreateSellerProfileMutation, useGetCategoriesQuery, useGetBrandsQuery, useUpdateProfileMutation, useUploadProductImageMutation, useUpdateProductMutation, useDeleteProductMutation, useGetProductsQuery, useGetSellerOrdersQuery, useUpdateOrderStatusMutation } from '@/store/api';
+import { useCreateProductMutation, useGetSellerProfileQuery, useCreateSellerProfileMutation, useGetCategoriesQuery, useGetBrandsQuery, useUpdateProfileMutation, useUploadProductImageMutation, useUpdateProductMutation, useDeleteProductMutation, useGetProductsQuery, useGetSellerOrdersQuery, useUpdateOrderStatusMutation, useGetWalletQuery } from '@/store/api';
 
 export default function SellerDashboard() {
   const router = useRouter();
@@ -31,6 +31,11 @@ export default function SellerDashboard() {
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [mounted, setMounted] = useState(false);
+
+  const { data: walletRes, isLoading: walletLoading } = useGetWalletQuery(undefined, {
+    skip: activeTab !== 'wallet' || !isAuthenticated || !mounted
+  });
+  const wallet = walletRes?.data?.wallet || { balance: 0, transactions: [] };
 
   useEffect(() => {
     setMounted(true);
@@ -633,10 +638,10 @@ export default function SellerDashboard() {
           /* Case 4: Approved Profile (Render Standard Portal) */
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
             {/* Side Tabs */}
-            <div className="space-y-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
+            <div className="flex lg:flex-col overflow-x-auto lg:overflow-x-visible space-x-2 lg:space-x-0 lg:space-y-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
               <button
                 onClick={() => setActiveTab('overview')}
-                className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
                   activeTab === 'overview'
                     ? 'bg-secondary text-white shadow-md'
                     : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -646,7 +651,7 @@ export default function SellerDashboard() {
               </button>
               <button
                 onClick={() => setActiveTab('manage-orders')}
-                className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
                   activeTab === 'manage-orders'
                     ? 'bg-secondary text-white shadow-md'
                     : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -656,7 +661,7 @@ export default function SellerDashboard() {
               </button>
               <button
                 onClick={() => setActiveTab('add-product')}
-                className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
                   activeTab === 'add-product'
                     ? 'bg-secondary text-white shadow-md'
                     : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -666,7 +671,7 @@ export default function SellerDashboard() {
               </button>
               <button
                 onClick={() => setActiveTab('manage-listings')}
-                className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
                   activeTab === 'manage-listings'
                     ? 'bg-secondary text-white shadow-md'
                     : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -676,7 +681,7 @@ export default function SellerDashboard() {
               </button>
               <button
                 onClick={() => setActiveTab('bulk-upload')}
-                className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
                   activeTab === 'bulk-upload'
                     ? 'bg-secondary text-white shadow-md'
                     : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -685,8 +690,18 @@ export default function SellerDashboard() {
                 <Upload className="w-4.5 h-4.5" /> Bulk CSV Import
               </button>
               <button
+                onClick={() => setActiveTab('wallet')}
+                className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
+                  activeTab === 'wallet'
+                    ? 'bg-secondary text-white shadow-md'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                }`}
+              >
+                <Wallet className="w-4.5 h-4.5" /> Store Wallet
+              </button>
+              <button
                 onClick={() => setActiveTab('profile')}
-                className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
                   activeTab === 'profile'
                     ? 'bg-secondary text-white shadow-md'
                     : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -1180,6 +1195,90 @@ export default function SellerDashboard() {
                       {csvResult}
                     </p>
                   )}
+                </div>
+              )}
+
+              {activeTab === 'wallet' && (
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-6">
+                  <h3 className="font-extrabold text-base text-black dark:text-white border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2">
+                    <Wallet className="w-5 h-5 text-secondary" /> Store Wallet
+                  </h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Balance Card */}
+                    <div className="md:col-span-1 bg-gradient-to-br from-secondary to-cyan-600 text-white rounded-3xl p-6 shadow-md flex flex-col justify-between min-h-[160px]">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">Store Balance</p>
+                        <h4 className="text-3xl font-black mt-2">₹{wallet.balance}</h4>
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] font-bold opacity-90 bg-white/10 px-3 py-1.5 rounded-xl w-max">
+                        <ShieldCheck className="w-3.5 h-3.5" /> Secure Merchant Wallet
+                      </div>
+                    </div>
+
+                    {/* Stats Info */}
+                    <div className="md:col-span-2 border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20 rounded-3xl p-6 flex flex-col justify-center space-y-3">
+                      <h5 className="font-bold text-xs text-black dark:text-white">Merchant Wallet Info</h5>
+                      <p className="text-xxs text-slate-450 leading-relaxed">
+                        This wallet displays your store referral credits and earnings. Platform sales revenue shares are periodically settled directly to your connected bank account:
+                      </p>
+                      <div className="text-[10px] text-slate-400 bg-white dark:bg-slate-850 border border-slate-100 dark:border-slate-800 p-2.5 rounded-xl">
+                        <div><strong>Account:</strong> {sellerProfile?.bankDetails?.accountHolderName || 'N/A'}</div>
+                        <div><strong>Bank:</strong> {sellerProfile?.bankDetails?.bankName || 'N/A'} ({sellerProfile?.bankDetails?.accountNumber || 'N/A'})</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Transactions Table */}
+                  <div className="space-y-4 pt-4">
+                    <h4 className="font-extrabold text-sm text-black dark:text-white">
+                      Store Wallet Ledger
+                    </h4>
+
+                    {walletLoading ? (
+                      <p className="text-xxs text-slate-455 animate-pulse">Loading store wallet ledger...</p>
+                    ) : !wallet.transactions || wallet.transactions.length === 0 ? (
+                      <p className="text-xxs text-slate-455 italic py-4">No wallet transactions logged.</p>
+                    ) : (
+                      <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 text-[10px] uppercase font-bold text-black dark:text-white">
+                              <th className="px-4 py-3">Date</th>
+                              <th className="px-4 py-3">Description</th>
+                              <th className="px-4 py-3">Type</th>
+                              <th className="px-4 py-3 text-right">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {wallet.transactions.map((tx, idx) => {
+                              const isCredit = tx.type === 'credit';
+                              return (
+                                <tr key={idx} className="border-b border-slate-50 dark:border-slate-850 text-xxs text-slate-650 dark:text-slate-300 hover:bg-slate-50/50 dark:hover:bg-slate-850/10 transition-all">
+                                  <td className="px-4 py-3 text-[10px] text-slate-450">
+                                    {new Date(tx.timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                  </td>
+                                  <td className="px-4 py-3 font-semibold">{tx.description}</td>
+                                  <td className="px-4 py-3">
+                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                                      isCredit 
+                                        ? 'bg-emerald-55/10 text-emerald-500 border border-emerald-100/20' 
+                                        : 'bg-red-50/10 text-red-500 border border-red-100/20'
+                                    }`}>
+                                      {tx.type.toUpperCase()}
+                                    </span>
+                                  </td>
+                                  <td className={`px-4 py-3 text-right font-bold ${isCredit ? 'text-emerald-500' : 'text-red-500'}`}>
+                                    {isCredit ? '+' : '-'}₹{tx.amount}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 

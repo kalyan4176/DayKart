@@ -384,3 +384,18 @@ export const createSellerProfile = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getWallet = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id).select('wallet');
+    if (!user) {
+      return next(new NotFoundError('User not found.'));
+    }
+    res.status(200).json({
+      status: 'success',
+      data: { wallet: user.wallet || { balance: 0, transactions: [] } }
+    });
+  } catch (error) {
+    next(error);
+  }
+};

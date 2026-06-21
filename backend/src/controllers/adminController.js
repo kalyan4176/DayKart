@@ -8,6 +8,7 @@ import redisClient from '../config/redis.js';
 import { logAuditEvent } from '../services/auditService.js';
 import { NotFoundError, BadRequestError } from '../utils/customErrors.js';
 import { sendInAppNotification } from '../utils/notificationHelper.js';
+import SystemConfig from '../models/SystemConfig.js';
 
 export const getDashboardStats = async (req, res, next) => {
   try {
@@ -17,7 +18,7 @@ export const getDashboardStats = async (req, res, next) => {
     
     // Calculate total sales revenue
     const revenueResult = await Order.aggregate([
-      { $match: { status: 'delivered' } },
+      { $match: { status: { $in: ['placed', 'processed', 'shipped', 'out_for_delivery', 'delivered'] } } },
       { $group: { _id: null, totalSales: { $sum: '$pricing.total' } } }
     ]);
     const totalSales = revenueResult[0]?.totalSales || 0;
@@ -33,6 +34,7 @@ export const getDashboardStats = async (req, res, next) => {
 
     // Monthly orders analytics pipeline
     const monthlyStats = await Order.aggregate([
+      { $match: { status: { $in: ['placed', 'processed', 'shipped', 'out_for_delivery', 'delivered'] } } },
       {
         $group: {
           _id: { $month: '$createdAt' },
@@ -344,6 +346,12 @@ export const createSellerDirectly = async (req, res, next) => {
       street, city, state, country, postalCode 
     } = req.body;
 
+    // 0. Validate password strength (at least 8 chars, 1 upper, 1 lower, 1 digit, 1 special char)
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+    if (!passwordRegex.test(password)) {
+      return next(new BadRequestError('Password must be at least 8 characters long, and contain at least one uppercase letter, one lowercase letter, one number, and one special character.'));
+    }
+
     // 1. Check if email is already taken
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
@@ -441,6 +449,69 @@ export const getAdminOrders = async (req, res, next) => {
         totalOrders,
         rejectedBySellersCount,
       }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getReferralSettings = async (req, res, next) => {
+  try {
+    let config = await SystemConfig.findOne({ key: 'referral_reward_amount' });
+    if (!config) {
+      config = await SystemConfig.create({ key: 'referral_reward_amount', value: 50 });
+    }
+    res.status(200).json({
+      status: 'success',
+      data: { amount: config.value }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateReferralSettings = async (req, res, next) => {
+  try {
+    const { amount } = req.body;
+    if (amount === undefined || amount === null || amount < 0) {
+      return next(new BadRequestError('Referral reward amount must be a non-negative number.'));
+    }
+
+    let config = await SystemConfig.findOne({ key: 'referral_reward_amount' });
+    if (!config) {
+      config = new SystemConfig({ key: 'referral_reward_amount' });
+    }
+    config.value = Number(amount);
+    await config.save();
+
+    await logAuditEvent({
+      actor: req.user._id,
+      action: 'ADMIN_UPDATE_REFERRAL_SETTINGS',
+      req,
+      details: { amount: config.value },
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Referral reward settings updated successfully.',
+      data: { amount: config.value }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getAdminReferrals = async (req, res, next) => {
+  try {
+    // Find all users who were referred by someone
+    const referrals = await User.find({ referredBy: { $exists: true, $ne: null } })
+      .select('name email createdAt referredBy')
+      .populate('referredBy', 'name email referralCode')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      status: 'success',
+      data: { referrals }
     });
   } catch (error) {
     next(error);

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSelector, useDispatch } from 'react-redux';
-import { LayoutDashboard, Users, ShoppingBag, ShieldCheck, CheckCircle2, XCircle, User, Mail, Phone, AlertTriangle, Store, Plus, Trash2, Edit, FolderOpen, ClipboardList, RefreshCw, ChevronRight, Sliders, Tag, Gift, Percent, Calendar, Truck } from 'lucide-react';
+import { LayoutDashboard, Users, ShoppingBag, ShieldCheck, CheckCircle2, XCircle, User, Mail, Phone, AlertTriangle, Store, Plus, Trash2, Edit, FolderOpen, ClipboardList, RefreshCw, ChevronRight, Sliders, Tag, Gift, Percent, Calendar, Truck, Wallet, Search, ChevronDown } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ConfirmationModal from '@/components/ConfirmationModal';
@@ -36,6 +36,10 @@ import {
    useCreateShippingRuleMutation,
    useUpdateShippingRuleMutation,
    useDeleteShippingRuleMutation,
+   useGetWalletQuery,
+   useGetReferralSettingsQuery,
+   useUpdateReferralSettingsMutation,
+   useGetAdminReferralsQuery,
 } from '@/store/api';
 
 export default function AdminDashboard() {
@@ -49,6 +53,9 @@ export default function AdminDashboard() {
     setMounted(true);
   }, []);
   const [activeTab, setActiveTab] = useState('overview');
+  const [isTabDropdownOpen, setIsTabDropdownOpen] = useState(false);
+  const [selectedMetric, setSelectedMetric] = useState(null); // 'sales' | 'customers' | 'rejections'
+  const [metricSearchQuery, setMetricSearchQuery] = useState('');
 
   const [confirmConfig, setConfirmConfig] = useState({
     isOpen: false,
@@ -83,7 +90,7 @@ export default function AdminDashboard() {
   // Queries
   const [productFilter, setProductFilter] = useState('pending'); // 'pending' or 'all'
 
-  const { data: statsRes, isLoading: statsLoading } = useGetAdminStatsQuery(undefined, { skip: activeTab !== 'overview' || !isAdmin || !mounted });
+  const { data: statsRes, isLoading: statsLoading, refetch: refetchStats } = useGetAdminStatsQuery(undefined, { skip: activeTab !== 'overview' || !isAdmin || !mounted });
   const { data: sellersRes, refetch: refetchSellers } = useGetAdminUsersQuery({ role: 'seller' }, { skip: (activeTab !== 'sellers' && activeTab !== 'approvals') || !isAdmin || !mounted });
   const { data: productsRes, refetch: refetchProducts } = useGetProductsQuery({ status: activeTab === 'approvals' ? 'pending' : productFilter, limit: 100 }, { skip: (activeTab !== 'products' && activeTab !== 'approvals') || !isAdmin || !mounted });
 
@@ -112,6 +119,107 @@ export default function AdminDashboard() {
   const [maxCartValue, setMaxCartValue] = useState('');
   const [noUpperLimit, setNoUpperLimit] = useState(false);
   const [shippingCharge, setShippingCharge] = useState(0);
+
+  // Wallet query
+  const { data: walletRes, isLoading: walletLoading } = useGetWalletQuery(undefined, { skip: activeTab !== 'wallet' || !isAdmin || !mounted });
+  const wallet = walletRes?.data?.wallet || { balance: 0, transactions: [] };
+
+  // Referral query & mutations
+  const { data: referralSettingsRes, refetch: refetchReferralSettings } = useGetReferralSettingsQuery(undefined, { skip: activeTab !== 'referrals' || !isAdmin || !mounted });
+  const [updateReferralSettings] = useUpdateReferralSettingsMutation();
+  const { data: adminReferralsRes, refetch: refetchAdminReferrals } = useGetAdminReferralsQuery(undefined, { skip: activeTab !== 'referrals' || !isAdmin || !mounted });
+
+  const [referralRewardAmount, setReferralRewardAmount] = useState(50);
+  const [updatingReward, setUpdatingReward] = useState(false);
+  const [referralSearch, setReferralSearch] = useState('');
+  const [referralDateFilter, setReferralDateFilter] = useState('all'); // 'all' | '7days' | '30days'
+  const [referralSortOrder, setReferralSortOrder] = useState('newest'); // 'newest' | 'oldest'
+
+  const [sellerSearchQuery, setSellerSearchQuery] = useState('');
+  const [sellerStatusFilter, setSellerStatusFilter] = useState('all'); // 'all' | 'pending' | 'approved' | 'rejected'
+
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+
+  const [couponSearchQuery, setCouponSearchQuery] = useState('');
+  const [couponStatusFilter, setCouponStatusFilter] = useState('all'); // 'all' | 'active' | 'inactive'
+
+  const [shippingSearchQuery, setShippingSearchQuery] = useState('');
+
+  const [orderSearchQuery, setOrderSearchQuery] = useState('');
+  const [orderStatusFilter, setOrderStatusFilter] = useState('all'); // 'all' | 'placed' | 'processed' | 'shipped' | 'out_for_delivery' | 'delivered' | 'cancelled'
+
+  const referrals = adminReferralsRes?.data?.referrals || [];
+  const filteredReferrals = referrals
+    .filter(ref => {
+      const searchLower = referralSearch.toLowerCase().trim();
+      let matchesSearch = true;
+      if (searchLower) {
+        const referredName = (ref.name || '').toLowerCase();
+        const referredEmail = (ref.email || '').toLowerCase();
+        const referrerName = (ref.referredBy?.name || '').toLowerCase();
+        const referrerCode = (ref.referredBy?.referralCode || '').toLowerCase();
+        matchesSearch = referredName.includes(searchLower) ||
+                        referredEmail.includes(searchLower) ||
+                        referrerName.includes(searchLower) ||
+                        referrerCode.includes(searchLower);
+      }
+
+      let matchesDate = true;
+      if (referralDateFilter === '7days') {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        matchesDate = new Date(ref.createdAt) >= sevenDaysAgo;
+      } else if (referralDateFilter === '30days') {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        matchesDate = new Date(ref.createdAt) >= thirtyDaysAgo;
+      }
+
+      return matchesSearch && matchesDate;
+    })
+    .sort((a, b) => {
+      const dateA = new Date(a.createdAt);
+      const dateB = new Date(b.createdAt);
+      return referralSortOrder === 'newest' ? dateB - dateA : dateA - dateB;
+    });
+
+  useEffect(() => {
+    if (referralSettingsRes?.data?.amount !== undefined) {
+      setReferralRewardAmount(referralSettingsRes.data.amount);
+    }
+  }, [referralSettingsRes]);
+
+  useEffect(() => {
+    if (mounted && isAdmin && activeTab === 'overview' && refetchStats) {
+      try {
+        refetchStats();
+      } catch (err) {
+        // Safe fallback for queries not initialized yet
+      }
+    } else if (mounted) {
+      setSelectedMetric(null);
+      setMetricSearchQuery('');
+    }
+  }, [activeTab, refetchStats, mounted, isAdmin]);
+
+  const handleSaveReferralSettings = async (e) => {
+    e.preventDefault();
+    if (referralRewardAmount < 0) {
+      showToast('Referral bonus amount cannot be negative.', 'error');
+      return;
+    }
+
+    setUpdatingReward(true);
+    try {
+      await updateReferralSettings({ amount: Number(referralRewardAmount) }).unwrap();
+      showToast('Referral settings updated successfully!', 'success');
+      refetchReferralSettings();
+    } catch (err) {
+      showToast(err.data?.message || 'Failed to update referral settings.', 'error');
+    } finally {
+      setUpdatingReward(false);
+    }
+  };
 
   const resetShippingForm = () => {
     setEditingShippingRule(null);
@@ -415,7 +523,22 @@ export default function AdminDashboard() {
   const { data: categoriesRes, refetch: refetchCategories } = useGetCategoriesQuery(undefined, { skip: activeTab !== 'categories' || !isAdmin || !mounted });
   const { data: adminOrdersRes, refetch: refetchAdminOrders, isLoading: ordersLoading } = useGetAdminOrdersQuery(
     undefined,
-    { skip: activeTab !== 'orders' || !isAdmin || !mounted }
+    {
+      skip:
+        (activeTab !== 'orders' &&
+          (activeTab !== 'overview' || !['sales', 'rejections'].includes(selectedMetric))) ||
+        !isAdmin ||
+        !mounted,
+    }
+  );
+  const { data: customersRes, refetch: refetchCustomers, isLoading: customersLoading } = useGetAdminUsersQuery(
+    { role: 'customer' },
+    {
+      skip:
+        (activeTab !== 'overview' || selectedMetric !== 'customers') ||
+        !isAdmin ||
+        !mounted,
+    }
   );
   const adminOrders = adminOrdersRes?.data?.orders || [];
   const [expandedOrders, setExpandedOrders] = useState({});
@@ -474,6 +597,16 @@ export default function AdminDashboard() {
 
   const handleAddSellerDirectly = async (e) => {
     e.preventDefault();
+    
+    // Validate password strength
+    const password = newSellerData.password;
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+    if (!passwordRegex.test(password)) {
+      setNewSellerError('Password must be at least 8 characters long, and contain at least one uppercase letter, one lowercase letter, one number, and one special character.');
+      showToast('Weak password.', 'error');
+      return;
+    }
+
     triggerConfirmation({
       title: 'Register New Seller Store?',
       message: `Are you sure you want to register and approve the seller store "${newSellerData.storeName}" directly?`,
@@ -640,6 +773,604 @@ export default function AdminDashboard() {
   const pendingProducts = productsRes?.data?.products || [];
   const categoriesList = categoriesRes?.data?.categories || [];
 
+  const ordersList = adminOrdersRes?.data?.orders || [];
+  const salesOrders = ordersList.filter(order => 
+    ['placed', 'processed', 'shipped', 'out_for_delivery', 'delivered'].includes(order.status)
+  );
+  
+  const filteredSalesOrders = salesOrders.filter(order => {
+    const query = metricSearchQuery.toLowerCase().trim();
+    if (!query) return true;
+    return (
+      (order.orderId || '').toLowerCase().includes(query) ||
+      (order.customer?.name || '').toLowerCase().includes(query) ||
+      (order.customer?.email || '').toLowerCase().includes(query) ||
+      (order.status || '').toLowerCase().includes(query) ||
+      new Date(order.createdAt).toLocaleDateString('en-IN').includes(query)
+    );
+  });
+
+  const customersList = customersRes?.data?.users || [];
+  const filteredCustomers = customersList.filter(user => {
+    const query = metricSearchQuery.toLowerCase().trim();
+    if (!query) return true;
+    return (
+      (user.name || '').toLowerCase().includes(query) ||
+      (user.email || '').toLowerCase().includes(query) ||
+      (user.phoneNumber || '').toLowerCase().includes(query) ||
+      (user.referralCode || '').toLowerCase().includes(query) ||
+      new Date(user.createdAt).toLocaleDateString('en-IN').includes(query)
+    );
+  });
+
+  const rejectionOrders = ordersList.filter(order => 
+    order.statusTimeline?.some(event => 
+      event.status === 'cancelled' && event.message === 'Order rejected by seller.'
+    )
+  );
+  
+  const filteredRejections = rejectionOrders.filter(order => {
+    const query = metricSearchQuery.toLowerCase().trim();
+    if (!query) return true;
+    
+    const cancelEvent = order.statusTimeline?.find(event => 
+      event.status === 'cancelled' && event.message === 'Order rejected by seller.'
+    );
+    const cancelReason = cancelEvent?.message || 'Order rejected by seller.';
+    
+    return (
+      (order.orderId || '').toLowerCase().includes(query) ||
+      (order.customer?.name || '').toLowerCase().includes(query) ||
+      (order.customer?.email || '').toLowerCase().includes(query) ||
+      cancelReason.toLowerCase().includes(query) ||
+      new Date(order.createdAt).toLocaleDateString('en-IN').includes(query)
+    );
+  });
+
+  const renderCountMessage = () => {
+    if (selectedMetric === 'sales') {
+      return `Showing ${filteredSalesOrders.length} of ${salesOrders.length} records`;
+    }
+    if (selectedMetric === 'customers') {
+      return `Showing ${filteredCustomers.length} of ${customersList.length} records`;
+    }
+    if (selectedMetric === 'rejections') {
+      return `Showing ${filteredRejections.length} of ${rejectionOrders.length} records`;
+    }
+    return '';
+  };
+
+  const isMetricLoading = 
+    (selectedMetric === 'customers' && customersLoading) ||
+    ((selectedMetric === 'sales' || selectedMetric === 'rejections') && ordersLoading);
+
+  const renderMetricTable = () => {
+    if (isMetricLoading) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 gap-3">
+          <div className="w-8 h-8 border-4 border-secondary border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-xxs text-slate-500 font-semibold">Loading records...</p>
+        </div>
+      );
+    }
+
+    if (selectedMetric === 'sales') {
+      if (filteredSalesOrders.length === 0) {
+        return <p className="text-xs text-slate-400 italic py-4">No matching sales records found.</p>;
+      }
+      return (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-100 dark:border-slate-800">
+                <th className="pb-3 text-xxs font-extrabold text-black dark:text-white uppercase tracking-wider">Order ID</th>
+                <th className="pb-3 text-xxs font-extrabold text-black dark:text-white uppercase tracking-wider">Customer</th>
+                <th className="pb-3 text-xxs font-extrabold text-black dark:text-white uppercase tracking-wider">Date</th>
+                <th className="pb-3 text-xxs font-extrabold text-black dark:text-white uppercase tracking-wider">Total Sales</th>
+                <th className="pb-3 text-xxs font-extrabold text-black dark:text-white uppercase tracking-wider">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredSalesOrders.map((order) => (
+                <tr key={order._id} className="border-b border-slate-50 dark:border-slate-850 hover:bg-slate-50/50 dark:hover:bg-slate-850/20 transition-all">
+                  <td className="py-3.5 text-xs font-bold text-slate-800 dark:text-slate-200">{order.orderId}</td>
+                  <td className="py-3.5 text-xs font-semibold text-slate-700 dark:text-slate-350">
+                    <div>{order.customer?.name || 'Guest'}</div>
+                    <div className="text-[10px] text-slate-400 font-normal">{order.customer?.email}</div>
+                  </td>
+                  <td className="py-3.5 text-xs font-semibold text-slate-650 dark:text-slate-405">
+                    {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </td>
+                  <td className="py-3.5 text-xs font-bold text-slate-800 dark:text-slate-200">₹{order.pricing?.total?.toLocaleString('en-IN') || '0'}</td>
+                  <td className="py-3.5">
+                    <span className={`inline-block px-2.5 py-0.5 rounded-full font-bold text-[9px] uppercase ${
+                      order.status === 'processed' || order.status === 'shipped' || order.status === 'delivered'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600'
+                        : 'bg-orange-50 dark:bg-orange-950/40 text-orange-600'
+                    }`}>
+                      {order.status === 'processed' ? 'Approved' : order.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    if (selectedMetric === 'customers') {
+      if (filteredCustomers.length === 0) {
+        return <p className="text-xs text-slate-400 italic py-4">No matching customer profiles found.</p>;
+      }
+      return (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-100 dark:border-slate-800">
+                <th className="pb-3 text-xxs font-extrabold text-black dark:text-white uppercase tracking-wider">Name</th>
+                <th className="pb-3 text-xxs font-extrabold text-black dark:text-white uppercase tracking-wider">Email</th>
+                <th className="pb-3 text-xxs font-extrabold text-black dark:text-white uppercase tracking-wider">Phone</th>
+                <th className="pb-3 text-xxs font-extrabold text-black dark:text-white uppercase tracking-wider">Joined Date</th>
+                <th className="pb-3 text-xxs font-extrabold text-black dark:text-white uppercase tracking-wider">Referral Code</th>
+                <th className="pb-3 text-xxs font-extrabold text-black dark:text-white uppercase tracking-wider text-right">Wallet Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredCustomers.map((user) => (
+                <tr key={user._id} className="border-b border-slate-50 dark:border-slate-850 hover:bg-slate-50/50 dark:hover:bg-slate-850/20 transition-all">
+                  <td className="py-3.5 text-xs font-bold text-slate-800 dark:text-slate-200">{user.name}</td>
+                  <td className="py-3.5 text-xs font-semibold text-slate-700 dark:text-slate-350">{user.email}</td>
+                  <td className="py-3.5 text-xs font-semibold text-slate-650 dark:text-slate-405">{user.phoneNumber || '-'}</td>
+                  <td className="py-3.5 text-xs font-semibold text-slate-650 dark:text-slate-405">
+                    {new Date(user.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </td>
+                  <td className="py-3.5 text-xs font-mono font-semibold text-slate-600 dark:text-slate-400">{user.referralCode || '-'}</td>
+                  <td className="py-3.5 text-xs font-bold text-slate-800 dark:text-slate-200 text-right">₹{user.wallet?.balance?.toLocaleString('en-IN') || 0}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    if (selectedMetric === 'rejections') {
+      if (filteredRejections.length === 0) {
+        return <p className="text-xs text-slate-400 italic py-4">No matching rejected orders found.</p>;
+      }
+      return (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-100 dark:border-slate-800">
+                <th className="pb-3 text-xxs font-extrabold text-black dark:text-white uppercase tracking-wider">Order ID</th>
+                <th className="pb-3 text-xxs font-extrabold text-black dark:text-white uppercase tracking-wider">Customer</th>
+                <th className="pb-3 text-xxs font-extrabold text-black dark:text-white uppercase tracking-wider">Date</th>
+                <th className="pb-3 text-xxs font-extrabold text-black dark:text-white uppercase tracking-wider">Amount</th>
+                <th className="pb-3 text-xxs font-extrabold text-black dark:text-white uppercase tracking-wider">Rejection Info</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredRejections.map((order) => {
+                const cancelEvent = order.statusTimeline?.find(event => 
+                  event.status === 'cancelled' && event.message === 'Order rejected by seller.'
+                );
+                return (
+                  <tr key={order._id} className="border-b border-slate-50 dark:border-slate-850 hover:bg-slate-50/50 dark:hover:bg-slate-850/20 transition-all">
+                    <td className="py-3.5 text-xs font-bold text-rose-600 dark:text-rose-400">{order.orderId}</td>
+                    <td className="py-3.5 text-xs font-semibold text-slate-700 dark:text-slate-350">
+                      <div>{order.customer?.name || 'Guest'}</div>
+                      <div className="text-[10px] text-slate-400 font-normal">{order.customer?.email}</div>
+                    </td>
+                    <td className="py-3.5 text-xs font-semibold text-slate-650 dark:text-slate-405">
+                      {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </td>
+                    <td className="py-3.5 text-xs font-bold text-slate-800 dark:text-slate-200">₹{order.pricing?.total?.toLocaleString('en-IN') || '0'}</td>
+                    <td className="py-3.5 text-xs text-slate-550 dark:text-slate-400 font-semibold">
+                      <div className="text-red-500 font-bold">Rejected by Seller</div>
+                      {cancelEvent?.timestamp && (
+                        <div className="text-[10px] text-slate-400 font-normal">
+                          Cancelled on: {new Date(cancelEvent.timestamp).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  const handleDownloadPDF = async () => {
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+
+      const doc = new jsPDF('p', 'pt', 'a4');
+      const genDate = new Date().toLocaleString('en-IN');
+      const adminEmail = user?.email || 'admin@daykart.com';
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.setTextColor(15, 23, 42);
+      let title = '';
+      let dataRows = [];
+      let headers = [];
+
+      if (selectedMetric === 'sales') {
+        title = 'Daykart Metrics Ledger: Total Sales';
+        headers = [['Order ID', 'Customer Name', 'Customer Email', 'Order Date', 'Total Amount (INR)', 'Status']];
+        dataRows = filteredSalesOrders.map(order => [
+          order.orderId || '',
+          order.customer?.name || 'Guest',
+          order.customer?.email || '',
+          new Date(order.createdAt).toLocaleDateString('en-IN'),
+          `INR ${order.pricing?.total?.toLocaleString('en-IN') || '0'}`,
+          order.status === 'processed' ? 'Approved' : order.status
+        ]);
+      } else if (selectedMetric === 'customers') {
+        title = 'Daykart Metrics Ledger: Active Customers';
+        headers = [['Name', 'Email', 'Phone Number', 'Joined Date', 'Referral Code', 'Wallet Balance (INR)']];
+        dataRows = filteredCustomers.map(u => [
+          u.name || '',
+          u.email || '',
+          u.phoneNumber || '-',
+          new Date(u.createdAt).toLocaleDateString('en-IN'),
+          u.referralCode || '-',
+          `INR ${u.wallet?.balance?.toLocaleString('en-IN') || '0'}`
+        ]);
+      } else if (selectedMetric === 'rejections') {
+        title = 'Daykart Metrics Ledger: Seller Rejections';
+        headers = [['Order ID', 'Customer Name', 'Customer Email', 'Order Date', 'Amount (INR)', 'Rejection Date']];
+        dataRows = filteredRejections.map(order => {
+          const cancelEvent = order.statusTimeline?.find(event => 
+            event.status === 'cancelled' && event.message === 'Order rejected by seller.'
+          );
+          return [
+            order.orderId || '',
+            order.customer?.name || 'Guest',
+            order.customer?.email || '',
+            new Date(order.createdAt).toLocaleDateString('en-IN'),
+            `INR ${order.pricing?.total?.toLocaleString('en-IN') || '0'}`,
+            cancelEvent?.timestamp ? new Date(cancelEvent.timestamp).toLocaleDateString('en-IN') : '-'
+          ];
+        });
+      }
+
+      doc.text(title, 40, 50);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Generated on: ${genDate}`, 40, 70);
+      doc.text(`Exported by: ${adminEmail}`, 40, 85);
+      doc.text(`Total Records Displayed: ${dataRows.length}`, 40, 100);
+
+      autoTable(doc, {
+        startY: 120,
+        head: headers,
+        body: dataRows,
+        styles: {
+          fontSize: 9,
+          cellPadding: 6,
+          valign: 'middle'
+        },
+        headStyles: {
+          fillColor: [14, 116, 144],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold'
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252]
+        },
+        margin: { left: 40, right: 40 }
+      });
+
+      doc.save(`daykart-${selectedMetric}-logs.pdf`);
+      showToast('Ledger report downloaded successfully!', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to export PDF.', 'error');
+    }
+  };
+
+  const filteredSellersList = sellersList.filter(sel => {
+    if (sellerStatusFilter !== 'all' && sel.status !== sellerStatusFilter) {
+      return false;
+    }
+    const query = sellerSearchQuery.toLowerCase().trim();
+    if (!query) return true;
+    return (
+      (sel.storeName || '').toLowerCase().includes(query) ||
+      (sel.user?.name || '').toLowerCase().includes(query) ||
+      (sel.user?.email || '').toLowerCase().includes(query) ||
+      (sel.gstin || '').toLowerCase().includes(query) ||
+      (sel.pan || '').toLowerCase().includes(query)
+    );
+  });
+
+  const filteredProductsList = pendingProducts.filter(prod => {
+    const query = productSearchQuery.toLowerCase().trim();
+    if (!query) return true;
+    return (
+      (prod.title || '').toLowerCase().includes(query) ||
+      (prod.sku || '').toLowerCase().includes(query) ||
+      (prod.brand || '').toLowerCase().includes(query) ||
+      (prod.seller?.storeName || '').toLowerCase().includes(query)
+    );
+  });
+
+  const filteredCouponsList = (couponsRes?.data?.coupons || [])
+    .filter(c => couponTab === 'standard' ? !c.isRandomPool : c.isRandomPool)
+    .filter(c => {
+      if (couponStatusFilter === 'active' && !c.active) return false;
+      if (couponStatusFilter === 'inactive' && c.active) return false;
+      const query = couponSearchQuery.toLowerCase().trim();
+      if (!query) return true;
+      return (
+        (c.code || '').toLowerCase().includes(query) ||
+        (c.description || '').toLowerCase().includes(query)
+      );
+    });
+
+  const shippingRules = shippingRulesRes?.data?.shippingRules || [];
+  const filteredShippingRules = shippingRules.filter(rule => {
+    const query = shippingSearchQuery.toLowerCase().trim();
+    if (!query) return true;
+    const chargeText = rule.charge === 0 ? 'free' : rule.charge.toString();
+    const rangeText = `${rule.minCartValue} ${rule.maxCartValue || ''}`;
+    return chargeText.includes(query) || rangeText.includes(query);
+  });
+
+  const handleDownloadSellersPDF = async () => {
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+      const doc = new jsPDF('p', 'pt', 'a4');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.text('Daykart Merchant Directory Report', 40, 50);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Generated on: ${new Date().toLocaleString('en-IN')}`, 40, 70);
+      doc.text(`Total Sellers Count: ${filteredSellersList.length}`, 40, 85);
+      
+      const headers = [['Store Name', 'Owner Name', 'Owner Email', 'GSTIN', 'PAN', 'Status']];
+      const body = filteredSellersList.map(sel => [
+        sel.storeName || '',
+        sel.user?.name || '',
+        sel.user?.email || '',
+        sel.gstin || '',
+        sel.pan || '',
+        sel.status || ''
+      ]);
+      
+      autoTable(doc, {
+        startY: 105,
+        head: headers,
+        body: body,
+        styles: { fontSize: 8, cellPadding: 5 },
+        headStyles: { fillColor: [14, 116, 144], textColor: [255, 255, 255] }
+      });
+      doc.save('daykart-sellers-report.pdf');
+      showToast('Sellers report downloaded successfully!', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to export Sellers PDF.', 'error');
+    }
+  };
+
+  const handleDownloadProductsPDF = async () => {
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+      const doc = new jsPDF('p', 'pt', 'a4');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.text('Daykart Product Catalog Moderation Report', 40, 50);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Generated on: ${new Date().toLocaleString('en-IN')}`, 40, 70);
+      doc.text(`Total Filtered Products: ${filteredProductsList.length}`, 40, 85);
+      
+      const headers = [['Product Title', 'SKU', 'Seller Store', 'Price (INR)', 'Stock', 'Status']];
+      const body = filteredProductsList.map(p => [
+        p.title || '',
+        p.sku || '',
+        p.seller?.storeName || 'Platform',
+        `INR ${p.price?.toLocaleString('en-IN')}`,
+        p.stock ?? 0,
+        p.status || ''
+      ]);
+      
+      autoTable(doc, {
+        startY: 105,
+        head: headers,
+        body: body,
+        styles: { fontSize: 8, cellPadding: 5 },
+        headStyles: { fillColor: [14, 116, 144], textColor: [255, 255, 255] }
+      });
+      doc.save('daykart-products-moderation-report.pdf');
+      showToast('Products report downloaded successfully!', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to export Products PDF.', 'error');
+    }
+  };
+
+  const handleDownloadCouponsPDF = async () => {
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+      const doc = new jsPDF('p', 'pt', 'a4');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.text(`Daykart Coupon Registry Report (${couponTab === 'standard' ? 'Standard' : 'Random Pool'})`, 40, 50);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Generated on: ${new Date().toLocaleString('en-IN')}`, 40, 70);
+      doc.text(`Total Coupons Displayed: ${filteredCouponsList.length}`, 40, 85);
+      
+      const headers = [['Code', 'Discount Details', 'Valid Range', 'Usage Limit', 'Status']];
+      const body = filteredCouponsList.map(c => [
+        c.code || '',
+        c.discountType === 'percentage' ? `${c.discountValue}% OFF` : `INR ${c.discountValue} Flat`,
+        `${new Date(c.startDate).toLocaleDateString('en-IN')} to ${new Date(c.endDate).toLocaleDateString('en-IN')}`,
+        c.usageLimit || 'Unlimited',
+        c.active ? 'Active' : 'Inactive'
+      ]);
+      
+      autoTable(doc, {
+        startY: 105,
+        head: headers,
+        body: body,
+        styles: { fontSize: 8, cellPadding: 5 },
+        headStyles: { fillColor: [14, 116, 144], textColor: [255, 255, 255] }
+      });
+      doc.save(`daykart-coupons-${couponTab}-report.pdf`);
+      showToast('Coupons report downloaded successfully!', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to export Coupons PDF.', 'error');
+    }
+  };
+
+  const handleDownloadShippingPDF = async () => {
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+      const doc = new jsPDF('p', 'pt', 'a4');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.text('Daykart Shipping Rates Policy Report', 40, 50);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Generated on: ${new Date().toLocaleString('en-IN')}`, 40, 70);
+      doc.text(`Total Shipping Rules: ${filteredShippingRules.length}`, 40, 85);
+      
+      const headers = [['Cart Subtotal Range (INR)', 'Shipping Charge (INR)']];
+      const body = filteredShippingRules.map(rule => [
+        rule.maxCartValue === null || rule.maxCartValue === undefined
+          ? `INR ${rule.minCartValue} and above`
+          : `INR ${rule.minCartValue} - INR ${rule.maxCartValue}`,
+         rule.charge === 0 ? 'FREE SHIPPING' : `INR ${rule.charge}`
+      ]);
+      
+      autoTable(doc, {
+        startY: 105,
+        head: headers,
+        body: body,
+        styles: { fontSize: 9, cellPadding: 6 },
+        headStyles: { fillColor: [14, 116, 144], textColor: [255, 255, 255] }
+      });
+      doc.save('daykart-shipping-rates-report.pdf');
+      showToast('Shipping rates report downloaded successfully!', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to export Shipping PDF.', 'error');
+    }
+  };
+
+  const handleDownloadReferralsPDF = async () => {
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+      const doc = new jsPDF('p', 'pt', 'a4');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.text('Daykart Customer Referral Audit Ledger', 40, 50);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Generated on: ${new Date().toLocaleString('en-IN')}`, 40, 70);
+      doc.text(`Total Referrals Count: ${filteredReferrals.length}`, 40, 85);
+      
+      const headers = [['Date', 'Referred User Name', 'Referred User Email', 'Referrer Name', 'Referrer Code']];
+      const body = filteredReferrals.map(ref => [
+        new Date(ref.createdAt).toLocaleDateString('en-IN'),
+        ref.name || '',
+        ref.email || '',
+        ref.referredBy?.name || '',
+        ref.referredBy?.referralCode || ''
+      ]);
+      
+      autoTable(doc, {
+        startY: 105,
+        head: headers,
+        body: body,
+        styles: { fontSize: 8, cellPadding: 5 },
+        headStyles: { fillColor: [14, 116, 144], textColor: [255, 255, 255] }
+      });
+      doc.save('daykart-referrals-report.pdf');
+      showToast('Referrals ledger downloaded successfully!', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to export Referrals PDF.', 'error');
+    }
+  };
+
+  const filteredAdminOrders = adminOrders.filter(order => {
+    if (orderStatusFilter !== 'all' && order.status !== orderStatusFilter) {
+      return false;
+    }
+    const query = orderSearchQuery.toLowerCase().trim();
+    if (!query) return true;
+    return (
+      (order.orderId || '').toLowerCase().includes(query) ||
+      (order.customer?.name || '').toLowerCase().includes(query) ||
+      (order.customer?.email || '').toLowerCase().includes(query)
+    );
+  });
+
+  const handleDownloadOrdersPDF = async () => {
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+      const doc = new jsPDF('p', 'pt', 'a4');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.text('Daykart Platform Customer Orders Report', 40, 50);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Generated on: ${new Date().toLocaleString('en-IN')}`, 40, 70);
+      doc.text(`Total Filtered Orders: ${filteredAdminOrders.length}`, 40, 85);
+      
+      const headers = [['Order ID', 'Customer Name', 'Customer Email', 'Date', 'Total Amount', 'Status']];
+      const body = filteredAdminOrders.map(order => [
+        order.orderId || '',
+        order.customer?.name || 'Guest',
+        order.customer?.email || '',
+        new Date(order.createdAt).toLocaleDateString('en-IN'),
+        `INR ${order.pricing?.total?.toLocaleString('en-IN') || '0'}`,
+        order.status || ''
+      ]);
+      
+      autoTable(doc, {
+        startY: 105,
+        head: headers,
+        body: body,
+        styles: { fontSize: 8, cellPadding: 5 },
+        headStyles: { fillColor: [14, 116, 144], textColor: [255, 255, 255] }
+      });
+      doc.save('daykart-orders-report.pdf');
+      showToast('Orders report downloaded successfully!', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to export Orders PDF.', 'error');
+    }
+  };
+
   const toggleOrderExpand = (orderId) => {
     setExpandedOrders(prev => ({
       ...prev,
@@ -671,6 +1402,21 @@ export default function AdminDashboard() {
     }
   };
 
+  const tabNames = {
+    overview: 'Overview Metrics',
+    approvals: 'Pending Approvals',
+    sellers: 'Moderate Sellers',
+    products: 'Moderate Products',
+    orders: 'Customer Orders',
+    categories: 'Manage Categories',
+    carousel: 'Manage Carousel',
+    coupons: 'Manage Coupons',
+    shipping: 'Manage Shipping',
+    referrals: 'Manage Referrals',
+    wallet: 'Admin Wallet',
+    profile: 'Profile Details'
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950">
       <Navbar />
@@ -679,11 +1425,55 @@ export default function AdminDashboard() {
         <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-8">Admin Control Panel</h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
-          {/* Side Tabs */}
-          <div className="space-y-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
+          {/* Mobile/Tablet Tab Dropdown Selector */}
+          <div className="lg:hidden w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
+            <label className="block text-xxs font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">
+              Select Control Section
+            </label>
+            <div className="relative">
+              <button
+                onClick={() => setIsTabDropdownOpen(!isTabDropdownOpen)}
+                className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-850 dark:text-white focus:outline-none focus:border-secondary transition-all flex items-center justify-between cursor-pointer"
+              >
+                <span>{tabNames[activeTab]}</span>
+                <ChevronDown className={`w-4 h-4 text-slate-400 dark:text-slate-500 transition-transform ${isTabDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isTabDropdownOpen && (
+                <>
+                  {/* Backdrop to close the dropdown when clicking outside */}
+                  <div 
+                    className="fixed inset-0 z-10" 
+                    onClick={() => setIsTabDropdownOpen(false)}
+                  />
+                  <div className="absolute left-0 right-0 mt-2 z-20 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg overflow-hidden py-1 max-h-60 overflow-y-auto">
+                    {Object.entries(tabNames).map(([key, name]) => (
+                      <button
+                        key={key}
+                        onClick={() => {
+                          setActiveTab(key);
+                          setIsTabDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-4 py-2.5 text-xs font-bold transition-all ${
+                          activeTab === key
+                            ? 'bg-secondary text-white'
+                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Desktop Sidebar Tabs */}
+          <div className="hidden lg:flex lg:flex-col space-y-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
             <button
               onClick={() => setActiveTab('overview')}
-              className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+              className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
                 activeTab === 'overview'
                   ? 'bg-secondary text-white shadow-md'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -693,7 +1483,7 @@ export default function AdminDashboard() {
             </button>
             <button
               onClick={() => setActiveTab('approvals')}
-              className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+              className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
                 activeTab === 'approvals'
                   ? 'bg-secondary text-white shadow-md'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -703,7 +1493,7 @@ export default function AdminDashboard() {
             </button>
             <button
               onClick={() => setActiveTab('sellers')}
-              className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+              className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
                 activeTab === 'sellers'
                   ? 'bg-secondary text-white shadow-md'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -713,7 +1503,7 @@ export default function AdminDashboard() {
             </button>
             <button
               onClick={() => setActiveTab('products')}
-              className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+              className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
                 activeTab === 'products'
                   ? 'bg-secondary text-white shadow-md'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -723,7 +1513,7 @@ export default function AdminDashboard() {
             </button>
             <button
               onClick={() => setActiveTab('orders')}
-              className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+              className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
                 activeTab === 'orders'
                   ? 'bg-secondary text-white shadow-md'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -733,7 +1523,7 @@ export default function AdminDashboard() {
             </button>
             <button
               onClick={() => setActiveTab('categories')}
-              className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+              className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
                 activeTab === 'categories'
                   ? 'bg-secondary text-white shadow-md'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -743,7 +1533,7 @@ export default function AdminDashboard() {
             </button>
             <button
               onClick={() => setActiveTab('carousel')}
-              className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+              className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
                 activeTab === 'carousel'
                   ? 'bg-secondary text-white shadow-md'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -753,7 +1543,7 @@ export default function AdminDashboard() {
             </button>
             <button
               onClick={() => setActiveTab('coupons')}
-              className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+              className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
                 activeTab === 'coupons'
                   ? 'bg-secondary text-white shadow-md'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -763,7 +1553,7 @@ export default function AdminDashboard() {
             </button>
             <button
               onClick={() => setActiveTab('shipping')}
-              className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+              className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
                 activeTab === 'shipping'
                   ? 'bg-secondary text-white shadow-md'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -772,8 +1562,28 @@ export default function AdminDashboard() {
               <Truck className="w-4.5 h-4.5" /> Manage Shipping
             </button>
             <button
+              onClick={() => setActiveTab('referrals')}
+              className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
+                activeTab === 'referrals'
+                  ? 'bg-secondary text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Gift className="w-4.5 h-4.5" /> Manage Referrals
+            </button>
+            <button
+              onClick={() => setActiveTab('wallet')}
+              className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
+                activeTab === 'wallet'
+                  ? 'bg-secondary text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Wallet className="w-4.5 h-4.5" /> Admin Wallet
+            </button>
+            <button
               onClick={() => setActiveTab('profile')}
-              className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition ${
+              className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
                 activeTab === 'profile'
                   ? 'bg-secondary text-white shadow-md'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -791,27 +1601,127 @@ export default function AdminDashboard() {
                 {statsLoading ? (
                   <div className="text-sm text-slate-400 animate-pulse">Loading Platform Analytics...</div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-6">
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm text-center">
-                      <p className="text-xxs font-bold text-slate-400 uppercase tracking-wider">Total Sales</p>
-                      <h2 className="text-xl font-extrabold text-slate-900 dark:text-white mt-2">₹{stats.totalSales.toLocaleString('en-IN')}</h2>
+                  <div className="space-y-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-5 gap-6">
+                      {/* Total Sales Card */}
+                      <div 
+                        onClick={() => {
+                          setSelectedMetric(selectedMetric === 'sales' ? null : 'sales');
+                          setMetricSearchQuery('');
+                        }}
+                        className={`p-6 rounded-2xl text-center select-none ${
+                          selectedMetric === 'sales'
+                            ? 'border-2 border-secondary bg-cyan-50/10 dark:bg-cyan-950/10 shadow-md'
+                            : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer hover:border-secondary dark:hover:border-cyan-600 hover:shadow-md'
+                        } transition-all duration-200`}
+                      >
+                        <p className="text-xxs font-bold text-slate-400 uppercase tracking-wider">Total Sales</p>
+                        <h2 className="text-xl font-extrabold text-slate-900 dark:text-white mt-2">₹{stats.totalSales.toLocaleString('en-IN')}</h2>
+                      </div>
+
+                      {/* Active Customers Card */}
+                      <div 
+                        onClick={() => {
+                          setSelectedMetric(selectedMetric === 'customers' ? null : 'customers');
+                          setMetricSearchQuery('');
+                        }}
+                        className={`p-6 rounded-2xl text-center select-none ${
+                          selectedMetric === 'customers'
+                            ? 'border-2 border-secondary bg-cyan-50/10 dark:bg-cyan-950/10 shadow-md'
+                            : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer hover:border-secondary dark:hover:border-cyan-600 hover:shadow-md'
+                        } transition-all duration-200`}
+                      >
+                        <p className="text-xxs font-bold text-slate-400 uppercase tracking-wider">Active Customers</p>
+                        <h2 className="text-xl font-extrabold text-slate-900 dark:text-white mt-2">{stats.totalCustomers}</h2>
+                      </div>
+
+                      {/* Registered Sellers Card */}
+                      <div 
+                        onClick={() => setActiveTab('sellers')}
+                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm text-center cursor-pointer hover:border-secondary dark:hover:border-cyan-600 hover:shadow-md transition-all duration-200 select-none"
+                      >
+                        <p className="text-xxs font-bold text-slate-400 uppercase tracking-wider">Registered Sellers</p>
+                        <h2 className="text-xl font-extrabold text-slate-900 dark:text-white mt-2">{stats.totalSellers}</h2>
+                      </div>
+
+                      {/* Total Orders Card */}
+                      <div 
+                        onClick={() => setActiveTab('orders')}
+                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm text-center cursor-pointer hover:border-secondary dark:hover:border-cyan-600 hover:shadow-md transition-all duration-200 select-none"
+                      >
+                        <p className="text-xxs font-bold text-slate-400 uppercase tracking-wider">Total Orders</p>
+                        <h2 className="text-xl font-extrabold text-slate-900 dark:text-white mt-2">{stats.totalOrders}</h2>
+                      </div>
+
+                      {/* Seller Rejections Card */}
+                      <div 
+                        onClick={() => {
+                          setSelectedMetric(selectedMetric === 'rejections' ? null : 'rejections');
+                          setMetricSearchQuery('');
+                        }}
+                        className={`p-6 rounded-2xl text-center select-none ${
+                          selectedMetric === 'rejections'
+                            ? 'border-2 border-secondary bg-cyan-50/10 dark:bg-cyan-950/10 shadow-md'
+                            : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer hover:border-secondary dark:hover:border-cyan-600 hover:shadow-md'
+                        } transition-all duration-200`}
+                      >
+                        <p className="text-xxs font-bold text-slate-400 uppercase tracking-wider">Seller Rejections</p>
+                        <h2 className={`text-xl font-extrabold mt-2 ${selectedMetric === 'rejections' ? 'text-rose-500 font-black' : 'text-rose-600'}`}>{stats.rejectedBySellersCount || 0}</h2>
+                      </div>
                     </div>
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm text-center">
-                      <p className="text-xxs font-bold text-slate-400 uppercase tracking-wider">Active Customers</p>
-                      <h2 className="text-xl font-extrabold text-slate-900 dark:text-white mt-2">{stats.totalCustomers}</h2>
-                    </div>
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm text-center">
-                      <p className="text-xxs font-bold text-slate-400 uppercase tracking-wider">Registered Sellers</p>
-                      <h2 className="text-xl font-extrabold text-slate-900 dark:text-white mt-2">{stats.totalSellers}</h2>
-                    </div>
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm text-center">
-                      <p className="text-xxs font-bold text-slate-400 uppercase tracking-wider">Total Orders</p>
-                      <h2 className="text-xl font-extrabold text-slate-900 dark:text-white mt-2">{stats.totalOrders}</h2>
-                    </div>
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm text-center">
-                      <p className="text-xxs font-bold text-slate-400 uppercase tracking-wider">Seller Rejections</p>
-                      <h2 className="text-xl font-extrabold text-rose-600 mt-2">{stats.rejectedBySellersCount || 0}</h2>
-                    </div>
+
+                    {/* Drill-down Detail Log Ledger Panel */}
+                    {selectedMetric && (
+                      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm mt-8 space-y-6 animate-fadeIn">
+                        {/* Header */}
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+                          <div>
+                            <h3 className="font-extrabold text-base text-slate-850 dark:text-slate-150 capitalize">
+                              Detailed Logs: {selectedMetric === 'sales' ? 'Total Sales' : selectedMetric === 'customers' ? 'Active Customers' : 'Seller Rejections'}
+                            </h3>
+                            <p className="text-xxs text-slate-500 font-semibold mt-1">
+                              {renderCountMessage()}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                            {/* Search Input */}
+                            <div className="relative flex-grow sm:flex-grow-0">
+                              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                              <input
+                                type="text"
+                                placeholder="Search logs..."
+                                value={metricSearchQuery}
+                                onChange={(e) => setMetricSearchQuery(e.target.value)}
+                                className="pl-9 pr-4 py-2 w-full sm:w-60 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none focus:border-secondary dark:focus:border-cyan-600 transition text-slate-855 dark:text-slate-155"
+                              />
+                            </div>
+
+                            {/* Download PDF Button */}
+                            <button
+                              onClick={handleDownloadPDF}
+                              className="bg-secondary hover:bg-cyan-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                            >
+                              Download PDF
+                            </button>
+
+                            {/* Close Logs Button */}
+                            <button
+                              onClick={() => {
+                                setSelectedMetric(null);
+                                setMetricSearchQuery('');
+                              }}
+                              className="border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-850 px-4 py-2 rounded-xl text-xs font-bold text-slate-650 dark:text-slate-350 transition cursor-pointer"
+                            >
+                              Close Logs
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Table Logs */}
+                        {renderMetricTable()}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -820,16 +1730,63 @@ export default function AdminDashboard() {
             {activeTab === 'sellers' && (
               /* Sellers list and approvals */
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
-                <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 mb-6">
-                  <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200">
-                    Seller Registrations
-                  </h3>
-                  <button 
-                    onClick={() => setShowAddSellerForm(!showAddSellerForm)}
-                    className="bg-secondary text-white px-3.5 py-2 rounded-xl text-xs font-bold hover:bg-cyan-600 transition flex items-center gap-1.5"
-                  >
-                    <Plus className="w-4 h-4" /> Add Seller
-                  </button>
+                <div className="border-b border-slate-100 dark:border-slate-800 pb-4 mb-6">
+                  {/* Row 1: Title & Main Action Buttons */}
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-4">
+                    <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 flex items-center justify-center sm:justify-start gap-2 text-center sm:text-left">
+                      Seller Registrations
+                      <span className="text-[10px] font-bold bg-secondary/15 text-secondary px-2.5 py-0.5 rounded-full">
+                        {filteredSellersList.length} {filteredSellersList.length === 1 ? 'store' : 'stores'}
+                      </span>
+                    </h3>
+                    
+                    <div className="flex items-center gap-3 w-full sm:w-auto justify-center sm:justify-end">
+                      {/* Download PDF Button */}
+                      <button
+                        onClick={handleDownloadSellersPDF}
+                        className="flex-1 sm:flex-initial justify-center bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-xl text-xxs font-bold text-slate-700 dark:text-slate-350 transition flex items-center gap-1 cursor-pointer"
+                      >
+                        Download PDF
+                      </button>
+
+                      {/* Add Seller Button */}
+                      <button 
+                        onClick={() => setShowAddSellerForm(!showAddSellerForm)}
+                        className="flex-1 sm:flex-initial justify-center bg-secondary text-white px-3.5 py-1.5 rounded-xl text-xxs font-bold hover:bg-cyan-600 transition flex items-center gap-1 select-none"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Add Seller
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Row 2: Filters & Search */}
+                  <div className="flex flex-row items-center justify-between gap-2 bg-slate-50 dark:bg-slate-900/45 p-1.5 md:p-2.5 rounded-2xl">
+                    <div className="flex items-center gap-2 w-[28%] md:w-auto flex-shrink-0">
+                      <span className="text-xxs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider hidden md:inline">Status:</span>
+                      <select
+                        value={sellerStatusFilter}
+                        onChange={(e) => setSellerStatusFilter(e.target.value)}
+                        className="w-full md:w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1 md:px-3 py-1 md:py-1.5 rounded-xl text-xxs font-semibold focus:outline-none focus:border-secondary transition-all text-slate-855 dark:text-white cursor-pointer"
+                      >
+                        <option value="all">All Statuses</option>
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                      </select>
+                    </div>
+
+                    {/* Search Input */}
+                    <div className="relative flex-grow w-[72%] md:max-w-xs">
+                      <input
+                        type="text"
+                        placeholder="Search store, owner..."
+                        value={sellerSearchQuery}
+                        onChange={(e) => setSellerSearchQuery(e.target.value)}
+                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 pl-7 pr-2 md:pl-8 md:pr-3 py-1 md:py-1.5 rounded-xl text-xxs font-semibold focus:outline-none focus:border-secondary transition-all text-black dark:text-white"
+                      />
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                    </div>
+                  </div>
                 </div>
 
                 {newSellerMsg && (
@@ -1039,11 +1996,11 @@ export default function AdminDashboard() {
                   </form>
                 )}
 
-                {sellersList.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic">No registered sellers found.</p>
+                {filteredSellersList.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic">No registered sellers found matching criteria.</p>
                 ) : (
                   <div className="space-y-4">
-                    {sellersList.map(sel => (
+                    {filteredSellersList.map(sel => (
                       <div key={sel._id} className="p-4 border border-slate-200 dark:border-slate-800 rounded-2xl flex justify-between items-start bg-slate-50/20 dark:bg-slate-900/10 relative pr-14 sm:pr-24">
                         <div className="text-xs space-y-1.5 flex-grow">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -1111,40 +2068,71 @@ export default function AdminDashboard() {
             {activeTab === 'products' && (
               /* Moderate Products list and approvals/deletion */
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
-                <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b border-slate-100 dark:border-slate-800 pb-4 mb-6 gap-3">
-                  <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200">
-                    Moderate Product Catalog
-                  </h3>
-                  
-                  <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold self-start sm:self-auto">
-                    <button
-                      onClick={() => setProductFilter('pending')}
-                      className={`px-3 py-1.5 rounded-lg transition-all ${
-                        productFilter === 'pending'
-                          ? 'bg-secondary text-white shadow-sm'
-                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-                      }`}
-                    >
-                      Pending Review
-                    </button>
-                    <button
-                      onClick={() => setProductFilter('all')}
-                      className={`px-3 py-1.5 rounded-lg transition-all ${
-                        productFilter === 'all'
-                          ? 'bg-secondary text-white shadow-sm'
-                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-                      }`}
-                    >
-                      All Products
-                    </button>
+                <div className="border-b border-slate-100 dark:border-slate-800 pb-4 mb-6">
+                  {/* Row 1: Title & Main Action Button */}
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-4">
+                    <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 flex items-center justify-center sm:justify-start gap-2 text-center sm:text-left">
+                      Moderate Product Catalog
+                      <span className="text-[10px] font-bold bg-secondary/15 text-secondary px-2.5 py-0.5 rounded-full">
+                        {filteredProductsList.length} {filteredProductsList.length === 1 ? 'product' : 'products'}
+                      </span>
+                    </h3>
+
+                    <div className="flex items-center gap-3 w-full sm:w-auto justify-center sm:justify-end">
+                      {/* Download PDF Button */}
+                      <button
+                        onClick={handleDownloadProductsPDF}
+                        className="w-full sm:w-auto justify-center bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-xl text-xxs font-bold text-slate-700 dark:text-slate-350 transition flex items-center gap-1 cursor-pointer"
+                      >
+                        Download PDF
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Row 2: Filters & Search */}
+                  <div className="flex flex-row items-center justify-between gap-2 bg-slate-50 dark:bg-slate-900/45 p-1.5 md:p-2.5 rounded-2xl">
+                    <div className="flex bg-white dark:bg-slate-800 p-0.5 md:p-1 rounded-xl text-xs font-bold w-[28%] md:w-auto flex-shrink-0 border border-slate-200 dark:border-slate-700">
+                      <button
+                        onClick={() => setProductFilter('pending')}
+                        className={`flex-1 md:flex-initial text-center px-1 md:px-2 py-1 md:py-1.5 rounded-lg text-xxs transition-all ${
+                          productFilter === 'pending'
+                            ? 'bg-secondary text-white shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        Pending
+                      </button>
+                      <button
+                        onClick={() => setProductFilter('all')}
+                        className={`flex-1 md:flex-initial text-center px-1 md:px-2 py-1 md:py-1.5 rounded-lg text-xxs transition-all ${
+                          productFilter === 'all'
+                            ? 'bg-secondary text-white shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        All
+                      </button>
+                    </div>
+
+                    {/* Search Input */}
+                    <div className="relative flex-grow w-[72%] md:max-w-xs">
+                      <input
+                        type="text"
+                        placeholder="Search products..."
+                        value={productSearchQuery}
+                        onChange={(e) => setProductSearchQuery(e.target.value)}
+                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 pl-7 pr-2 md:pl-8 md:pr-3 py-1 md:py-1.5 rounded-xl text-xxs font-semibold focus:outline-none focus:border-secondary transition-all text-black dark:text-white"
+                      />
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                    </div>
                   </div>
                 </div>
 
-                {pendingProducts.length === 0 ? (
+                {filteredProductsList.length === 0 ? (
                   <p className="text-xs text-slate-400 italic">No products found matching selection.</p>
                 ) : (
                   <div className="space-y-4">
-                    {pendingProducts.map(prod => (
+                    {filteredProductsList.map(prod => (
                       <div key={prod._id} className="p-4 border border-slate-200 dark:border-slate-800 rounded-2xl flex justify-between items-center bg-slate-50/20 dark:bg-slate-900/10 hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition">
                         <div className="flex gap-3 items-center">
                           <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 flex-shrink-0">
@@ -1210,16 +2198,65 @@ export default function AdminDashboard() {
 
             {activeTab === 'orders' && (
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
-                <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 mb-6">
-                  <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200">
-                    Platform Orders Registry
-                  </h3>
-                  <button 
-                    onClick={() => refetchAdminOrders()}
-                    className="text-xs text-secondary hover:underline flex items-center gap-1 font-bold"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" /> Refresh
-                  </button>
+                <div className="border-b border-slate-100 dark:border-slate-800 pb-4 mb-6">
+                  {/* Row 1: Title & Main Action Buttons */}
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-4">
+                    <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 flex items-center justify-center sm:justify-start gap-2 text-center sm:text-left">
+                      Platform Orders Registry
+                      <span className="text-[10px] font-bold bg-secondary/15 text-secondary px-2.5 py-0.5 rounded-full">
+                        {filteredAdminOrders.length} {filteredAdminOrders.length === 1 ? 'order' : 'orders'}
+                      </span>
+                    </h3>
+
+                    <div className="flex items-center gap-3 w-full sm:w-auto justify-center sm:justify-end">
+                      <button 
+                        onClick={() => refetchAdminOrders()}
+                        className="flex-1 sm:flex-initial justify-center text-xxs text-secondary hover:underline flex items-center gap-1 font-bold bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-750 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 transition"
+                      >
+                        <RefreshCw className="w-3 h-3" /> Refresh
+                      </button>
+
+                      {/* Download PDF Button */}
+                      <button
+                        onClick={handleDownloadOrdersPDF}
+                        className="flex-1 sm:flex-initial justify-center bg-slate-100 hover:bg-slate-200 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-xl text-xxs font-bold text-slate-700 dark:text-slate-350 transition flex items-center gap-1 cursor-pointer"
+                      >
+                        Download PDF
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Row 2: Filters & Search */}
+                  <div className="flex flex-row items-center justify-between gap-2 bg-slate-50 dark:bg-slate-900/45 p-1.5 md:p-2.5 rounded-2xl">
+                    <div className="flex items-center gap-2 w-[28%] md:w-auto flex-shrink-0">
+                      <span className="text-xxs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider hidden md:inline">Status:</span>
+                      <select
+                        value={orderStatusFilter}
+                        onChange={(e) => setOrderStatusFilter(e.target.value)}
+                        className="w-full md:w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1 md:px-3 py-1 md:py-1.5 rounded-xl text-xxs font-semibold focus:outline-none focus:border-secondary transition-all text-slate-850 dark:text-white cursor-pointer"
+                      >
+                        <option value="all">All Statuses</option>
+                        <option value="placed">Placed</option>
+                        <option value="processed">Approved</option>
+                        <option value="shipped">Dispatched</option>
+                        <option value="out_for_delivery">Out for Delivery</option>
+                        <option value="delivered">Delivered</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    </div>
+
+                    {/* Search Input */}
+                    <div className="relative flex-grow w-[72%] md:max-w-xs">
+                      <input
+                        type="text"
+                        placeholder="Search ID, customer..."
+                        value={orderSearchQuery}
+                        onChange={(e) => setOrderSearchQuery(e.target.value)}
+                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 pl-7 pr-2 md:pl-8 md:pr-3 py-1 md:py-1.5 rounded-xl text-xxs font-semibold focus:outline-none focus:border-secondary transition-all text-black dark:text-white"
+                      />
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                    </div>
+                  </div>
                 </div>
 
                 {ordersLoading ? (
@@ -1227,11 +2264,11 @@ export default function AdminDashboard() {
                     <div className="w-8 h-8 border-4 border-secondary border-t-transparent rounded-full animate-spin"></div>
                     <p className="text-xxs text-slate-500 font-semibold">Loading orders...</p>
                   </div>
-                ) : adminOrders.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic">No orders found on the platform.</p>
+                ) : filteredAdminOrders.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic">No orders found matching selection.</p>
                 ) : (
                   <div className="space-y-4">
-                    {adminOrders.map(order => (
+                    {filteredAdminOrders.map(order => (
                       <div key={order._id} className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-50/20 dark:bg-slate-900/10">
                         {/* Order overview row */}
                         <div className="p-4 flex flex-wrap items-center justify-between gap-4 text-xs">
@@ -1883,18 +2920,18 @@ export default function AdminDashboard() {
               <div className="space-y-8">
                 {/* Headers and Tabs */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-3xl shadow-sm">
-                  <div>
-                    <h3 className="font-extrabold text-base text-black dark:text-white flex items-center gap-2">
+                  <div className="text-center sm:text-left">
+                    <h3 className="font-extrabold text-base text-black dark:text-white flex items-center justify-center sm:justify-start gap-2">
                       <Tag className="w-5 h-5 text-secondary" /> Coupon Management System
                     </h3>
                     <p className="text-xxs text-slate-400 mt-1">Create, update, enable/disable discount coupons and manage random coupon pools.</p>
                   </div>
                   
                   {/* Tab switches */}
-                  <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl self-start sm:self-auto">
+                  <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full sm:w-auto">
                     <button
                       onClick={() => { setCouponTab('standard'); resetCouponForm(); }}
-                      className={`px-4 py-2 rounded-lg text-xxs font-bold transition-all ${
+                      className={`flex-1 sm:flex-initial text-center px-4 py-2 rounded-lg text-xxs font-bold transition-all ${
                         couponTab === 'standard'
                           ? 'bg-white dark:bg-slate-900 text-slate-850 dark:text-white shadow-sm'
                           : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
@@ -1904,7 +2941,7 @@ export default function AdminDashboard() {
                     </button>
                     <button
                       onClick={() => { setCouponTab('random'); resetCouponForm(); }}
-                      className={`px-4 py-2 rounded-lg text-xxs font-bold transition-all ${
+                      className={`flex-1 sm:flex-initial text-center px-4 py-2 rounded-lg text-xxs font-bold transition-all ${
                         couponTab === 'random'
                           ? 'bg-white dark:bg-slate-900 text-slate-850 dark:text-white shadow-sm'
                           : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
@@ -2109,39 +3146,78 @@ export default function AdminDashboard() {
                   <div className="space-y-4">
                     {/* List Wrapper */}
                     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
-                      <h4 className="font-extrabold text-sm text-black dark:text-white mb-4 pb-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                        <span>{couponTab === 'standard' ? 'Active Standard Coupons' : 'Random Coupons Pool List'}</span>
-                        <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xxs px-2.5 py-1 rounded-full font-bold">
-                          Total: {
-                            couponsRes?.data?.coupons?.filter(c => couponTab === 'standard' ? !c.isRandomPool : c.isRandomPool).length || 0
-                          }
-                        </span>
-                      </h4>
+                      <div className="border-b border-slate-100 dark:border-slate-800 pb-4 mb-6">
+                        {/* Row 1: Title & Main Action Button */}
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-4">
+                          <h4 className="font-extrabold text-sm text-black dark:text-white flex items-center justify-center sm:justify-start gap-2 text-center sm:text-left">
+                            {couponTab === 'standard' ? 'Active Standard Coupons' : 'Random Coupons Pool List'}
+                            <span className="text-[10px] font-bold bg-secondary/15 text-secondary px-2.5 py-0.5 rounded-full">
+                              {filteredCouponsList.length} {filteredCouponsList.length === 1 ? 'coupon' : 'coupons'}
+                            </span>
+                          </h4>
 
-                      {!couponsRes?.data?.coupons || couponsRes.data.coupons.filter(c => couponTab === 'standard' ? !c.isRandomPool : c.isRandomPool).length === 0 ? (
+                          <div className="flex items-center gap-3 w-full sm:w-auto justify-center sm:justify-end">
+                            {/* Download PDF Button */}
+                            <button
+                              onClick={handleDownloadCouponsPDF}
+                              className="w-full sm:w-auto justify-center bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-xl text-xxs font-bold text-slate-700 dark:text-slate-350 transition flex items-center gap-1 cursor-pointer"
+                            >
+                              Download PDF
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Row 2: Filters & Search */}
+                        <div className="flex flex-row items-center justify-between gap-2 bg-slate-50 dark:bg-slate-900/45 p-1.5 md:p-2.5 rounded-2xl">
+                          <div className="flex items-center gap-2 w-[28%] md:w-auto flex-shrink-0">
+                            <span className="text-xxs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider hidden md:inline">Status:</span>
+                            <select
+                              value={couponStatusFilter}
+                              onChange={(e) => setCouponStatusFilter(e.target.value)}
+                              className="w-full md:w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1 md:px-3 py-1 md:py-1.5 rounded-xl text-xxs font-semibold focus:outline-none focus:border-secondary transition-all text-slate-850 dark:text-white cursor-pointer"
+                            >
+                              <option value="all">All Statuses</option>
+                              <option value="active">Active</option>
+                              <option value="inactive">Inactive</option>
+                            </select>
+                          </div>
+
+                          {/* Search Input */}
+                          <div className="relative flex-grow w-[72%] md:max-w-xs">
+                            <input
+                              type="text"
+                              placeholder="Search code..."
+                              value={couponSearchQuery}
+                              onChange={(e) => setCouponSearchQuery(e.target.value)}
+                              className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 pl-7 pr-2 md:pl-8 md:pr-3 py-1 md:py-1.5 rounded-xl text-xxs font-semibold focus:outline-none focus:border-secondary transition-all text-black dark:text-white"
+                            />
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {filteredCouponsList.length === 0 ? (
                         <div className="text-center py-12">
-                          <p className="text-xs text-slate-400 italic">No coupons found in this category.</p>
+                          <p className="text-xs text-slate-400 italic">No coupons found matching filters.</p>
                         </div>
                       ) : (
-                        <div className="overflow-x-auto text-xxs sm:text-xs">
-                          <table className="w-full text-left text-xs border-collapse">
+                        <div className="overflow-x-auto text-[11px] md:text-xs">
+                          <table className="w-full min-w-[700px] text-left text-[11px] md:text-xs border-collapse">
                             <thead>
                               <tr className="border-b border-slate-100 dark:border-slate-800 text-black dark:text-white">
-                                <th className="pb-3 font-extrabold uppercase tracking-wider text-xxs">Code</th>
-                                <th className="pb-3 font-extrabold uppercase tracking-wider text-xxs">Details</th>
-                                <th className="pb-3 font-extrabold uppercase tracking-wider text-xxs">Dates</th>
+                                <th className="pb-3 font-extrabold uppercase tracking-wider text-[10px] md:text-xs">Code</th>
+                                <th className="pb-3 font-extrabold uppercase tracking-wider text-[10px] md:text-xs">Details</th>
+                                <th className="pb-3 font-extrabold uppercase tracking-wider text-[10px] md:text-xs">Dates</th>
                                 {couponTab === 'standard' ? (
-                                  <th className="pb-3 font-extrabold uppercase tracking-wider text-xxs text-center">Limits</th>
+                                  <th className="pb-3 font-extrabold uppercase tracking-wider text-[10px] md:text-xs text-center">Limits</th>
                                 ) : (
-                                  <th className="pb-3 font-extrabold uppercase tracking-wider text-xxs">Status / User</th>
+                                  <th className="pb-3 font-extrabold uppercase tracking-wider text-[10px] md:text-xs">Status / User</th>
                                 )}
-                                <th className="pb-3 font-extrabold uppercase tracking-wider text-xxs text-right">Actions</th>
+                                <th className="pb-3 font-extrabold uppercase tracking-wider text-[10px] md:text-xs text-right">Actions</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {couponsRes.data.coupons
-                                .filter(c => couponTab === 'standard' ? !c.isRandomPool : c.isRandomPool)
-                                .map((coupon) => {
+                              {filteredCouponsList.map((coupon) => {
                                   const isExpired = new Date(coupon.endDate) < new Date();
                                   return (
                                     <tr key={coupon._id} className="border-b border-slate-100 dark:border-slate-800 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/10">
@@ -2351,36 +3427,77 @@ export default function AdminDashboard() {
 
                   {/* Rules Table */}
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
-                    <h4 className="font-extrabold text-sm text-black dark:text-white mb-4 flex items-center gap-1.5">
-                      <ClipboardList className="w-4 h-4 text-secondary" /> Active Shipping Rules
-                    </h4>
+                    <div className="border-b border-slate-100 dark:border-slate-800 pb-4 mb-6">
+                      {/* Row 1: Title & Main Action Button */}
+                      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-4">
+                        <h4 className="font-extrabold text-sm text-black dark:text-white flex items-center justify-center sm:justify-start gap-1.5 text-center sm:text-left">
+                          <ClipboardList className="w-4 h-4 text-secondary" /> Active Shipping Rules
+                          <span className="text-[10px] font-bold bg-secondary/15 text-secondary px-2.5 py-0.5 rounded-full">
+                            {filteredShippingRules.length} {filteredShippingRules.length === 1 ? 'rule' : 'rules'}
+                          </span>
+                        </h4>
 
-                    {!shippingRulesRes?.data?.shippingRules || shippingRulesRes.data.shippingRules.length === 0 ? (
+                        <div className="flex items-center gap-3 w-full sm:w-auto justify-center sm:justify-end">
+                          {/* Download PDF Button */}
+                          <button
+                            onClick={handleDownloadShippingPDF}
+                            className="w-full sm:w-auto justify-center bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-xl text-xxs font-bold text-slate-700 dark:text-slate-350 transition flex items-center gap-1 cursor-pointer"
+                          >
+                            Download PDF
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Row 2: Filters & Search */}
+                      <div className="flex flex-row items-center justify-between gap-2 bg-slate-50 dark:bg-slate-900/45 p-1.5 md:p-2.5 rounded-2xl">
+                        <div className="flex items-center gap-2 w-[28%] md:w-auto flex-shrink-0">
+                          <span className="text-xxs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider hidden md:inline">Rates Policy:</span>
+                          <span className="text-xxs font-semibold text-slate-650 dark:text-slate-300 w-full md:w-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 md:px-3 py-1 md:py-1.5 rounded-xl text-center md:text-left md:border-0 md:bg-transparent md:p-0">
+                            <span className="hidden md:inline">Standard Tiered Pricing</span>
+                            <span className="md:hidden">Standard Tiered</span>
+                          </span>
+                        </div>
+
+                        {/* Search Input */}
+                        <div className="relative flex-grow w-[72%] md:max-w-xs">
+                          <input
+                            type="text"
+                            placeholder="Search rules..."
+                            value={shippingSearchQuery}
+                            onChange={(e) => setShippingSearchQuery(e.target.value)}
+                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 pl-7 pr-2 md:pl-8 md:pr-3 py-1 md:py-1.5 rounded-xl text-xxs font-semibold focus:outline-none focus:border-secondary transition-all text-black dark:text-white"
+                          />
+                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {filteredShippingRules.length === 0 ? (
                       <div className="text-center py-10">
                         <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto opacity-50 mb-3" />
-                        <p className="text-xs font-semibold text-slate-500">No shipping rules found. Set default rules above.</p>
+                        <p className="text-xs font-semibold text-slate-500">No shipping rules found matching filters.</p>
                       </div>
                     ) : (
                       <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                        <table className="w-full min-w-[500px] text-left text-[11px] md:text-xs border-collapse">
                           <thead>
                             <tr className="border-b border-slate-100 dark:border-slate-800">
-                              <th className="pb-3 text-xxs font-extrabold text-slate-400 uppercase tracking-wider">Cart Value Range (₹)</th>
-                              <th className="pb-3 text-xxs font-extrabold text-slate-400 uppercase tracking-wider">Shipping Charge (₹)</th>
-                              <th className="pb-3 text-xxs font-extrabold text-slate-400 uppercase tracking-wider text-right">Actions</th>
+                              <th className="pb-3 text-[10px] md:text-xs font-extrabold text-black dark:text-white uppercase tracking-wider">Cart Value Range (₹)</th>
+                              <th className="pb-3 text-[10px] md:text-xs font-extrabold text-black dark:text-white uppercase tracking-wider">Shipping Charge (₹)</th>
+                              <th className="pb-3 text-[10px] md:text-xs font-extrabold text-black dark:text-white uppercase tracking-wider text-right">Actions</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {shippingRulesRes.data.shippingRules.map((rule) => {
+                            {filteredShippingRules.map((rule) => {
                               const isNoLimit = rule.maxCartValue === null || rule.maxCartValue === undefined;
                               return (
-                                <tr key={rule._id} className="border-b border-slate-50 dark:border-slate-850 hover:bg-slate-50/50 dark:hover:bg-slate-850/20 transition-all">
-                                  <td className="py-3.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                                <tr key={rule._id} className="border-b border-slate-50 dark:border-slate-855 hover:bg-slate-50/50 dark:hover:bg-slate-850/20 transition-all">
+                                  <td className="py-3.5 text-[11px] md:text-xs font-bold text-slate-800 dark:text-slate-200">
                                     {isNoLimit ? `₹${rule.minCartValue} and above` : `₹${rule.minCartValue} - ₹${rule.maxCartValue}`}
                                   </td>
-                                  <td className="py-3.5 text-xs font-semibold">
+                                  <td className="py-3.5 text-[11px] md:text-xs font-semibold">
                                     {rule.charge === 0 ? (
-                                      <span className="text-emerald-500 font-bold bg-emerald-50 dark:bg-emerald-950/20 px-2.5 py-1 rounded-full text-xxs border border-emerald-100 dark:border-emerald-900/30">FREE SHIPPING</span>
+                                      <span className="text-emerald-500 font-bold bg-emerald-50 dark:bg-emerald-950/20 px-2.5 py-1 rounded-full text-[10px] md:text-xxs border border-emerald-100 dark:border-emerald-900/30">FREE SHIPPING</span>
                                     ) : (
                                       <span className="text-slate-700 dark:text-slate-350">₹{rule.charge}</span>
                                     )}
@@ -2406,6 +3523,241 @@ export default function AdminDashboard() {
                                 </tr>
                               );
                             })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+
+            {activeTab === 'wallet' && (
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-6">
+                <h3 className="font-extrabold text-base text-black dark:text-white border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2">
+                  <Wallet className="w-5 h-5 text-secondary" /> Admin Wallet
+                </h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Balance Card */}
+                  <div className="md:col-span-1 bg-gradient-to-br from-secondary to-cyan-600 text-white rounded-3xl p-6 shadow-md flex flex-col justify-between min-h-[160px]">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">Admin Balance</p>
+                      <h4 className="text-3xl font-black mt-2">₹{wallet.balance}</h4>
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] font-bold opacity-90 bg-white/10 px-3 py-1.5 rounded-xl w-max">
+                      <ShieldCheck className="w-3.5 h-3.5" /> Secured Administrator Wallet
+                    </div>
+                  </div>
+
+                  {/* Info Card */}
+                  <div className="md:col-span-2 border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20 rounded-3xl p-6 flex flex-col justify-center space-y-2">
+                    <h5 className="font-bold text-xs text-black dark:text-white">Platform Operational Ledger</h5>
+                    <p className="text-xxs text-slate-450">
+                      As a platform administrator, you can monitor transactions, audit logs, and test client referral rewards using this local wallet.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Transactions Table */}
+                <div className="space-y-4 pt-4">
+                  <h4 className="font-extrabold text-sm text-black dark:text-white">
+                    Admin Wallet Logs
+                  </h4>
+
+                  {walletLoading ? (
+                    <p className="text-xxs text-slate-455 animate-pulse">Loading admin wallet ledger...</p>
+                  ) : !wallet.transactions || wallet.transactions.length === 0 ? (
+                    <p className="text-xxs text-slate-455 italic py-4">No wallet transactions recorded.</p>
+                  ) : (
+                    <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 text-[10px] uppercase font-bold text-black dark:text-white">
+                            <th className="px-4 py-3">Date</th>
+                            <th className="px-4 py-3">Description</th>
+                            <th className="px-4 py-3">Type</th>
+                            <th className="px-4 py-3 text-right">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {wallet.transactions.map((tx, idx) => {
+                            const isCredit = tx.type === 'credit';
+                            return (
+                              <tr key={idx} className="border-b border-slate-50 dark:border-slate-850 text-xxs text-slate-650 dark:text-slate-300 hover:bg-slate-50/50 dark:hover:bg-slate-850/10 transition-all">
+                                <td className="px-4 py-3 text-[10px] text-slate-450">
+                                  {new Date(tx.timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                </td>
+                                <td className="px-4 py-3 font-semibold">{tx.description}</td>
+                                <td className="px-4 py-3">
+                                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                                    isCredit 
+                                      ? 'bg-emerald-55/10 text-emerald-500 border border-emerald-100/20' 
+                                      : 'bg-red-50/10 text-red-500 border border-red-100/20'
+                                  }`}>
+                                    {tx.type.toUpperCase()}
+                                  </span>
+                                </td>
+                                <td className={`px-4 py-3 text-right font-bold ${isCredit ? 'text-emerald-500' : 'text-red-500'}`}>
+                                  {isCredit ? '+' : '-'}₹{tx.amount}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'referrals' && (
+              <div className="space-y-8">
+                {/* Header */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-3xl shadow-sm">
+                  <div>
+                    <h3 className="font-extrabold text-base text-black dark:text-white flex items-center gap-2">
+                      <Gift className="w-5 h-5 text-secondary" /> Referral System Configuration
+                    </h3>
+                    <p className="text-xxs text-slate-400 mt-1">Configure customer referral bonuses and audit successful platform invites.</p>
+                  </div>
+                </div>
+
+                {/* Form & List */}
+                <div className="space-y-8">
+                  {/* Settings Form */}
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
+                    <h4 className="font-extrabold text-sm text-black dark:text-white mb-4 pb-2 border-b border-slate-100 dark:border-slate-800 flex items-center gap-1.5">
+                      <Sliders className="w-4 h-4 text-secondary" /> Reward Settings
+                    </h4>
+
+                    <form onSubmit={handleSaveReferralSettings} className="space-y-4">
+                      <div className="max-w-xs">
+                        <label className="block text-xs font-extrabold text-black dark:text-white uppercase tracking-wider mb-1">Referral Reward Credit (₹)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={referralRewardAmount}
+                          onChange={(e) => setReferralRewardAmount(Number(e.target.value))}
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-xs text-slate-850 dark:text-white font-semibold focus:outline-none focus:border-secondary transition-all"
+                          required
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={updatingReward}
+                        className="w-full sm:w-auto bg-secondary hover:bg-cyan-600 text-white px-6 py-3 rounded-xl text-xxs font-bold shadow-md transition disabled:opacity-50"
+                      >
+                        {updatingReward ? 'Updating...' : 'Save Settings'}
+                      </button>
+                    </form>
+                  </div>
+
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
+                    <div className="border-b border-slate-100 dark:border-slate-800 pb-4 mb-6">
+                      {/* Row 1: Title & Main Action Button */}
+                      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-4">
+                        <h4 className="font-extrabold text-sm text-black dark:text-white flex items-center justify-center sm:justify-start gap-1.5 text-center sm:text-left">
+                          <ClipboardList className="w-4 h-4 text-secondary" /> Referral Audit Trail
+                          <span className="text-[10px] font-bold bg-secondary/15 text-secondary px-2.5 py-0.5 rounded-full">
+                            {filteredReferrals.length} {filteredReferrals.length === 1 ? 'invite' : 'invites'}
+                          </span>
+                        </h4>
+
+                        <div className="flex items-center gap-3 w-full sm:w-auto justify-center sm:justify-end">
+                          {/* Download PDF Button */}
+                          <button
+                            onClick={handleDownloadReferralsPDF}
+                            className="w-full sm:w-auto justify-center bg-slate-100 hover:bg-slate-200 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-xl text-xxs font-bold text-slate-700 dark:text-slate-350 transition flex items-center gap-1 cursor-pointer"
+                          >
+                            Download PDF
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Row 2: Filters & Search */}
+                      <div className="flex flex-row items-center justify-between gap-2 bg-slate-50 dark:bg-slate-900/45 p-1.5 md:p-2.5 rounded-2xl">
+                        <div className="flex flex-wrap items-center gap-1.5 w-[38%] md:w-auto flex-shrink-0">
+                          <span className="text-xxs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider hidden md:inline">Filters:</span>
+                          <select
+                            value={referralDateFilter}
+                            onChange={(e) => setReferralDateFilter(e.target.value)}
+                            className="flex-1 md:flex-initial bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1 md:px-2 py-1 md:py-1.5 rounded-xl text-xxs font-semibold focus:outline-none focus:border-secondary transition-all text-slate-850 dark:text-white cursor-pointer"
+                          >
+                            <option value="all">All Time</option>
+                            <option value="7days">7 Days</option>
+                            <option value="30days">30 Days</option>
+                          </select>
+
+                          <select
+                            value={referralSortOrder}
+                            onChange={(e) => setReferralSortOrder(e.target.value)}
+                            className="flex-1 md:flex-initial bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1 md:px-2 py-1 md:py-1.5 rounded-xl text-xxs font-semibold focus:outline-none focus:border-secondary transition-all text-slate-850 dark:text-white cursor-pointer"
+                          >
+                            <option value="newest">Newest</option>
+                            <option value="oldest">Oldest</option>
+                          </select>
+                        </div>
+
+                        {/* Search Input */}
+                        <div className="relative flex-grow w-[62%] md:max-w-xs">
+                          <input
+                            type="text"
+                            placeholder="Search..."
+                            value={referralSearch}
+                            onChange={(e) => setReferralSearch(e.target.value)}
+                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 pl-7 pr-2 md:pl-8 md:pr-3 py-1 md:py-1.5 rounded-xl text-xxs font-semibold focus:outline-none focus:border-secondary transition-all text-black dark:text-white"
+                          />
+                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {!adminReferralsRes?.data?.referrals || adminReferralsRes.data.referrals.length === 0 ? (
+                      <p className="text-xxs text-slate-455 italic py-4">No platform referral signups recorded yet.</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[800px] text-left text-[11px] md:text-xs border-collapse">
+                          <thead>
+                            <tr className="border-b border-slate-100 dark:border-slate-800">
+                              <th className="pb-3 text-[10px] md:text-xs font-extrabold text-black dark:text-white uppercase tracking-wider">Date</th>
+                              <th className="pb-3 text-[10px] md:text-xs font-extrabold text-black dark:text-white uppercase tracking-wider">Referred User</th>
+                              <th className="pb-3 text-[10px] md:text-xs font-extrabold text-black dark:text-white uppercase tracking-wider">Referred Email</th>
+                              <th className="pb-3 text-[10px] md:text-xs font-extrabold text-black dark:text-white uppercase tracking-wider">Referrer</th>
+                              <th className="pb-3 text-[10px] md:text-xs font-extrabold text-black dark:text-white uppercase tracking-wider">Referrer Code</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredReferrals.length === 0 ? (
+                              <tr>
+                                <td colSpan="5" className="py-8 text-center text-xxs text-slate-450 italic">
+                                  No matching referrals found.
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredReferrals.map((ref) => (
+                                <tr key={ref._id} className="border-b border-slate-50 dark:border-slate-850 hover:bg-slate-50/50 dark:hover:bg-slate-850/20 transition-all">
+                                  <td className="py-3.5 text-[11px] md:text-xs text-slate-500">
+                                    {new Date(ref.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                  </td>
+                                  <td className="py-3.5 text-[11px] md:text-xs font-bold text-slate-800 dark:text-slate-200">
+                                    {ref.name}
+                                  </td>
+                                  <td className="py-3.5 text-[11px] md:text-xs text-slate-600 dark:text-slate-400">
+                                    {ref.email}
+                                  </td>
+                                  <td className="py-3.5 text-[11px] md:text-xs font-semibold text-slate-700 dark:text-slate-350">
+                                    {ref.referredBy?.name || 'N/A'}
+                                  </td>
+                                  <td className="py-3.5 text-[11px] md:text-xs font-mono text-secondary">
+                                    {ref.referredBy?.referralCode || 'N/A'}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
                           </tbody>
                         </table>
                       </div>

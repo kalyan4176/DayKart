@@ -30,6 +30,20 @@ describe('Authentication API Endpoints', () => {
       expect(res.body.message).toContain('Registration successful');
     });
 
+    it('should prevent registration with a weak password', async () => {
+      const res = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          name: 'Weak Password User',
+          email: 'weak_password@daykart.com',
+          password: 'pass',
+          role: 'customer',
+        });
+
+      expect(res.statusCode).toEqual(400);
+      expect(res.body.status).toEqual('fail');
+    });
+
     it('should prevent registration with a duplicate email', async () => {
       const res = await request(app)
         .post('/api/v1/auth/register')
