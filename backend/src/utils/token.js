@@ -22,7 +22,7 @@ export const sendTokenResponse = (user, statusCode, res) => {
   const cookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'Strict',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'Lax',
   };
 
   res.cookie('accessToken', accessToken, {

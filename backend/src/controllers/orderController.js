@@ -72,7 +72,10 @@ export const checkout = async (req, res, next) => {
       if (!couponDoc) {
         return next(new BadRequestError('Coupon code is not available.'));
       }
-      if (couponDoc.startDate > new Date() || couponDoc.endDate < new Date()) {
+      const now = new Date();
+      const hasStarted = new Date(now.getTime() + 14 * 60 * 60 * 1000) >= couponDoc.startDate;
+      const hasExpired = new Date(now.getTime() - 12 * 60 * 60 * 1000) > couponDoc.endDate;
+      if (!hasStarted || hasExpired) {
         return next(new BadRequestError('Coupon code is not available.'));
       }
       // Random pool or assignedTo check

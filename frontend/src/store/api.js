@@ -52,6 +52,14 @@ export const api = createApi({
       }),
       invalidatesTags: ['User', 'Cart'],
     }),
+    googleLogin: builder.mutation({
+      query: (googleData) => ({
+        url: '/auth/google-login',
+        method: 'POST',
+        body: googleData,
+      }),
+      invalidatesTags: ['User', 'Cart'],
+    }),
     register: builder.mutation({
       query: (userData) => ({
         url: '/auth/register',
@@ -398,6 +406,28 @@ export const api = createApi({
       }),
       invalidatesTags: ['Support'],
     }),
+    getAdminTickets: builder.query({
+      query: (params) => ({
+        url: '/support/admin-tickets',
+        params,
+      }),
+      providesTags: ['Support'],
+    }),
+    replyTicket: builder.mutation({
+      query: ({ id, ...data }) => ({
+        url: `/support/${id}/reply`,
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: ['Support'],
+    }),
+    resolveTicket: builder.mutation({
+      query: (id) => ({
+        url: `/support/${id}/resolve`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['Support'],
+    }),
 
     getHeroSlides: builder.query({
       query: () => '/hero-slides',
@@ -535,6 +565,10 @@ export const {
   useDeleteNotificationMutation,
   useGetMyTicketsQuery,
   useCreateTicketMutation,
+  useGetAdminTicketsQuery,
+  useReplyTicketMutation,
+  useResolveTicketMutation,
+  useGoogleLoginMutation,
   useCreateCategoryMutation,
   useUpdateCategoryMutation,
   useDeleteCategoryMutation,

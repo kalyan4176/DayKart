@@ -63,6 +63,7 @@ export default function ProfilePage() {
     if (user) {
       setName(user.name || '');
       setPhoneNumber(user.phoneNumber || '');
+      setNotificationsEnabled(user.notificationsEnabled !== false);
     }
   }, [user]);
 
@@ -80,6 +81,7 @@ export default function ProfilePage() {
 
   const [name, setName] = useState(user?.name || '');
   const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
+  const [notificationsEnabled, setNotificationsEnabled] = useState(user?.notificationsEnabled !== false);
   const [addressError, setAddressError] = useState('');
   const [profileSuccess, setProfileSuccess] = useState(false);
   const [sellerSuccess, setSellerSuccess] = useState(false);
@@ -157,7 +159,7 @@ export default function ProfilePage() {
     e.preventDefault();
     setProfileSuccess(false);
     try {
-      const res = await updateProfileApi({ name, phoneNumber }).unwrap();
+      const res = await updateProfileApi({ name, phoneNumber, notificationsEnabled }).unwrap();
       dispatch(updateUser(res.data.user));
       showToast('Profile updated successfully!', 'success');
       setProfileSuccess(true);
@@ -343,6 +345,24 @@ export default function ProfilePage() {
                       />
                       <Phone className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
                     </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/40 border border-slate-200/50 dark:border-slate-800/80 rounded-2xl select-none">
+                    <div>
+                      <h4 className="text-xs font-extrabold text-slate-800 dark:text-slate-200">Real-Time Alerts</h4>
+                      <p className="text-[10px] text-slate-450 dark:text-slate-500 mt-0.5">Receive immediate push alerts on order updates and ticket replies.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setNotificationsEnabled(!notificationsEnabled)}
+                      className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-250 cursor-pointer ${
+                        notificationsEnabled ? 'bg-secondary' : 'bg-slate-300 dark:bg-slate-700'
+                      }`}
+                    >
+                      <div className={`w-4 h-4 rounded-full bg-white transition-transform duration-250 shadow-sm ${
+                        notificationsEnabled ? 'translate-x-4' : 'translate-x-0'
+                      }`} />
+                    </button>
                   </div>
 
                   <button

@@ -20,7 +20,7 @@ export const getProfile = async (req, res, next) => {
 
 export const updateProfile = async (req, res, next) => {
   try {
-    const { name, phoneNumber, avatar } = req.body;
+    const { name, phoneNumber, avatar, notificationsEnabled } = req.body;
 
     const user = await User.findById(req.user._id);
     if (!user) {
@@ -30,6 +30,7 @@ export const updateProfile = async (req, res, next) => {
     if (name) user.name = name;
     if (phoneNumber) user.phoneNumber = phoneNumber;
     if (avatar) user.avatar = avatar;
+    if (notificationsEnabled !== undefined) user.notificationsEnabled = notificationsEnabled;
 
     await user.save();
 

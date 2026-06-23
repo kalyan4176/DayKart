@@ -24,8 +24,6 @@ export default function OrderHistoryPage() {
     if (mounted && user) {
       if (user.role === 'seller') {
         setActiveTab('sales');
-      } else if (user.role === 'admin') {
-        setActiveTab('all');
       } else {
         setActiveTab('purchases');
       }
@@ -118,57 +116,29 @@ export default function OrderHistoryPage() {
           </div>
         </div>
 
-        {/* Tab Switcher for Sellers and Admins */}
-        {mounted && user?.role && user.role !== 'customer' && (
+        {/* Tab Switcher for Sellers */}
+        {mounted && user?.role === 'seller' && (
           <div className="flex w-full bg-slate-200/60 dark:bg-slate-900 p-1.5 rounded-2xl mb-6 shadow-xs max-w-sm sm:max-w-md mx-auto border border-slate-300/30 dark:border-slate-800/80 backdrop-blur-sm animate-fade-in">
-            {user.role === 'seller' && (
-              <>
-                <button
-                  onClick={() => setActiveTab('sales')}
-                  className={`flex-grow py-2 px-4 rounded-xl text-xxs sm:text-xs font-black uppercase tracking-wider transition-all duration-305 ${
-                    activeTab === 'sales'
-                      ? 'bg-white dark:bg-slate-800 text-secondary dark:text-cyan-400 shadow-md scale-[1.02]'
-                      : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
-                  }`}
-                >
-                  Store Sales
-                </button>
-                <button
-                  onClick={() => setActiveTab('purchases')}
-                  className={`flex-grow py-2 px-4 rounded-xl text-xxs sm:text-xs font-black uppercase tracking-wider transition-all duration-305 ${
-                    activeTab === 'purchases'
-                      ? 'bg-white dark:bg-slate-800 text-secondary dark:text-cyan-400 shadow-md scale-[1.02]'
-                      : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
-                  }`}
-                >
-                  My Purchases
-                </button>
-              </>
-            )}
-            {user.role === 'admin' && (
-              <>
-                <button
-                  onClick={() => setActiveTab('all')}
-                  className={`flex-grow py-2 px-4 rounded-xl text-xxs sm:text-xs font-black uppercase tracking-wider transition-all duration-305 ${
-                    activeTab === 'all'
-                      ? 'bg-white dark:bg-slate-800 text-secondary dark:text-cyan-400 shadow-md scale-[1.02]'
-                      : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
-                  }`}
-                >
-                  All System Orders
-                </button>
-                <button
-                  onClick={() => setActiveTab('purchases')}
-                  className={`flex-grow py-2 px-4 rounded-xl text-xxs sm:text-xs font-black uppercase tracking-wider transition-all duration-305 ${
-                    activeTab === 'purchases'
-                      ? 'bg-white dark:bg-slate-800 text-secondary dark:text-cyan-400 shadow-md scale-[1.02]'
-                      : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
-                  }`}
-                >
-                  My Purchases
-                </button>
-              </>
-            )}
+            <button
+              onClick={() => setActiveTab('sales')}
+              className={`flex-grow py-2 px-4 rounded-xl text-xxs sm:text-xs font-black uppercase tracking-wider transition-all duration-305 ${
+                activeTab === 'sales'
+                  ? 'bg-white dark:bg-slate-800 text-secondary dark:text-cyan-400 shadow-md scale-[1.02]'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+              }`}
+            >
+              Store Sales
+            </button>
+            <button
+              onClick={() => setActiveTab('purchases')}
+              className={`flex-grow py-2 px-4 rounded-xl text-xxs sm:text-xs font-black uppercase tracking-wider transition-all duration-305 ${
+                activeTab === 'purchases'
+                  ? 'bg-white dark:bg-slate-800 text-secondary dark:text-cyan-400 shadow-md scale-[1.02]'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+              }`}
+            >
+              My Purchases
+            </button>
           </div>
         )}
 

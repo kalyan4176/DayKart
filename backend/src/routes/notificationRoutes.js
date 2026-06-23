@@ -1,22 +1,22 @@
 import express from 'express';
 import {
-  getMyNotifications,
-  markAsRead,
-  markAllAsRead,
-  deleteNotification,
-  streamNotifications
+  establishStream,
+  getNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  deleteNotification
 } from '../controllers/notificationController.js';
 import { protect } from '../middlewares/auth.js';
 
 const router = express.Router();
 
-// All notifications endpoints are protected and require a logged-in user
+// All notification endpoints require authentication
 router.use(protect);
 
-router.get('/', getMyNotifications);
-router.get('/stream', streamNotifications);
-router.patch('/read-all', markAllAsRead);
-router.patch('/:id/read', markAsRead);
+router.get('/stream', establishStream);
+router.get('/', getNotifications);
+router.patch('/:id/read', markNotificationRead);
+router.patch('/read-all', markAllNotificationsRead);
 router.delete('/:id', deleteNotification);
 
 export default router;

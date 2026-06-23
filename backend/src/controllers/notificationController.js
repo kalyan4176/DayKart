@@ -1,121 +1,95 @@
 import Notification from '../models/Notification.js';
-import { notificationEmitter } from '../utils/notificationEmitter.js';
+import { addClient, removeClient } from '../services/notificationService.js';
 import { NotFoundError } from '../utils/customErrors.js';
 
-// Retrieve user-specific notifications list (up to 50 latest)
-export const getMyNotifications = async (req, res, next) => {
+export const establishStream = (req, res) => {
+  // Set SSE response headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  });
+
+  const userId = req.user._id.toString();
+  addClient(userId, res);
+
+  // Send an initial keep-alive comment
+  res.write(':ok\n\n');
+
+  // Handle client disconnect
+  req.on('close', () => {
+    removeClient(userId);
+  });
+};
+
+export const getNotifications = async (req, res, next) => {
   try {
     const notifications = await Notification.find({ recipient: req.user._id })
       .sort({ createdAt: -1 })
       .limit(50);
-      
+
     res.status(200).json({
       status: 'success',
-      data: { notifications }
+      data: { notifications },
     });
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    next(error);
   }
 };
 
-// Mark a single notification as read
-export const markAsRead = async (req, res, next) => {
+export const markNotificationRead = async (req, res, next) => {
   try {
+    const { id } = req.params;
     const notification = await Notification.findOneAndUpdate(
-      { _id: req.params.id, recipient: req.user._id },
+      { _id: id, recipient: req.user._id },
       { read: true },
       { new: true }
     );
-    
+
     if (!notification) {
       return next(new NotFoundError('Notification not found.'));
     }
-    
+
     res.status(200).json({
       status: 'success',
-      data: { notification }
+      message: 'Notification marked as read.',
+      data: { notification },
     });
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    next(error);
   }
 };
 
-// Mark all notifications as read
-export const markAllAsRead = async (req, res, next) => {
+export const markAllNotificationsRead = async (req, res, next) => {
   try {
     await Notification.updateMany(
       { recipient: req.user._id, read: false },
       { read: true }
     );
-    
+
     res.status(200).json({
       status: 'success',
-      message: 'All notifications marked as read.'
+      message: 'All notifications marked as read.',
     });
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    next(error);
   }
 };
 
-// Delete a single notification
 export const deleteNotification = async (req, res, next) => {
   try {
-    const notification = await Notification.findOneAndDelete({
-      _id: req.params.id,
-      recipient: req.user._id
-    });
-    
+    const { id } = req.params;
+    const notification = await Notification.findOneAndDelete({ _id: id, recipient: req.user._id });
+
     if (!notification) {
       return next(new NotFoundError('Notification not found.'));
     }
-    
+
     res.status(200).json({
       status: 'success',
-      message: 'Notification deleted successfully.'
+      message: 'Notification deleted.',
     });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// Stream notifications in real-time via Server-Sent Events (SSE)
-export const streamNotifications = async (req, res, next) => {
-  try {
-    // Set headers required for Server-Sent Events
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no'); // Disable proxy response buffering
-    
-    // Initial connection confirmation frame
-    res.write('data: {"connected": true}\n\n');
-    
-    const userId = req.user._id.toString();
-    
-    // Keep-alive heartbeat interval to prevent load-balancer/proxy timeout disconnects
-    const keepAliveInterval = setInterval(() => {
-      if (!res.writableEnded) {
-        res.write(': keep-alive\n\n');
-      }
-    }, 25000);
-    
-    // Event listener triggered whenever a new notification is emitted
-    const listener = (notification) => {
-      if (notification.recipient.toString() === userId && !res.writableEnded) {
-        res.write(`data: ${JSON.stringify(notification)}\n\n`);
-      }
-    };
-    
-    notificationEmitter.on('notification:new', listener);
-    
-    // Handle client disconnect cleanup
-    req.on('close', () => {
-      clearInterval(keepAliveInterval);
-      notificationEmitter.off('notification:new', listener);
-      res.end();
-    });
-    
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    next(error);
   }
 };

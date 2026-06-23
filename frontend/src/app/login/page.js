@@ -7,16 +7,21 @@ import { useDispatch } from 'react-redux';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Mail, Lock, AlertTriangle, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, AlertTriangle, ArrowRight, ShieldCheck, Eye, EyeOff, UserPlus, X, LogIn } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useToast } from '@/components/ToastProvider';
-import { useLoginMutation, useVerifyOtpMutation } from '@/store/api';
+import { useLoginMutation, useVerifyOtpMutation, useGoogleLoginMutation } from '@/store/api';
 import { setCredentials } from '@/store/authSlice';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(1, 'Password is required'),
+  password: z.string()
+    .min(8, 'Password must be at least 8 characters long')
+    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+    .regex(/[0-9]/, 'Password must contain at least one number')
+    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'),
 });
 
 const otpSchema = z.object({
@@ -34,6 +39,32 @@ export default function Login() {
   const [otpSent, setOtpSent] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Google OAuth Mock State
+  const [googleLoginApi, { isLoading: googleLoading }] = useGoogleLoginMutation();
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
+  const [googleCustomEmail, setGoogleCustomEmail] = useState('');
+  const [googleCustomName, setGoogleCustomName] = useState('');
+  const [showGoogleCustomForm, setShowGoogleCustomForm] = useState(false);
+
+  const handleGoogleLogin = async (email, name, googleId) => {
+    try {
+      setErrorMsg('');
+      const avatar = `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(email)}`;
+      const res = await googleLoginApi({ email, name, googleId, avatar }).unwrap();
+      dispatch(setCredentials({
+        user: res.data.user,
+        accessToken: res.accessToken,
+      }));
+      showToast(`Welcome! Logged in as ${res.data.user.name || 'User'}`, 'success');
+      setShowGoogleModal(false);
+      router.push('/');
+    } catch (err) {
+      setErrorMsg(err.data?.message || 'Google login failed.');
+      setShowGoogleModal(false);
+    }
+  };
 
   // Forms
   const { register: loginRegister, handleSubmit: handleLoginSubmit, formState: { errors: loginErrors } } = useForm({
@@ -132,12 +163,20 @@ export default function Login() {
                 </label>
                 <div className="relative">
                   <input
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     placeholder="••••••••"
                     {...loginRegister('password')}
-                    className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary pl-10 pr-4 py-2.5 rounded-xl text-sm outline-none transition dark:text-slate-200"
+                    className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary pl-10 pr-10 py-2.5 rounded-xl text-sm outline-none transition dark:text-slate-200"
                   />
                   <Lock className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-350 focus:outline-none"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
                 {loginErrors.password && <p className="text-xxs text-red-500 mt-1">{loginErrors.password.message}</p>}
               </div>
@@ -148,6 +187,30 @@ export default function Login() {
                 className="w-full inline-flex items-center justify-center gap-2 bg-secondary hover:bg-cyan-600 text-white font-bold py-3 rounded-xl shadow-md transition-all active:scale-98 disabled:opacity-50"
               >
                 {loginLoading ? 'Signing in...' : 'Sign In'} <ArrowRight className="w-4 h-4" />
+              </button>
+
+              <div className="relative my-5 text-center">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-slate-200 dark:border-slate-800"></div>
+                </div>
+                <span className="relative px-3 bg-white dark:bg-slate-900 text-xxs font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  or
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowGoogleModal(true)}
+                disabled={googleLoading}
+                className="w-full inline-flex items-center justify-center gap-2.5 bg-white hover:bg-slate-50 text-slate-700 font-bold py-3 px-4 rounded-xl border border-slate-200 shadow-sm transition-all active:scale-98 dark:bg-slate-900 dark:hover:bg-slate-850 dark:text-slate-200 dark:border-slate-800"
+              >
+                <svg className="w-4.5 h-4.5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                </svg>
+                <span>{googleLoading ? 'Processing...' : 'Continue with Google'}</span>
               </button>
             </form>
           ) : (
@@ -201,6 +264,137 @@ export default function Login() {
             </Link>
           </div>
         </div>
+
+        {/* Simulated Google Accounts Selector Modal */}
+        {showGoogleModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <div 
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" 
+              onClick={() => setShowGoogleModal(false)}
+            />
+
+            {/* Modal Content */}
+            <div className="relative bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 overflow-hidden z-10 animate-in fade-in zoom-in duration-200">
+              <button 
+                onClick={() => setShowGoogleModal(false)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-650 dark:hover:text-slate-200 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="flex flex-col items-center text-center mt-3 mb-6">
+                <svg className="w-10 h-10 mb-3" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                </svg>
+                <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">Choose an account</h3>
+                <p className="text-xxs text-slate-400 mt-1">to continue to <span className="font-bold text-secondary">Daykart</span></p>
+              </div>
+
+              {!showGoogleCustomForm ? (
+                <div className="space-y-3">
+                  {/* Account 1: Jane Customer */}
+                  <button
+                    onClick={() => handleGoogleLogin('jane@example.com', 'Jane Customer', 'mock-google-jane-123')}
+                    className="w-full flex items-center gap-3 p-3.5 border border-slate-200 dark:border-slate-800 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-850 text-left transition"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-cyan-100 dark:bg-cyan-900 flex items-center justify-center font-bold text-cyan-700 text-xs">
+                      JC
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Jane Customer</p>
+                      <p className="text-[10px] text-slate-400 truncate">jane@example.com</p>
+                    </div>
+                    <span className="text-[10px] font-bold text-secondary uppercase bg-cyan-50 dark:bg-cyan-950/30 border border-cyan-150 dark:border-cyan-900 px-2 py-0.5 rounded-full">
+                      Customer
+                    </span>
+                  </button>
+
+                  {/* Account 2: John Seller */}
+                  <button
+                    onClick={() => handleGoogleLogin('john@example.com', 'John Seller', 'mock-google-john-123')}
+                    className="w-full flex items-center gap-3 p-3.5 border border-slate-200 dark:border-slate-800 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-850 text-left transition"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center font-bold text-orange-600 text-xs">
+                      JS
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200">John Seller</p>
+                      <p className="text-[10px] text-slate-400 truncate">john@example.com</p>
+                    </div>
+                    <span className="text-[10px] font-bold text-accent uppercase bg-orange-50 dark:bg-orange-950/20 border border-orange-150 dark:border-orange-900 px-2 py-0.5 rounded-full">
+                      Seller
+                    </span>
+                  </button>
+
+                  {/* Option 3: Custom account */}
+                  <button
+                    onClick={() => setShowGoogleCustomForm(true)}
+                    className="w-full flex items-center gap-3 p-3.5 border border-dashed border-slate-300 dark:border-slate-700 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-850 text-left transition text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                      <UserPlus className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-bold">Use another account</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Alice Smith"
+                      value={googleCustomName}
+                      onChange={(e) => setGoogleCustomName(e.target.value)}
+                      className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="alice@gmail.com"
+                      value={googleCustomEmail}
+                      onChange={(e) => setGoogleCustomEmail(e.target.value)}
+                      className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowGoogleCustomForm(false);
+                        setGoogleCustomEmail('');
+                        setGoogleCustomName('');
+                      }}
+                      className="flex-1 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-350 font-bold py-2.5 rounded-xl text-xs transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!googleCustomEmail.trim() || !googleCustomName.trim()}
+                      onClick={() => handleGoogleLogin(googleCustomEmail.trim(), googleCustomName.trim(), `mock-google-${Date.now()}`)}
+                      className="flex-1 bg-secondary hover:bg-cyan-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-md transition disabled:opacity-50"
+                    >
+                      Continue
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </main>
 
       <Footer />

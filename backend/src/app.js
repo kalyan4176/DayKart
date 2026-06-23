@@ -53,8 +53,8 @@ app.use(mongoSanitize());
 
 // 5. Global Rate Limiter to prevent Brute Force (150 requests per 15 minutes, elevated in dev)
 const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'development' ? 5000 : 150,
+  windowMs: 1 * 60 * 1000,
+  max: process.env.NODE_ENV === 'development' ? 5000 : 1000,
   message: {
     status: 'fail',
     message: 'Too many requests from this IP. Please try again after 15 minutes.'
@@ -66,8 +66,8 @@ app.use('/api', globalLimiter);
 
 // 6. Specific login rate limit (elevated in dev)
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'development' ? 500 : 15, // max 15 requests per 15 min for login/auth
+  windowMs: 1 * 60 * 1000,
+  max: process.env.NODE_ENV === 'development' ? 5000 : 150, // max 15 requests per 15 min for login/auth
   message: {
     status: 'fail',
     message: 'Too many auth attempts. Please try again in 15 minutes.'

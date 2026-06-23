@@ -30,8 +30,8 @@ export const createCoupon = async (req, res, next) => {
       maxDiscount,
       scope: req.user.role === 'admin' ? (scope || 'platform') : 'seller',
       seller: req.user.role === 'admin' ? null : sellerId,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
+      startDate: new Date(new Date(startDate).setUTCHours(0, 0, 0, 0)),
+      endDate: new Date(new Date(endDate).setUTCHours(23, 59, 59, 999)),
       usageLimit,
       userLimit: userLimit || 1,
       firstNOrders: firstNOrders || 0,
@@ -64,7 +64,8 @@ export const getCoupons = async (req, res, next) => {
     if (req.user.role === 'customer' || req.query.view === 'customer') {
       query = {
         active: true,
-        endDate: { $gt: new Date() },
+        endDate: { $gt: new Date(Date.now() - 12 * 60 * 60 * 1000) },
+        startDate: { $lte: new Date(Date.now() + 14 * 60 * 60 * 1000) },
         $or: [
           { assignedTo: req.user._id },
           { scope: 'platform', isRandomPool: false, assignedTo: null }
@@ -98,7 +99,10 @@ export const validateCoupon = async (req, res, next) => {
     }
 
     // Expiry check
-    if (coupon.startDate > new Date() || coupon.endDate < new Date()) {
+    const now = new Date();
+    const hasStarted = new Date(now.getTime() + 14 * 60 * 60 * 1000) >= coupon.startDate;
+    const hasExpired = new Date(now.getTime() - 12 * 60 * 60 * 1000) > coupon.endDate;
+    if (!hasStarted || hasExpired) {
       return next(new BadRequestError('Coupon code is not available.'));
     }
 
@@ -159,8 +163,10 @@ export const updateCoupon = async (req, res, next) => {
 
     fieldsToUpdate.forEach(field => {
       if (req.body[field] !== undefined) {
-        if (field === 'startDate' || field === 'endDate') {
-          coupon[field] = new Date(req.body[field]);
+        if (field === 'startDate') {
+          coupon.startDate = new Date(new Date(req.body.startDate).setUTCHours(0, 0, 0, 0));
+        } else if (field === 'endDate') {
+          coupon.endDate = new Date(new Date(req.body.endDate).setUTCHours(23, 59, 59, 999));
         } else {
           coupon[field] = req.body[field];
         }

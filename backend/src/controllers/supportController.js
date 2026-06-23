@@ -1,6 +1,7 @@
 import SupportTicket from '../models/SupportTicket.js';
 import Order from '../models/Order.js';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../utils/customErrors.js';
+import { sendInAppNotification } from '../utils/notificationHelper.js';
 
 export const createTicket = async (req, res, next) => {
   try {
@@ -106,6 +107,16 @@ export const addReply = async (req, res, next) => {
 
     await ticket.save();
 
+    if (isAdmin) {
+      await sendInAppNotification(
+        ticket.customer,
+        'support',
+        'Support Ticket Reply',
+        `Admin: "${text.substring(0, 45)}${text.length > 45 ? '...' : ''}"`,
+        '/tickets'
+      );
+    }
+
     res.status(200).json({
       status: 'success',
       message: 'Reply sent successfully.',
@@ -137,6 +148,15 @@ export const resolveTicket = async (req, res, next) => {
     });
     
     await ticket.save();
+
+    // Notify the customer that the ticket has been resolved
+    await sendInAppNotification(
+      ticket.customer,
+      'support',
+      'Support Ticket Resolved',
+      `Your ticket regarding "${ticket.subject}" has been resolved.`,
+      '/tickets'
+    );
 
     res.status(200).json({
       status: 'success',

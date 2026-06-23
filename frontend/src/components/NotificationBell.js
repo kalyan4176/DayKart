@@ -10,27 +10,93 @@ import {
   ShoppingBag, 
   Info, 
   AlertTriangle, 
-  Sparkles
+  Sparkles,
+  BellOff
 } from 'lucide-react';
 import { 
   useGetNotificationsQuery, 
   useMarkNotificationReadMutation, 
   useMarkAllNotificationsReadMutation, 
-  useDeleteNotificationMutation 
+  useDeleteNotificationMutation,
+  useUpdateProfileMutation
 } from '@/store/api';
+import { useSelector, useDispatch } from 'react-redux';
+import { useToast } from '@/components/ToastProvider';
+import { updateUser } from '@/store/authSlice';
 
 export default function NotificationBell() {
   const router = useRouter();
+  const dispatch = useDispatch();
+  const { user, token } = useSelector((state) => state.auth);
+  const { showToast } = useToast();
   const [isOpen, setIsOpen] = React.useState(false);
   const dropdownRef = React.useRef(null);
 
-  const { data: notificationsRes, isLoading } = useGetNotificationsQuery();
+  const { data: notificationsRes, isLoading, refetch } = useGetNotificationsQuery(undefined, {
+    skip: !token
+  });
   const [markRead] = useMarkNotificationReadMutation();
   const [markAllRead, { isLoading: isMarkingAll }] = useMarkAllNotificationsReadMutation();
   const [deleteNotif] = useDeleteNotificationMutation();
+  const [updateProfile] = useUpdateProfileMutation();
 
   const notifications = notificationsRes?.data?.notifications || [];
   const unreadCount = notifications.filter(n => !n.read).length;
+
+  // Real-Time SSE Listener
+  React.useEffect(() => {
+    if (!token || user?.notificationsEnabled === false) return;
+
+    const streamUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5005/api/v1'}/notifications/stream?token=${token}`;
+    const eventSource = new EventSource(streamUrl, { withCredentials: true });
+
+    eventSource.onmessage = (event) => {
+      try {
+        const newNotif = JSON.parse(event.data);
+        
+        // Show standard Toast notification
+        showToast(
+          <div className="flex flex-col gap-0.5">
+            <span className="font-extrabold text-[10px] uppercase tracking-wider text-slate-800 dark:text-white">
+              {newNotif.title}
+            </span>
+            <span className="text-xxs text-slate-500 dark:text-slate-400">
+              {newNotif.message}
+            </span>
+          </div>,
+          'info'
+        );
+
+        // Refetch notifications list
+        refetch();
+      } catch (err) {
+        console.error('Error handling SSE notification event:', err);
+      }
+    };
+
+    eventSource.onerror = () => {
+      // Auto-reconnect is handled natively by browsers
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [token, user?.notificationsEnabled, showToast, refetch]);
+
+  const handleTogglePreferences = async () => {
+    const currentPreference = user?.notificationsEnabled !== false;
+    const nextPreference = !currentPreference;
+    try {
+      await updateProfile({ notificationsEnabled: nextPreference }).unwrap();
+      dispatch(updateUser({ notificationsEnabled: nextPreference }));
+      showToast(
+        nextPreference ? 'Real-time alerts enabled.' : 'Real-time alerts muted.',
+        'success'
+      );
+    } catch (err) {
+      showToast('Failed to update notification settings.', 'error');
+    }
+  };
 
   // Handle click outside to close dropdown
   React.useEffect(() => {
@@ -178,6 +244,24 @@ export default function NotificationBell() {
                 </div>
               ))
             )}
+          </div>
+
+          {/* Footer Preference Toggle */}
+          <div className="px-5 py-2.5 bg-slate-50/80 dark:bg-slate-950/40 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 select-none">
+            <span className="flex items-center gap-1.5">
+              {user?.notificationsEnabled !== false ? <Bell className="w-3.5 h-3.5 text-secondary" /> : <BellOff className="w-3.5 h-3.5 text-slate-400" />}
+              Real-time Alerts
+            </span>
+            <button
+              onClick={handleTogglePreferences}
+              className={`w-8 h-4.5 rounded-full p-0.5 transition-colors duration-250 cursor-pointer ${
+                user?.notificationsEnabled !== false ? 'bg-secondary' : 'bg-slate-300 dark:bg-slate-700'
+              }`}
+            >
+              <div className={`w-3.5 h-3.5 rounded-full bg-white transition-transform duration-250 shadow-sm ${
+                user?.notificationsEnabled !== false ? 'translate-x-3.5' : 'translate-x-0'
+              }`} />
+            </button>
           </div>
         </div>
       )}

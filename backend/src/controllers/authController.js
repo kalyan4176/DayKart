@@ -260,8 +260,13 @@ export const logout = async (req, res, next) => {
     const userId = req.user?._id;
     
     // Clear cookies
-    res.clearCookie('accessToken');
-    res.clearCookie('refreshToken');
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'Lax',
+    };
+    res.clearCookie('accessToken', cookieOptions);
+    res.clearCookie('refreshToken', cookieOptions);
 
     // Invalidate Redis session cache
     if (userId && redisClient.isOpen) {

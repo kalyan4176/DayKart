@@ -65,7 +65,7 @@ describe('Authentication API Endpoints', () => {
         .post('/api/v1/auth/login')
         .send({
           email: 'test_integration@daykart.com',
-          password: 'WrongPassword!',
+          password: 'WrongPassword123!',
         });
 
       expect(res.statusCode).toEqual(401);

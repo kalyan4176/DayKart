@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSelector, useDispatch } from 'react-redux';
-import { LayoutDashboard, Users, ShoppingBag, ShieldCheck, CheckCircle2, XCircle, User, Mail, Phone, AlertTriangle, Store, Plus, Trash2, Edit, FolderOpen, ClipboardList, RefreshCw, ChevronRight, Sliders, Tag, Gift, Percent, Calendar, Truck, Wallet, Search, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, Users, ShoppingBag, ShieldCheck, CheckCircle2, XCircle, User, Mail, Phone, AlertTriangle, Store, Plus, Trash2, Edit, FolderOpen, ClipboardList, RefreshCw, ChevronRight, Sliders, Tag, Gift, Percent, Calendar, Truck, Wallet, Search, ChevronDown, MessageSquare } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ConfirmationModal from '@/components/ConfirmationModal';
@@ -40,6 +40,9 @@ import {
    useGetReferralSettingsQuery,
    useUpdateReferralSettingsMutation,
    useGetAdminReferralsQuery,
+   useGetAdminTicketsQuery,
+   useReplyTicketMutation,
+   useResolveTicketMutation,
 } from '@/store/api';
 
 export default function AdminDashboard() {
@@ -147,6 +150,61 @@ export default function AdminDashboard() {
 
   const [orderSearchQuery, setOrderSearchQuery] = useState('');
   const [orderStatusFilter, setOrderStatusFilter] = useState('all'); // 'all' | 'placed' | 'processed' | 'shipped' | 'out_for_delivery' | 'delivered' | 'cancelled'
+
+  // Support Tickets State
+  const [ticketStatusFilter, setTicketStatusFilter] = useState('all'); // 'all' | 'open' | 'in_progress' | 'resolved'
+  const [ticketPriorityFilter, setTicketPriorityFilter] = useState('all'); // 'all' | 'low' | 'medium' | 'high'
+  const [ticketSearchQuery, setTicketSearchQuery] = useState('');
+  const [selectedTicketId, setSelectedTicketId] = useState(null);
+  const [ticketReplyText, setTicketReplyText] = useState('');
+
+  const { data: ticketsRes, refetch: refetchTickets, isLoading: ticketsLoading } = useGetAdminTicketsQuery(
+    {
+      status: ticketStatusFilter === 'all' ? undefined : ticketStatusFilter,
+      priority: ticketPriorityFilter === 'all' ? undefined : ticketPriorityFilter,
+    },
+    { skip: activeTab !== 'tickets' || !isAdmin || !mounted }
+  );
+
+  const [replyTicket, { isLoading: isReplying }] = useReplyTicketMutation();
+  const [resolveTicket, { isLoading: isResolving }] = useResolveTicketMutation();
+
+  const tickets = ticketsRes?.data?.tickets || [];
+  const selectedTicket = tickets.find(t => t._id === selectedTicketId);
+
+  const filteredTickets = tickets.filter(ticket => {
+    const search = ticketSearchQuery.toLowerCase().trim();
+    if (!search) return true;
+    const subjectMatches = (ticket.subject || '').toLowerCase().includes(search);
+    const emailMatches = (ticket.customer?.email || '').toLowerCase().includes(search);
+    const nameMatches = (ticket.customer?.name || '').toLowerCase().includes(search);
+    return subjectMatches || emailMatches || nameMatches;
+  });
+
+  const handleSendTicketReply = async (e) => {
+    e.preventDefault();
+    if (!ticketReplyText.trim()) return;
+
+    try {
+      await replyTicket({ id: selectedTicketId, text: ticketReplyText.trim() }).unwrap();
+      setTicketReplyText('');
+      showToast('Reply sent successfully.', 'success');
+      refetchTickets();
+    } catch (err) {
+      showToast(err.data?.message || 'Failed to send reply.', 'error');
+    }
+  };
+
+  const handleResolveTicket = async () => {
+    if (!selectedTicketId) return;
+    try {
+      await resolveTicket(selectedTicketId).unwrap();
+      showToast('Ticket marked as resolved.', 'success');
+      refetchTickets();
+    } catch (err) {
+      showToast(err.data?.message || 'Failed to resolve ticket.', 'error');
+    }
+  };
 
   const referrals = adminReferralsRes?.data?.referrals || [];
   const filteredReferrals = referrals
@@ -1414,6 +1472,7 @@ export default function AdminDashboard() {
     shipping: 'Manage Shipping',
     referrals: 'Manage Referrals',
     wallet: 'Admin Wallet',
+    tickets: 'Support Tickets',
     profile: 'Profile Details'
   };
 
@@ -1580,6 +1639,16 @@ export default function AdminDashboard() {
               }`}
             >
               <Wallet className="w-4.5 h-4.5" /> Admin Wallet
+            </button>
+            <button
+              onClick={() => setActiveTab('tickets')}
+              className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
+                activeTab === 'tickets'
+                  ? 'bg-secondary text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <MessageSquare className="w-4.5 h-4.5" /> Support Tickets
             </button>
             <button
               onClick={() => setActiveTab('profile')}
@@ -3763,6 +3832,268 @@ export default function AdminDashboard() {
                       </div>
                     )}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'tickets' && (
+              /* Support Tickets (Tokens Raised) Section */
+              <div className="space-y-6">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-5">
+                    <div>
+                      <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                        <MessageSquare className="w-5 h-5 text-secondary" /> Tokens Raised (Support)
+                      </h3>
+                      <p className="text-xxs text-slate-400 mt-1">Manage and resolve customer support queries on the platform.</p>
+                    </div>
+
+                    {/* Filter and Search actions */}
+                    <div className="flex flex-wrap items-center gap-2 md:self-end">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="Search subject/email..."
+                          value={ticketSearchQuery}
+                          onChange={(e) => setTicketSearchQuery(e.target.value)}
+                          className="bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary pl-8 pr-3 py-1.5 rounded-xl text-xxs outline-none transition dark:text-slate-200 w-44"
+                        />
+                        <Search className="absolute left-2.5 top-2.5 w-3 h-3 text-slate-400" />
+                      </div>
+
+                      <select
+                        value={ticketStatusFilter}
+                        onChange={(e) => setTicketStatusFilter(e.target.value)}
+                        className="bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-2.5 py-1.5 rounded-xl text-xxs outline-none transition dark:text-slate-200 cursor-pointer"
+                      >
+                        <option value="all">All Statuses</option>
+                        <option value="open">Open</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="resolved">Resolved</option>
+                      </select>
+
+                      <select
+                        value={ticketPriorityFilter}
+                        onChange={(e) => setTicketPriorityFilter(e.target.value)}
+                        className="bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-2.5 py-1.5 rounded-xl text-xxs outline-none transition dark:text-slate-200 cursor-pointer"
+                      >
+                        <option value="all">All Priorities</option>
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {ticketsLoading ? (
+                    <div className="space-y-4 py-8">
+                      {Array(3).fill(0).map((_, i) => (
+                        <div key={i} className="h-20 bg-slate-100 dark:bg-slate-800 rounded-2xl animate-pulse" />
+                      ))}
+                    </div>
+                  ) : filteredTickets.length === 0 ? (
+                    <div className="text-center py-16">
+                      <div className="inline-flex items-center justify-center p-4 bg-slate-50 dark:bg-slate-800 rounded-full mb-4">
+                        <MessageSquare className="w-8 h-8 text-slate-400" />
+                      </div>
+                      <p className="text-xs text-slate-450 italic">No tickets found matching the search or filters.</p>
+                    </div>
+                  ) : (
+                    /* Split Layout */
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6 items-start">
+                      {/* Left: Tickets List */}
+                      <div className={`space-y-3 lg:block ${selectedTicketId ? 'hidden' : 'block'}`}>
+                        <div className="max-h-[600px] overflow-y-auto pr-1 space-y-2.5">
+                          {filteredTickets.map((ticket) => {
+                            const isSelected = selectedTicketId === ticket._id;
+                            const statusStyles = {
+                              open: 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/40',
+                              in_progress: 'bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900/40',
+                              resolved: 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/40',
+                            };
+                            const priorityStyles = {
+                              low: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+                              medium: 'bg-blue-50 text-blue-600 dark:bg-blue-950/20 dark:text-blue-400',
+                              high: 'bg-red-50 text-red-600 dark:bg-red-950/20 dark:text-red-400',
+                            };
+
+                            return (
+                              <div
+                                key={ticket._id}
+                                onClick={() => setSelectedTicketId(ticket._id)}
+                                className={`p-4 border rounded-2xl cursor-pointer transition flex flex-col gap-2 ${
+                                  isSelected
+                                    ? 'bg-slate-50 dark:bg-slate-850 border-secondary shadow-sm'
+                                    : 'bg-white dark:bg-slate-900 hover:bg-slate-50/50 dark:hover:bg-slate-850/40 border-slate-200 dark:border-slate-800'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full ${statusStyles[ticket.status] || 'bg-slate-100 text-slate-600'}`}>
+                                    {ticket.status === 'in_progress' ? 'in progress' : ticket.status}
+                                  </span>
+                                  <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${priorityStyles[ticket.priority] || 'bg-slate-100'}`}>
+                                    {ticket.priority} prio
+                                  </span>
+                                </div>
+
+                                <div className="min-w-0">
+                                  <h4 className="text-xs font-extrabold text-slate-800 dark:text-slate-200 truncate">
+                                    {ticket.subject}
+                                  </h4>
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                                    From: {ticket.customer?.name || ticket.customer?.email || 'Unknown User'}
+                                  </p>
+                                </div>
+
+                                <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-850 pt-2 text-[9px] text-slate-400 font-bold">
+                                  <span>{ticket.messages?.length || 0} messages</span>
+                                  <span>
+                                    {new Date(ticket.updatedAt || ticket.createdAt).toLocaleDateString('en-IN', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                    })}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Right: Ticket Conversation Details */}
+                      <div className={`lg:col-span-2 bg-slate-50/60 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 min-h-[500px] flex flex-col ${
+                        selectedTicketId ? 'block' : 'hidden lg:flex justify-center items-center'
+                      }`}>
+                        {selectedTicket ? (
+                          <div className="flex-1 flex flex-col h-full">
+                            {/* Selected Ticket Header */}
+                            <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex flex-col sm:flex-row justify-between gap-3">
+                              <div>
+                                {selectedTicketId && (
+                                  <button
+                                    onClick={() => setSelectedTicketId(null)}
+                                    className="lg:hidden text-xxs font-bold text-secondary hover:underline flex items-center gap-1 mb-2"
+                                  >
+                                    ← Back to Tickets List
+                                  </button>
+                                )}
+                                <h4 className="text-sm font-extrabold text-slate-800 dark:text-slate-200">
+                                  {selectedTicket.subject}
+                                </h4>
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                                  <span className="font-bold">{selectedTicket.customer?.name} ({selectedTicket.customer?.email})</span>
+                                  <span>•</span>
+                                  <span>Opened {new Date(selectedTicket.createdAt).toLocaleDateString('en-IN', {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}</span>
+                                  {selectedTicket.order?.orderId && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="text-secondary font-bold">Order ID: #{selectedTicket.order.orderId}</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+
+                              {selectedTicket.status !== 'resolved' ? (
+                                <button
+                                  onClick={handleResolveTicket}
+                                  disabled={isResolving}
+                                  className="sm:self-start bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-xl text-xxs shadow-sm transition active:scale-98 disabled:opacity-50 flex items-center justify-center gap-1"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>{isResolving ? 'Resolving...' : 'Mark Resolved'}</span>
+                                </button>
+                              ) : (
+                                <span className="sm:self-start bg-emerald-100 text-emerald-800 border border-emerald-250 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/40 font-bold px-3 py-1.5 rounded-xl text-xxs flex items-center justify-center gap-1">
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>Resolved</span>
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Conversation Messages */}
+                            <div className="flex-1 overflow-y-auto max-h-[360px] my-4 space-y-3.5 pr-1 py-2">
+                              {selectedTicket.messages?.map((msg) => {
+                                const isCustomer = msg.sender?.toString() === selectedTicket.customer?._id?.toString() || msg.sender?.toString() === selectedTicket.customer?.toString();
+                                const isSystem = msg.text.startsWith('---');
+
+                                if (isSystem) {
+                                  return (
+                                    <div key={msg._id} className="text-center my-2 text-[10px] text-slate-400 italic bg-slate-100 dark:bg-slate-900 py-1.5 px-3 rounded-full max-w-xs mx-auto border border-slate-200/50 dark:border-slate-800/50">
+                                      {msg.text.replace(/---/g, '').trim()}
+                                    </div>
+                                  );
+                                }
+
+                                return (
+                                  <div
+                                    key={msg._id}
+                                    className={`flex flex-col max-w-[85%] ${
+                                      isCustomer ? 'mr-auto items-start' : 'ml-auto items-end'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-1.5 mb-1 text-[9px] font-bold text-slate-400">
+                                      <span>{isCustomer ? (selectedTicket.customer?.name || 'Customer') : 'Support Admin'}</span>
+                                      <span>•</span>
+                                      <span>
+                                        {new Date(msg.createdAt).toLocaleTimeString('en-IN', {
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                        })}
+                                      </span>
+                                    </div>
+                                    <div
+                                      className={`p-3 rounded-2xl text-xs leading-relaxed ${
+                                        isCustomer
+                                          ? 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded-tl-none border border-slate-200/60 dark:border-slate-800'
+                                          : 'bg-cyan-50 dark:bg-cyan-950/30 text-slate-800 dark:text-slate-200 rounded-tr-none border border-cyan-100 dark:border-cyan-900/40 shadow-sm'
+                                      }`}
+                                    >
+                                      {msg.text}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Reply Form */}
+                            {selectedTicket.status !== 'resolved' ? (
+                              <form onSubmit={handleSendTicketReply} className="mt-auto border-t border-slate-200 dark:border-slate-800 pt-3 flex gap-2">
+                                <textarea
+                                  value={ticketReplyText}
+                                  onChange={(e) => setTicketReplyText(e.target.value)}
+                                  placeholder="Type your official support response here..."
+                                  rows={2}
+                                  className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-secondary p-3 rounded-xl text-xs outline-none transition resize-none dark:text-slate-200"
+                                />
+                                <button
+                                  type="submit"
+                                  disabled={isReplying || !ticketReplyText.trim()}
+                                  className="bg-secondary hover:bg-cyan-600 text-white font-bold px-4 rounded-xl text-xs transition shadow-md active:scale-98 disabled:opacity-40 flex items-center justify-center"
+                                >
+                                  {isReplying ? 'Sending...' : 'Reply'}
+                                </button>
+                              </form>
+                            ) : (
+                              <div className="mt-auto border-t border-slate-200 dark:border-slate-800 pt-3 text-center text-[10px] text-slate-400 italic">
+                                This support ticket is closed and resolved.
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 italic p-8 text-center">
+                            <MessageSquare className="w-10 h-10 mb-2.5 text-slate-350" />
+                            <p className="text-xxs">Select a support ticket from the list to view its conversation thread and send a response.</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
