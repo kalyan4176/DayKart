@@ -257,9 +257,7 @@ export const refreshToken = async (req, res, next) => {
 
 export const logout = async (req, res, next) => {
   try {
-    const userId = req.user?._id;
-    
-    // Clear cookies
+    // 1. Always clear cookies (forces the browser to discard them)
     const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -268,9 +266,23 @@ export const logout = async (req, res, next) => {
     res.clearCookie('accessToken', cookieOptions);
     res.clearCookie('refreshToken', cookieOptions);
 
-    // Invalidate Redis session cache
-    if (userId && redisClient.isOpen) {
-      await redisClient.del(`user:${userId}`);
+    // 2. Try to extract token to clean up Redis cache (graceful optional fallback)
+    let token;
+    if (req.cookies?.accessToken) {
+      token = req.cookies.accessToken;
+    } else if (req.headers.authorization?.startsWith('Bearer ')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET || 'fallback-access-secret');
+        if (decoded?.id && redisClient.isOpen) {
+          await redisClient.del(`user:${decoded.id}`);
+        }
+      } catch (tokenErr) {
+        // Suppress errors during logout token verification so the route always succeeds
+      }
     }
 
     res.status(200).json({
@@ -349,7 +361,41 @@ export const resetPassword = async (req, res, next) => {
 
 export const googleLoginMock = async (req, res, next) => {
   try {
-    const { email, name, googleId, avatar } = req.body;
+    const { idToken, email: mockEmail, name: mockName, googleId: mockGoogleId, avatar: mockAvatar } = req.body;
+
+    let email = mockEmail;
+    let name = mockName;
+    let googleId = mockGoogleId;
+    let avatar = mockAvatar;
+
+    if (idToken) {
+      // Real Google Sign-In Token Verification
+      try {
+        const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
+        if (!response.ok) {
+          return next(new UnauthorizedError('Invalid Google credential token.'));
+        }
+        const payload = await response.json();
+
+        // Check Client ID matches if configured
+        const expectedClientId = process.env.GOOGLE_CLIENT_ID;
+        if (expectedClientId && payload.aud !== expectedClientId) {
+          return next(new UnauthorizedError('Google credential token client ID mismatch.'));
+        }
+
+        email = payload.email;
+        name = payload.name;
+        googleId = payload.sub; // sub is the stable Google user ID
+        avatar = payload.picture;
+      } catch (fetchErr) {
+        return next(new UnauthorizedError(`Failed to verify Google token: ${fetchErr.message}`));
+      }
+    } else {
+      // Mock parameter validation (only allowed in development/test)
+      if (process.env.NODE_ENV === 'production') {
+        return next(new BadRequestError('Mock Google login is disabled in production. ID Token is required.'));
+      }
+    }
 
     if (!email || !googleId) {
       return next(new BadRequestError('Email and Google ID are required.'));
@@ -358,19 +404,48 @@ export const googleLoginMock = async (req, res, next) => {
     let user = await User.findOne({ email });
 
     if (!user) {
+      // Generate unique referral code for the registering user
+      const cleanName = (name || 'USER').replace(/[^a-zA-Z]/g, '').toUpperCase().substring(0, 6);
+      let randCode = `${cleanName}${Math.floor(1000 + Math.random() * 9000)}`;
+      let exists = await User.findOne({ referralCode: randCode });
+      while (exists) {
+        randCode = `${cleanName}${Math.floor(1000 + Math.random() * 9000)}`;
+        exists = await User.findOne({ referralCode: randCode });
+      }
+
       user = new User({
         name,
         email,
         googleId,
         avatar,
+        referralCode: randCode,
         isVerified: true, // OAuth is pre-verified
       });
       await user.save();
-    } else if (!user.googleId) {
-      // Link google account to existing email
-      user.googleId = googleId;
-      if (avatar && !user.avatar) user.avatar = avatar;
-      await user.save();
+    } else {
+      let updated = false;
+      if (!user.googleId) {
+        user.googleId = googleId;
+        updated = true;
+      }
+      if (avatar && !user.avatar) {
+        user.avatar = avatar;
+        updated = true;
+      }
+      if (!user.referralCode) {
+        const cleanName = (user.name || 'USER').replace(/[^a-zA-Z]/g, '').toUpperCase().substring(0, 6);
+        let randCode = `${cleanName}${Math.floor(1000 + Math.random() * 9000)}`;
+        let exists = await User.findOne({ referralCode: randCode });
+        while (exists) {
+          randCode = `${cleanName}${Math.floor(1000 + Math.random() * 9000)}`;
+          exists = await User.findOne({ referralCode: randCode });
+        }
+        user.referralCode = randCode;
+        updated = true;
+      }
+      if (updated) {
+        await user.save();
+      }
     }
 
     await logAuditEvent({

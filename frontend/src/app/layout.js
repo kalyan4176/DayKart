@@ -1,6 +1,7 @@
 import { Outfit } from "next/font/google";
 import "./globals.css";
 import StoreProvider from "@/components/StoreProvider";
+import Script from "next/script";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -35,6 +36,10 @@ export default function RootLayout({ children }) {
         <StoreProvider>
           {children}
         </StoreProvider>
+        <Script 
+          src="https://accounts.google.com/gsi/client" 
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );

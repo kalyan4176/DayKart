@@ -8,7 +8,33 @@ import { sendInAppNotification } from '../utils/notificationHelper.js';
 
 export const getProfile = async (req, res, next) => {
   try {
-    // req.user is populated by protect middleware
+    const user = await User.findById(req.user._id).select('-password');
+    if (!user) {
+      return next(new NotFoundError('User not found.'));
+    }
+
+    if (!user.referralCode) {
+      const cleanName = (user.name || 'USER').replace(/[^a-zA-Z]/g, '').toUpperCase().substring(0, 6);
+      let randCode = `${cleanName}${Math.floor(1000 + Math.random() * 9000)}`;
+      let exists = await User.findOne({ referralCode: randCode });
+      while (exists) {
+        randCode = `${cleanName}${Math.floor(1000 + Math.random() * 9000)}`;
+        exists = await User.findOne({ referralCode: randCode });
+      }
+      user.referralCode = randCode;
+      await user.save();
+
+      // Invalidate Redis cache
+      if (redisClient.isOpen) {
+        await redisClient.del(`user:${user._id}`);
+      }
+
+      return res.status(200).json({
+        status: 'success',
+        data: { user },
+      });
+    }
+
     res.status(200).json({
       status: 'success',
       data: { user: req.user },

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useDispatch } from 'react-redux';
@@ -48,23 +48,66 @@ export default function Login() {
   const [googleCustomName, setGoogleCustomName] = useState('');
   const [showGoogleCustomForm, setShowGoogleCustomForm] = useState(false);
 
-  const handleGoogleLogin = async (email, name, googleId) => {
+  const handleGoogleLogin = useCallback(async (email, name, googleId, idToken = null) => {
     try {
       setErrorMsg('');
-      const avatar = `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(email)}`;
-      const res = await googleLoginApi({ email, name, googleId, avatar }).unwrap();
+      const avatar = `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(email || 'google')}`;
+      
+      const payload = idToken 
+        ? { idToken }
+        : { email, name, googleId, avatar };
+
+      const res = await googleLoginApi(payload).unwrap();
       dispatch(setCredentials({
         user: res.data.user,
         accessToken: res.accessToken,
       }));
       showToast(`Welcome! Logged in as ${res.data.user.name || 'User'}`, 'success');
       setShowGoogleModal(false);
-      router.push('/');
+      
+      if (res.data?.user?.role === 'admin') router.push('/admin/dashboard');
+      else if (res.data?.user?.role === 'seller') router.push('/seller/dashboard');
+      else router.push('/');
     } catch (err) {
       setErrorMsg(err.data?.message || 'Google login failed.');
       setShowGoogleModal(false);
     }
-  };
+  }, [googleLoginApi, dispatch, router, showToast]);
+
+  useEffect(() => {
+    const initGoogleSignIn = () => {
+      if (window.google?.accounts?.id) {
+        window.google.accounts.id.initialize({
+          client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '825964724032-mock-id.apps.googleusercontent.com',
+          callback: async (response) => {
+            await handleGoogleLogin(null, null, null, response.credential);
+          },
+        });
+
+        window.google.accounts.id.renderButton(
+          document.getElementById('google-login-btn'),
+          { 
+            theme: 'outline', 
+            size: 'large', 
+            width: '320', 
+            logo_alignment: 'center'
+          }
+        );
+      }
+    };
+
+    if (window.google) {
+      initGoogleSignIn();
+    } else {
+      const checkInterval = setInterval(() => {
+        if (window.google) {
+          initGoogleSignIn();
+          clearInterval(checkInterval);
+        }
+      }, 500);
+      return () => clearInterval(checkInterval);
+    }
+  }, [handleGoogleLogin]);
 
   // Forms
   const { register: loginRegister, handleSubmit: handleLoginSubmit, formState: { errors: loginErrors } } = useForm({
@@ -198,20 +241,11 @@ export default function Login() {
                 </span>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setShowGoogleModal(true)}
-                disabled={googleLoading}
-                className="w-full inline-flex items-center justify-center gap-2.5 bg-white hover:bg-slate-50 text-slate-700 font-bold py-3 px-4 rounded-xl border border-slate-200 shadow-sm transition-all active:scale-98 dark:bg-slate-900 dark:hover:bg-slate-850 dark:text-slate-200 dark:border-slate-800"
-              >
-                <svg className="w-4.5 h-4.5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                </svg>
-                <span>{googleLoading ? 'Processing...' : 'Continue with Google'}</span>
-              </button>
+              <div className="w-full flex justify-center py-1">
+                <div id="google-login-btn" className="w-full min-h-[44px] flex justify-center"></div>
+              </div>
+
+
             </form>
           ) : (
             /* OTP Code Verification Form */
