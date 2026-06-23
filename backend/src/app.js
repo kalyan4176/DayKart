@@ -78,6 +78,14 @@ app.use('/api/v1/auth/login', loginLimiter);
 // Serve static uploads
 app.use('/public', express.static(path.join(process.cwd(), 'public')));
 
+// Root health check endpoint (returns 200 OK for Render / Vercel health checks)
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'success',
+    message: 'Daykart Backend API is running successfully.'
+  });
+});
+
 // 7. Mount API Routes
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/users', userRouter);
