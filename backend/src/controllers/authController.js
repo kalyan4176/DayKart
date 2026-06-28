@@ -15,8 +15,9 @@ const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString()
 // Send OTP Email
 const sendOTPEmail = async (email, otp, name) => {
   try {
+    const sender = process.env.SMTP_USER || 'support@daykart.com';
     const mailOptions = {
-      from: `"Daykart Support" <support@daykart.com>`,
+      from: `"Daykart Support" <${sender}>`,
       to: email,
       subject: 'Daykart Account Verification OTP',
       html: `
