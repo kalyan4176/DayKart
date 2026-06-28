@@ -250,6 +250,9 @@ export default function Login() {
           ) : (
             /* OTP Code Verification Form */
             <form onSubmit={handleOtpSubmit(onVerifyOtp)} className="space-y-5">
+              {/* Hidden inputs to capture browser autofill */}
+              <input type="text" name="username" autoComplete="username" className="hidden" style={{ display: 'none' }} defaultValue={userEmail} readOnly />
+              <input type="password" name="password" autoComplete="current-password" className="hidden" style={{ display: 'none' }} readOnly />
               <div>
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">
                   6-Digit OTP Code
