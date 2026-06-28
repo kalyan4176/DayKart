@@ -7,6 +7,7 @@ import { useSelector } from 'react-redux';
 import { useToast } from '@/components/ToastProvider';
 import { Star, ShoppingCart, Heart, Minus, Plus, Trash2, CheckCircle2 } from 'lucide-react';
 import { useUpdateCartMutation, useGetWishlistQuery, useToggleWishlistMutation, useGetCartQuery } from '@/store/api';
+import { getOptimizedImageUrl } from '@/utils/image';
 
 export default function ProductCard({ product, wishlistMode = false }) {
   const router = useRouter();
@@ -98,7 +99,7 @@ export default function ProductCard({ product, wishlistMode = false }) {
       <div className="block relative aspect-square overflow-hidden bg-slate-100 flex-shrink-0">
         <Link href={`/product/${product._id}`} className="block w-full h-full">
           <img
-            src={product.images[0]}
+            src={getOptimizedImageUrl(product.images[0], 400)}
             alt={product.title}
             className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500"
             loading="lazy"

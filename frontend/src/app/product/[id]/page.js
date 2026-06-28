@@ -8,6 +8,7 @@ import { Star, ShoppingCart, Heart, Zap, Sparkles, Award, Minus, Plus, Trash2, C
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
+import { getOptimizedImageUrl } from '@/utils/image';
 import {
   useGetProductByIdQuery,
   useUpdateCartMutation,
@@ -191,7 +192,7 @@ export default function ProductDetail() {
           <div className="space-y-4">
             <div className="aspect-square bg-slate-50 dark:bg-slate-950 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-inner flex items-center justify-center relative">
               <img
-                src={product.images?.[activeImageIndex] || product.images?.[0] || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=600'}
+                src={getOptimizedImageUrl(product.images?.[activeImageIndex] || product.images?.[0] || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=600', 800)}
                 alt={product.title}
                 className="w-full h-full object-cover transition-all duration-350 ease-out hover:scale-102"
               />
@@ -219,7 +220,7 @@ export default function ProductDetail() {
                         : 'border-slate-200 dark:border-slate-800 hover:border-slate-350 dark:hover:border-slate-700 opacity-70 hover:opacity-100'
                     }`}
                   >
-                    <img src={img} alt="Preview" className="w-full h-full object-cover" />
+                    <img src={getOptimizedImageUrl(img, 150)} alt="Preview" className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>

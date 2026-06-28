@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSelector, useDispatch } from 'react-redux';
 import { useForm } from 'react-hook-form';
-import { LayoutDashboard, ShoppingBag, PlusCircle, Upload, CheckCircle2, AlertTriangle, FileSpreadsheet, Store, Clock, User, Mail, Phone, ShieldCheck, UploadCloud, X, Image as ImageIcon, Trash2, RefreshCw, ClipboardList, XCircle, Wallet } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, PlusCircle, Upload, CheckCircle2, AlertTriangle, FileSpreadsheet, Store, Clock, User, Mail, Phone, ShieldCheck, UploadCloud, X, Image as ImageIcon, Trash2, RefreshCw, ClipboardList, XCircle, Wallet, ChevronDown } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ConfirmationModal from '@/components/ConfirmationModal';
@@ -28,6 +28,7 @@ export default function SellerDashboard() {
   });
 
   const [activeTab, setActiveTab] = useState('overview');
+  const [isTabDropdownOpen, setIsTabDropdownOpen] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [mounted, setMounted] = useState(false);
@@ -380,6 +381,16 @@ export default function SellerDashboard() {
     }
   };
 
+  const tabNames = {
+    overview: 'Overview & Analytics',
+    'manage-orders': 'Manage Orders',
+    'add-product': 'Add New Product',
+    'manage-listings': 'Manage Listings',
+    'bulk-upload': 'Bulk CSV Import',
+    wallet: 'Store Wallet',
+    profile: 'Profile Details'
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950">
       <Navbar />
@@ -637,8 +648,52 @@ export default function SellerDashboard() {
         ) : (
           /* Case 4: Approved Profile (Render Standard Portal) */
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
-            {/* Side Tabs */}
-            <div className="flex lg:flex-col overflow-x-auto lg:overflow-x-visible space-x-2 lg:space-x-0 lg:space-y-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
+            {/* Mobile/Tablet Tab Dropdown Selector */}
+            <div className="lg:hidden w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
+              <label className="block text-xxs font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">
+                Select Portal Section
+              </label>
+              <div className="relative">
+                <button
+                  onClick={() => setIsTabDropdownOpen(!isTabDropdownOpen)}
+                  className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-850 dark:text-white focus:outline-none focus:border-secondary transition-all flex items-center justify-between cursor-pointer"
+                >
+                  <span>{tabNames[activeTab]}</span>
+                  <ChevronDown className={`w-4 h-4 text-slate-400 dark:text-slate-500 transition-transform ${isTabDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isTabDropdownOpen && (
+                  <>
+                    {/* Backdrop to close the dropdown when clicking outside */}
+                    <div 
+                      className="fixed inset-0 z-10" 
+                      onClick={() => setIsTabDropdownOpen(false)}
+                    />
+                    <div className="absolute left-0 right-0 mt-2 z-20 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg overflow-hidden py-1 max-h-60 overflow-y-auto">
+                      {Object.entries(tabNames).map(([key, name]) => (
+                        <button
+                          key={key}
+                          onClick={() => {
+                            setActiveTab(key);
+                            setIsTabDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-2.5 text-xs font-bold transition-all ${
+                            activeTab === key
+                              ? 'bg-secondary text-white'
+                              : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          {name}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Desktop Sidebar Tabs */}
+            <div className="hidden lg:flex lg:flex-col space-y-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
               <button
                 onClick={() => setActiveTab('overview')}
                 className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${

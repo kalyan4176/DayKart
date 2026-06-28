@@ -9,6 +9,7 @@ import Footer from '@/components/Footer';
 import { useToast } from '@/components/ToastProvider';
 import { useGetCartQuery, useCheckoutMutation, useValidateCouponMutation, useAddAddressMutation, useGetShippingRulesQuery } from '@/store/api';
 import { updateUser } from '@/store/authSlice';
+import { getOptimizedImageUrl } from '@/utils/image';
 
 const GATEWAYS = [
   { id: 'cod', name: 'Cash on Delivery (COD)', desc: 'Pay with cash upon package delivery.' },
@@ -465,7 +466,7 @@ function CheckoutPageContent() {
               <div className="max-h-48 overflow-y-auto space-y-3 pr-2 scrollbar-thin">
                 {cartItems.map((item, idx) => (
                   <div key={idx} className="flex gap-2.5 items-center">
-                    <img src={item.product?.images[0]} alt="" className="w-9 h-9 rounded-lg object-cover" />
+                    <img src={getOptimizedImageUrl(item.product?.images[0], 100)} alt="" className="w-9 h-9 rounded-lg object-cover" />
                     <div className="flex-1 min-w-0 text-xs">
                       <p className="font-bold text-slate-800 dark:text-slate-200 truncate">{item.product?.title}</p>
                       <p className="text-slate-400 mt-0.5">Qty: {item.quantity}</p>

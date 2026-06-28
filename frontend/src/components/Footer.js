@@ -71,7 +71,6 @@ export default function Footer() {
 
         <div className="border-t border-slate-800 mt-8 pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-600">
           <p>&copy; {new Date().getFullYear()} Daykart Marketplace. All rights reserved.</p>
-          <p>Made with 💙 by Google DeepMind team.</p>
         </div>
       </div>
     </footer>

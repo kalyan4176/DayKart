@@ -8,6 +8,7 @@ import { ArrowRight, Flame, Sparkles, Monitor, Shirt, Home as HomeIcon, Award, Z
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
+import { getOptimizedImageUrl } from '@/utils/image';
 import { useGetProductsQuery, useGetTrendingProductsQuery, useGetRecentlyViewedQuery, useGetHeroSlidesQuery } from '@/store/api';
 
 const CATEGORIES = [
@@ -233,7 +234,7 @@ export default function Home() {
         <div className="h-40 sm:h-44 lg:h-[250px] w-full bg-slate-900/50 rounded-2xl flex items-center justify-center p-3 relative overflow-hidden group-hover:bg-slate-900/80 transition-colors duration-300">
           <img
             key={`img-${activeProduct._id}`}
-            src={activeProduct.images?.[0] || '/placeholder.png'}
+            src={getOptimizedImageUrl(activeProduct.images?.[0] || '/placeholder.png', 600)}
             alt={activeProduct.title}
             className="object-contain max-h-full max-w-full transition-all duration-700 group-hover:scale-105 filter drop-shadow-[0_8px_16px_rgba(255,255,255,0.06)] animate-fade-in"
           />

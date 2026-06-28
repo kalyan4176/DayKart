@@ -8,6 +8,7 @@ import { ShoppingBag, Trash2, ArrowRight, Ticket, AlertCircle } from 'lucide-rea
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useGetCartQuery, useUpdateCartMutation, useValidateCouponMutation, useGetShippingRulesQuery } from '@/store/api';
+import { getOptimizedImageUrl } from '@/utils/image';
 
 export default function CartPage() {
   const router = useRouter();
@@ -187,7 +188,7 @@ export default function CartPage() {
                   <div key={idx} className="flex gap-4 p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
                     {/* Image */}
                     <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-xl overflow-hidden flex-shrink-0">
-                      <img src={product?.images?.[0] || '/placeholder.png'} alt={product?.title || 'Product'} className="w-full h-full object-cover" />
+                      <img src={getOptimizedImageUrl(product?.images?.[0] || '/placeholder.png', 150)} alt={product?.title || 'Product'} className="w-full h-full object-cover" />
                     </div>
 
                     {/* Title & variants descriptions */}

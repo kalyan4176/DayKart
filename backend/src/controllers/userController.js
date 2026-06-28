@@ -303,13 +303,15 @@ export const updateCart = async (req, res, next) => {
     await cart.save();
     await cart.populate('items.product');
 
-    const items = cart.items.map(item => {
-      const obj = item.toObject();
-      if (!item.product) {
-        obj.product = item.populated('product')?.toString() || null;
-      }
-      return obj;
-    });
+    // Filter out items where the product no longer exists (was deleted)
+    const validItems = cart.items.filter(item => item.product !== null);
+
+    if (validItems.length !== cart.items.length) {
+      cart.items = validItems;
+      await cart.save();
+    }
+
+    const items = validItems.map(item => item.toObject());
 
     res.status(200).json({
       status: 'success',
