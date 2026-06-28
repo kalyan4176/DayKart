@@ -302,6 +302,7 @@ export const deleteProduct = async (req, res, next) => {
     // Invalidate Redis Cache
     if (redisClient.isOpen) {
       await redisClient.del(`product:detail:${id}`);
+      await redisClient.del('trending:products'); // Invalidate trending products list cache
     }
 
     await logAuditEvent({

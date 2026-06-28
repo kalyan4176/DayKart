@@ -181,9 +181,18 @@ export const getWishlist = async (req, res, next) => {
       await wishlist.save();
     }
 
+    // Filter out null entries (deleted products)
+    const validProducts = wishlist.products.filter(p => p !== null);
+
+    // Clean up database if some products were deleted
+    if (validProducts.length !== wishlist.products.length) {
+      wishlist.products = validProducts.map(p => p._id);
+      await wishlist.save();
+    }
+
     res.status(200).json({
       status: 'success',
-      data: { wishlist: wishlist.products },
+      data: { wishlist: validProducts },
     });
   } catch (error) {
     next(error);
@@ -232,13 +241,16 @@ export const getCart = async (req, res, next) => {
       await cart.save();
     }
 
-    const items = cart.items.map(item => {
-      const obj = item.toObject();
-      if (!item.product) {
-        obj.product = item.populated('product')?.toString() || null;
-      }
-      return obj;
-    });
+    // Filter out items where the product no longer exists (was deleted)
+    const validItems = cart.items.filter(item => item.product !== null);
+
+    // Save changes to clean up database references
+    if (validItems.length !== cart.items.length) {
+      cart.items = validItems;
+      await cart.save();
+    }
+
+    const items = validItems.map(item => item.toObject());
 
     res.status(200).json({
       status: 'success',

@@ -259,6 +259,7 @@ export default function Login() {
                     type="text"
                     maxLength={6}
                     placeholder="000000"
+                    autoComplete="one-time-code"
                     {...otpRegister('otp')}
                     className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary pl-10 pr-4 py-2.5 rounded-xl text-sm outline-none text-center font-mono letter-spacing-lg transition dark:text-slate-200"
                   />
