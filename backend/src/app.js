@@ -24,6 +24,9 @@ import { NotFoundError } from './utils/customErrors.js';
 
 const app = express();
 
+// Trust proxy for rate limiting on Render / Vercel
+app.set('trust proxy', 1);
+
 // 1. Security Headers via Helmet
 app.use(helmet({
   contentSecurityPolicy: {
