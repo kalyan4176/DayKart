@@ -7,7 +7,7 @@ import { MapPin, CreditCard, ShieldCheck, ShoppingBag, PlusCircle, CheckCircle2,
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useToast } from '@/components/ToastProvider';
-import { useGetCartQuery, useCheckoutMutation, useValidateCouponMutation, useAddAddressMutation, useGetShippingRulesQuery } from '@/store/api';
+import { useGetCartQuery, useCheckoutMutation, useValidateCouponMutation, useAddAddressMutation, useGetShippingRulesQuery, useGetCodChargeQuery } from '@/store/api';
 import { updateUser } from '@/store/authSlice';
 import { getOptimizedImageUrl } from '@/utils/image';
 
@@ -44,6 +44,8 @@ function CheckoutPageContent() {
   const [addAddressApi, { isLoading: addressAdding }] = useAddAddressMutation();
   const { data: shippingRulesRes } = useGetShippingRulesQuery(undefined, { skip: !isAuthenticated || !mounted });
   const shippingRules = shippingRulesRes?.data?.shippingRules || [];
+  const { data: codChargeRes } = useGetCodChargeQuery(undefined, { skip: !isAuthenticated || !mounted });
+  const codCharge = codChargeRes?.data?.charge || 0;
 
   const [selectedAddress, setSelectedAddress] = useState(user?.addresses?.find(a => a.isDefault)?._id || user?.addresses?.[0]?._id || '');
   const [selectedGateway, setSelectedGateway] = useState('cod');
@@ -137,7 +139,19 @@ function CheckoutPageContent() {
   const [couponError, setCouponError] = useState('');
   const [animateDiscount, setAnimateDiscount] = useState(false);
 
-  const cartItems = cartRes?.data?.cart || [];
+  const [buyNowItem, setBuyNowItem] = useState(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = sessionStorage.getItem('buyNowItem');
+      if (stored) {
+        setBuyNowItem(JSON.parse(stored));
+      }
+    }
+  }, []);
+
+  const dbCartItems = cartRes?.data?.cart || [];
+  const cartItems = buyNowItem ? [buyNowItem] : dbCartItems;
 
   // Calculate Subtotal
   const subtotal = cartItems.reduce((acc, item) => {
@@ -225,11 +239,25 @@ function CheckoutPageContent() {
     }
 
     try {
-      const res = await checkoutApi({
+      const payload = {
         addressId: selectedAddress,
         couponCode: discountInfo ? discountInfo.code : undefined,
         gateway: selectedGateway,
-      }).unwrap();
+      };
+
+      if (buyNowItem) {
+        payload.items = [{
+          product: buyNowItem.product._id,
+          quantity: buyNowItem.quantity,
+          variantSku: buyNowItem.variantSku || undefined,
+        }];
+      }
+
+      const res = await checkoutApi(payload).unwrap();
+
+      if (buyNowItem) {
+        sessionStorage.removeItem('buyNowItem');
+      }
 
       setOrderSuccess(res.data);
       showToast('Order placed successfully!', 'success');
@@ -300,6 +328,11 @@ function CheckoutPageContent() {
     if (subtotal <= 150) shippingCharges = 50;
     else if (subtotal < 300) shippingCharges = 20;
     else shippingCharges = 0;
+  }
+
+  // Add dynamic COD charge
+  if (selectedGateway === 'cod') {
+    shippingCharges += codCharge;
   }
   const calculatedTax = cartItems.reduce((acc, item) => {
     const price = item.variantSku 
@@ -493,8 +526,18 @@ function CheckoutPageContent() {
               </div>
               <div className="flex justify-between text-slate-500">
                 <span>Delivery Charges</span>
-                <span>{shippingCharges === 0 ? 'FREE' : `₹${shippingCharges}`}</span>
+                <span>
+                  {Math.max(0, shippingCharges - (selectedGateway === 'cod' ? codCharge : 0)) === 0 
+                    ? 'FREE' 
+                    : `₹${Math.max(0, shippingCharges - (selectedGateway === 'cod' ? codCharge : 0))}`}
+                </span>
               </div>
+              {selectedGateway === 'cod' && codCharge > 0 && (
+                <div className="flex justify-between text-orange-500 font-bold">
+                  <span>COD Handling Fee</span>
+                  <span>+₹{codCharge}</span>
+                </div>
+              )}
               {discount > 0 && (
                 <div className={`flex justify-between text-emerald-500 font-bold ${animateDiscount ? 'animate-coupon-success' : ''}`}>
                   <span>Discount</span>

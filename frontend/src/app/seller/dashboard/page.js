@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useSelector, useDispatch } from 'react-redux';
 import { useForm } from 'react-hook-form';
 import { LayoutDashboard, ShoppingBag, PlusCircle, Upload, CheckCircle2, AlertTriangle, FileSpreadsheet, Store, Clock, User, Mail, Phone, ShieldCheck, UploadCloud, X, Image as ImageIcon, Trash2, RefreshCw, ClipboardList, XCircle, Wallet, ChevronDown } from 'lucide-react';
@@ -9,10 +9,10 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import { useToast } from '@/components/ToastProvider';
-import { updateUser } from '@/store/authSlice';
-import { useCreateProductMutation, useGetSellerProfileQuery, useCreateSellerProfileMutation, useGetCategoriesQuery, useGetBrandsQuery, useUpdateProfileMutation, useUploadProductImageMutation, useUpdateProductMutation, useDeleteProductMutation, useGetProductsQuery, useGetSellerOrdersQuery, useUpdateOrderStatusMutation, useGetWalletQuery } from '@/store/api';
+import { updateUser, logoutUser } from '@/store/authSlice';
+import { useCreateProductMutation, useGetSellerProfileQuery, useCreateSellerProfileMutation, useGetCategoriesQuery, useGetBrandsQuery, useUpdateProfileMutation, useUploadProductImageMutation, useUpdateProductMutation, useDeleteProductMutation, useGetProductsQuery, useGetSellerOrdersQuery, useUpdateOrderStatusMutation, useGetWalletQuery, useDeleteProfileMutation } from '@/store/api';
 
-export default function SellerDashboard() {
+function SellerDashboardContent() {
   const router = useRouter();
   const { showToast } = useToast();
   const { user, isAuthenticated } = useSelector((state) => state.auth);
@@ -27,7 +27,16 @@ export default function SellerDashboard() {
     onConfirm: () => {},
   });
 
+  const searchParams = useSearchParams();
+  const tabParam = searchParams ? searchParams.get('tab') : null;
   const [activeTab, setActiveTab] = useState('overview');
+
+  useEffect(() => {
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
+
   const [isTabDropdownOpen, setIsTabDropdownOpen] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -88,6 +97,25 @@ export default function SellerDashboard() {
   );
   const sellerOrders = sellerOrdersRes?.data?.orders || [];
   const [updateOrderStatus] = useUpdateOrderStatusMutation();
+  const [deleteProfile, { isLoading: isDeletingProfile }] = useDeleteProfileMutation();
+  const [deleteCheckboxChecked, setDeleteCheckboxChecked] = useState(false);
+  const handleDeleteAccount = () => {
+    triggerConfirmation({
+      title: 'Permanently Delete Your Account?',
+      message: 'Are you absolutely sure you want to delete your Daykart seller account? This action is completely permanent and cannot be undone. All your personal details, wallet credit, store profile, and all product listings will be erased forever.',
+      confirmText: 'Delete Permanently',
+      onConfirm: async () => {
+        try {
+          await deleteProfile().unwrap();
+          showToast('Your account was deleted successfully.', 'success');
+          dispatch(logoutUser());
+          router.push('/register');
+        } catch (err) {
+          showToast(err.data?.message || 'Failed to delete account.', 'error');
+        }
+      }
+    });
+  };
 
   const handleUpdateStock = async (productId) => {
     const qty = editingStock[productId];
@@ -152,14 +180,21 @@ export default function SellerDashboard() {
   };
 
   const handleRejectOrder = async (orderId) => {
+    const reason = prompt('Please enter the reason for rejection (required):');
+    if (reason === null) return;
+    if (!reason.trim()) {
+      showToast('Rejection reason is required.', 'error');
+      return;
+    }
+
     triggerConfirmation({
       title: 'Reject & Cancel Order?',
-      message: 'Are you sure you want to reject this order? The order will be cancelled.',
+      message: `Are you sure you want to reject this order with reason: "${reason.trim()}"?`,
       type: 'danger',
       confirmText: 'Reject Order',
       onConfirm: async () => {
         try {
-          await updateOrderStatus({ id: orderId, status: 'cancelled' }).unwrap();
+          await updateOrderStatus({ id: orderId, status: 'cancelled', message: reason.trim() }).unwrap();
           showToast('Order rejected and cancelled.', 'success');
           refetchSellerOrders();
         } catch (err) {
@@ -207,7 +242,8 @@ export default function SellerDashboard() {
 
   // Cloudinary Image Upload
   const [uploadProductImage, { isLoading: uploadingImage }] = useUploadProductImageMutation();
-  const [previewUrl, setPreviewUrl] = useState('');
+  const [productImages, setProductImages] = useState([]);
+  const [manualImageUrl, setManualImageUrl] = useState('');
 
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -225,13 +261,19 @@ export default function SellerDashboard() {
       const res = await uploadProductImage(formData).unwrap();
       const url = res.data?.imageUrl || res.url;
       if (url) {
-        setValue('imageUrl', url);
-        setPreviewUrl(url);
+        setProductImages((prev) => [...prev, url]);
         showToast('Image uploaded successfully!', 'success');
       }
     } catch (err) {
       showToast(err.data?.message || 'Failed to upload image.', 'error');
     }
+  };
+
+  const handleAddManualImage = () => {
+    if (!manualImageUrl.trim()) return;
+    setProductImages((prev) => [...prev, manualImageUrl.trim()]);
+    setManualImageUrl('');
+    showToast('Manual image URL added to list!', 'success');
   };
 
   // Form for store profile registration
@@ -296,7 +338,7 @@ export default function SellerDashboard() {
             price: Number(data.price),
             compareAtPrice: data.compareAtPrice ? Number(data.compareAtPrice) : undefined,
             gstRate: data.gstRate !== undefined ? Number(data.gstRate) : 18,
-            images: [data.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=800'],
+            images: productImages.length > 0 ? productImages : ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=800'],
             inventory: {
               quantity: Number(data.quantity),
               lowStockThreshold: 5,
@@ -307,7 +349,7 @@ export default function SellerDashboard() {
           await createProduct(payload).unwrap();
           setSuccessMsg('Product added successfully! Awaiting administrator approval.');
           reset();
-          setPreviewUrl('');
+          setProductImages([]);
         } catch (err) {
           setErrorMsg(err.data?.message || 'Failed to create product listing.');
         }
@@ -388,7 +430,8 @@ export default function SellerDashboard() {
     'manage-listings': 'Manage Listings',
     'bulk-upload': 'Bulk CSV Import',
     wallet: 'Store Wallet',
-    profile: 'Profile Details'
+    profile: 'Profile Details',
+    deleteAccount: 'Delete Account'
   };
 
   return (
@@ -885,6 +928,24 @@ export default function SellerDashboard() {
                               ))}
                             </div>
 
+                            {/* Customer Contact & Shipping Details */}
+                            <div className="bg-slate-50/50 dark:bg-slate-900/40 border-t border-slate-200/50 dark:border-slate-850/50 px-5 py-3.5 text-[11px] grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="space-y-1">
+                                <span className="font-bold text-slate-400 uppercase tracking-wider block text-[9px]">Buyer Contact Details</span>
+                                <p className="font-semibold text-slate-700 dark:text-slate-200">Name: <span className="font-normal text-slate-600 dark:text-slate-300">{order.customer?.name || 'N/A'}</span></p>
+                                <p className="font-semibold text-slate-700 dark:text-slate-200">Email: <span className="font-normal text-slate-600 dark:text-slate-300">{order.customer?.email || 'N/A'}</span></p>
+                                <p className="font-semibold text-slate-700 dark:text-slate-200">Phone: <span className="font-normal text-slate-600 dark:text-slate-300">{order.customer?.phoneNumber || 'N/A'}</span></p>
+                              </div>
+                              <div className="space-y-1">
+                                <span className="font-bold text-slate-400 uppercase tracking-wider block text-[9px]">Shipping Address</span>
+                                <p className="text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                                  {order.shippingAddress 
+                                    ? `${order.shippingAddress.street}, ${order.shippingAddress.city}, ${order.shippingAddress.state}, ${order.shippingAddress.country} - ${order.shippingAddress.postalCode}`
+                                    : 'No address provided.'}
+                                </p>
+                              </div>
+                            </div>
+
                             {/* Order Actions */}
                             {(order.status === 'pending' || order.status === 'placed') && (
                               <div className="bg-slate-50/30 dark:bg-slate-900/30 border-t border-slate-200/50 dark:border-slate-850/50 px-5 py-3.5 flex justify-end gap-3">
@@ -1118,11 +1179,8 @@ export default function SellerDashboard() {
                         ))}
                       </select>
                       {errors.category && <p className="text-xxs text-red-500 mt-1">{errors.category.message}</p>}
-                    </div>
-
-
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Product Image</label>
+                                    <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Product Images</label>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {/* File Upload Box */}
                         <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-secondary dark:hover:border-secondary rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer transition relative group bg-slate-50 dark:bg-slate-900/50">
@@ -1140,49 +1198,54 @@ export default function SellerDashboard() {
                           <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">PNG, JPG, JPEG up to 5MB</span>
                         </div>
 
-                        {/* Image Preview / URL Link Input */}
+                        {/* Manual URL Input */}
                         <div className="flex flex-col justify-between p-2">
-                          <div className="flex items-center gap-3">
-                            {previewUrl ? (
-                              <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-950 flex-shrink-0">
-                                <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Add Image URL Manually</label>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                placeholder="Paste image URL here..."
+                                value={manualImageUrl}
+                                onChange={(e) => setManualImageUrl(e.target.value)}
+                                className="flex-1 bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3 py-2 rounded-lg text-[11px] outline-none transition dark:text-slate-200"
+                              />
+                              <button
+                                type="button"
+                                onClick={handleAddManualImage}
+                                className="bg-secondary hover:bg-cyan-600 text-white font-bold px-3 py-2 rounded-lg text-[11px] transition shadow-xs"
+                              >
+                                Add
+                              </button>
+                            </div>
+                          </div>
+                          
+                          <div className="text-xxs text-slate-400 dark:text-slate-500 font-semibold mt-2">
+                            Upload files or enter URLs to build your product image gallery.
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Grid of added images */}
+                      {productImages.length > 0 && (
+                        <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-200 dark:border-slate-850/80">
+                          <span className="block text-[10px] font-bold text-slate-400 uppercase mb-2">Image Gallery ({productImages.length})</span>
+                          <div className="flex flex-wrap gap-3">
+                            {productImages.map((imgUrl, idx) => (
+                              <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-950 flex-shrink-0 group">
+                                <img src={imgUrl} alt="" className="w-full h-full object-cover" />
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    setPreviewUrl('');
-                                    setValue('imageUrl', '');
-                                  }}
-                                  className="absolute top-0.5 right-0.5 bg-red-500 hover:bg-red-600 text-white rounded-full p-0.5 transition shadow-sm z-20"
+                                  onClick={() => setProductImages(prev => prev.filter((_, i) => i !== idx))}
+                                  className="absolute top-0.5 right-0.5 bg-red-500 hover:bg-red-600 text-white rounded-full p-0.5 transition shadow-xs z-20"
                                 >
                                   <X className="w-3.5 h-3.5" />
                                 </button>
                               </div>
-                            ) : (
-                              <div className="w-16 h-16 rounded-xl border border-dashed border-slate-300 dark:border-slate-800 flex items-center justify-center text-slate-400 bg-slate-50 dark:bg-slate-900 flex-shrink-0">
-                                <ImageIcon className="w-6 h-6" />
-                              </div>
-                            )}
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate">
-                                {previewUrl ? 'Image Selected' : 'No Image Uploaded'}
-                              </p>
-                              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 truncate flex-shrink-0">
-                                {previewUrl || 'Upload a file or provide a URL below'}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="mt-3">
-                            <input
-                              type="text"
-                              placeholder="Or enter image URL manually..."
-                              {...register('imageUrl')}
-                              onChange={(e) => setPreviewUrl(e.target.value)}
-                              className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3 py-2 rounded-lg text-[11px] outline-none transition dark:text-slate-200"
-                            />
+                            ))}
                           </div>
                         </div>
-                      </div>
+                      )}          </div>
                     </div>
 
                     <div className="md:col-span-2">
@@ -1595,6 +1658,48 @@ export default function SellerDashboard() {
                   </div>
                 </div>
               )}
+
+              {activeTab === 'deleteAccount' && (
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-6">
+                  <h3 className="font-extrabold text-base text-red-600 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red-600" /> Danger Zone: Delete Store Account
+                  </h3>
+
+                  <div className="bg-red-50/50 dark:bg-red-950/10 border border-red-200 dark:border-red-900/30 p-5 rounded-2xl text-xs space-y-3 text-slate-655 dark:text-slate-350 leading-relaxed font-semibold">
+                    <p className="font-extrabold text-red-700 dark:text-red-400">WARNING: This operation is permanent and irreversible.</p>
+                    <p>Deleting your Daykart merchant account will completely erase all details from our servers, including:</p>
+                    <ul className="list-disc list-inside space-y-1 text-slate-500 font-medium pl-2">
+                      <li>Your seller user profile and login credentials.</li>
+                      <li>Your entire company registration, GSTIN/PAN info, and store settings.</li>
+                      <li>All your products catalog and active storefront listings.</li>
+                      <li>Your wallet transaction history.</li>
+                    </ul>
+                    <p className="font-bold">Once deleted, your store will be closed immediately, active orders will be cancelled, and this action cannot be undone.</p>
+                  </div>
+
+                  <div className="flex items-start gap-2.5 pt-2">
+                    <input
+                      type="checkbox"
+                      id="confirmDeleteCheck"
+                      checked={deleteCheckboxChecked}
+                      onChange={(e) => setDeleteCheckboxChecked(e.target.checked)}
+                      className="accent-red-600 h-4.5 w-4.5 rounded cursor-pointer mt-0.5"
+                    />
+                    <label htmlFor="confirmDeleteCheck" className="text-xxs sm:text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer select-none leading-relaxed">
+                      I understand the consequences and confirm that I wish to permanently delete my Daykart merchant account and store catalog.
+                    </label>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleDeleteAccount}
+                    disabled={!deleteCheckboxChecked || isDeletingProfile}
+                    className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-extrabold px-6 py-3 rounded-xl text-xs shadow-md transition active:scale-98"
+                  >
+                    {isDeletingProfile ? 'Deleting Store...' : 'Permanently Delete My Merchant Account'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1612,5 +1717,21 @@ export default function SellerDashboard() {
       />
       <Footer />
     </div>
+  );
+}
+
+export default function SellerDashboard() {
+  return (
+    <React.Suspense fallback={
+      <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950">
+        <Navbar />
+        <main className="flex-grow flex items-center justify-center">
+          <div className="text-sm font-semibold text-slate-500 animate-pulse">Loading Seller Dashboard...</div>
+        </main>
+        <Footer />
+      </div>
+    }>
+      <SellerDashboardContent />
+    </React.Suspense>
   );
 }

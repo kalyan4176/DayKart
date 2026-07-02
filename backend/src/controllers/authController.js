@@ -45,7 +45,11 @@ const sendOTPEmail = async (email, otp, name) => {
 
 export const register = async (req, res, next) => {
   try {
-    const { name, email, password, role, referralCode } = req.body;
+    const { name, email, password, role, referralCode, phoneNumber } = req.body;
+
+    if (!phoneNumber) {
+      return next(new BadRequestError('Phone number is required.'));
+    }
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -93,6 +97,7 @@ export const register = async (req, res, next) => {
       email,
       password,
       role: role || 'customer',
+      phoneNumber,
       otp,
       otpExpires,
       referralCode: randCode,

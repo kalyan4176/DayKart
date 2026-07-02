@@ -161,6 +161,13 @@ export const api = createApi({
       }),
       invalidatesTags: ['User'],
     }),
+    deleteProfile: builder.mutation({
+      query: () => ({
+        url: '/users/profile',
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['User'],
+    }),
     addAddress: builder.mutation({
       query: (addressData) => ({
         url: '/users/address',
@@ -214,9 +221,10 @@ export const api = createApi({
       providesTags: ['Order'],
     }),
     cancelOrder: builder.mutation({
-      query: (id) => ({
+      query: ({ id, reason }) => ({
         url: `/orders/${id}/cancel`,
         method: 'POST',
+        body: { reason },
       }),
       invalidatesTags: ['Order'],
     }),
@@ -468,6 +476,18 @@ export const api = createApi({
       query: () => '/shipping-rules',
       providesTags: ['ShippingRule'],
     }),
+    getCodCharge: builder.query({
+      query: () => '/shipping-rules/cod-charge',
+      providesTags: ['ShippingRule'],
+    }),
+    updateCodCharge: builder.mutation({
+      query: (charge) => ({
+        url: '/shipping-rules/cod-charge',
+        method: 'POST',
+        body: { charge },
+      }),
+      invalidatesTags: ['ShippingRule'],
+    }),
     createShippingRule: builder.mutation({
       query: (ruleData) => ({
         url: '/shipping-rules',
@@ -588,4 +608,7 @@ export const {
   useGetReferralSettingsQuery,
   useUpdateReferralSettingsMutation,
   useGetAdminReferralsQuery,
+  useDeleteProfileMutation,
+  useGetCodChargeQuery,
+  useUpdateCodChargeMutation,
 } = api;

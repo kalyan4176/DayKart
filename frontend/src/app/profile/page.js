@@ -5,13 +5,14 @@ import { useForm } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { User, MapPin, Plus, Trash2, ShieldCheck, Mail, Phone, AlertTriangle, Store, Ticket, Wallet, Gift, Copy, Check, ChevronDown } from 'lucide-react';
+import { User, MapPin, Plus, Trash2, ShieldCheck, Mail, Phone, AlertTriangle, Store, Ticket, Wallet, Gift, Copy, Check, ChevronDown, MessageSquare, Send, Clock, CheckCircle2 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import ConfirmationModal from '@/components/ConfirmationModal';
 import { api } from '@/store/api';
 import { useDispatch, useSelector } from 'react-redux';
 import { useToast } from '@/components/ToastProvider';
-import { updateUser } from '@/store/authSlice';
+import { updateUser, logoutUser } from '@/store/authSlice';
 
 const addressSchema = z.object({
   street: z.string().min(1, 'Street is required'),
@@ -137,6 +138,120 @@ export default function ProfilePage() {
     }
   }, [sellerProfile, setSellerValue]);
 
+  // Support Tickets state
+  const [ticketSubject, setTicketSubject] = useState('');
+  const [ticketDescription, setTicketDescription] = useState('');
+  const [ticketPriority, setTicketPriority] = useState('medium');
+  const [selectedTicketId, setSelectedTicketId] = useState(null);
+  const [ticketReplyText, setTicketReplyText] = useState('');
+  const [ticketSuccess, setTicketSuccess] = useState('');
+  const [ticketError, setTicketError] = useState('');
+
+  // Support Tickets API queries/mutations
+  const { data: ticketsRes, refetch: refetchTickets, isLoading: ticketsLoading } = api.useGetMyTicketsQuery(undefined, {
+    skip: activeTab !== 'tickets' || !isAuthenticated || !mounted,
+  });
+  const [createTicketApi, { isLoading: isCreatingTicket }] = api.useCreateTicketMutation();
+  const [replyTicketApi, { isLoading: isReplyingTicket }] = api.useReplyTicketMutation();
+  const [resolveTicketApi] = api.useResolveTicketMutation();
+
+  const ticketsList = ticketsRes?.data?.tickets || [];
+  const selectedTicket = ticketsList.find(t => t._id === selectedTicketId);
+
+  const handleCreateTicket = async (e) => {
+    e.preventDefault();
+    setTicketSuccess('');
+    setTicketError('');
+    if (!ticketSubject.trim() || !ticketDescription.trim()) {
+      setTicketError('Please enter both subject and details for your ticket.');
+      return;
+    }
+    try {
+      await createTicketApi({
+        subject: ticketSubject.trim(),
+        description: ticketDescription.trim(),
+        priority: ticketPriority,
+      }).unwrap();
+      setTicketSuccess('Support ticket submitted successfully!');
+      setTicketSubject('');
+      setTicketDescription('');
+      setTicketPriority('medium');
+      refetchTickets();
+    } catch (err) {
+      setTicketError(err.data?.message || 'Failed to submit support ticket.');
+    }
+  };
+
+  const handleReplyTicket = async (e) => {
+    e.preventDefault();
+    if (!ticketReplyText.trim()) return;
+    try {
+      await replyTicketApi({
+        id: selectedTicketId,
+        text: ticketReplyText.trim(),
+      }).unwrap();
+      setTicketReplyText('');
+      refetchTickets();
+      showToast('Reply sent successfully.', 'success');
+    } catch (err) {
+      showToast(err.data?.message || 'Failed to send reply.', 'error');
+    }
+  };
+
+  const handleResolveTicket = async () => {
+    try {
+      await resolveTicketApi(selectedTicketId).unwrap();
+      refetchTickets();
+      showToast('Ticket marked resolved successfully.', 'success');
+    } catch (err) {
+      showToast(err.data?.message || 'Failed to resolve ticket.', 'error');
+    }
+  };
+
+  // Account Deletion state & mutations
+  const [deleteProfileApi, { isLoading: isDeletingProfile }] = api.useDeleteProfileMutation();
+  const [deleteCheckboxChecked, setDeleteCheckboxChecked] = useState(false);
+
+  const [confirmConfig, setConfirmConfig] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: '',
+    cancelText: '',
+    type: 'danger',
+    onConfirm: () => {},
+  });
+
+  const triggerConfirmation = (config) => {
+    setConfirmConfig({
+      isOpen: true,
+      title: config.title,
+      message: config.message,
+      confirmText: config.confirmText || 'Confirm',
+      cancelText: config.cancelText || 'Cancel',
+      type: config.type || 'danger',
+      onConfirm: config.onConfirm,
+    });
+  };
+
+  const handleDeleteAccount = () => {
+    triggerConfirmation({
+      title: 'Permanently Delete Your Account?',
+      message: 'Are you absolutely sure you want to delete your Daykart account? This action is completely permanent and cannot be undone. All your personal details, order history, addresses, and credits will be erased forever.',
+      confirmText: 'Delete Permanently',
+      onConfirm: async () => {
+        try {
+          await deleteProfileApi().unwrap();
+          showToast('Your account was deleted successfully.', 'success');
+          dispatch(logoutUser());
+          router.push('/register');
+        } catch (err) {
+          showToast(err.data?.message || 'Failed to delete account.', 'error');
+        }
+      }
+    });
+  };
+
   const handleUpdateSellerProfile = async (data) => {
     setSellerSuccess(false);
     setSellerError('');
@@ -197,18 +312,21 @@ export default function ProfilePage() {
     coupons: { name: 'My Coupons', icon: Ticket },
     company: { name: 'Company Details', icon: Store },
     wallet: { name: 'My Wallet', icon: Wallet },
-    referrals: { name: 'Referral Program', icon: Gift }
+    referrals: { name: 'Referral Program', icon: Gift },
+    tickets: { name: 'Support Tickets', icon: MessageSquare },
+    deleteAccount: { name: 'Delete Account', icon: Trash2 }
   };
 
   const getActiveTabs = () => {
-    const keys = ['profile', 'addresses'];
-    if (['customer', 'seller', 'admin'].includes(user?.role)) {
-      keys.push('coupons');
+    const keys = ['profile'];
+    if (user?.role === 'customer') {
+      keys.push('addresses', 'coupons', 'wallet', 'referrals', 'tickets');
+    } else if (user?.role === 'seller') {
+      keys.push('company', 'wallet', 'referrals');
+    } else if (user?.role === 'admin') {
+      keys.push('wallet', 'referrals');
     }
-    if (user?.role === 'seller') {
-      keys.push('company');
-    }
-    keys.push('wallet', 'referrals');
+    keys.push('deleteAccount');
     return keys.map(key => ({ key, ...tabConfig[key] }));
   };
 
@@ -877,9 +995,262 @@ export default function ProfilePage() {
                 </div>
               </div>
             )}
+
+            {activeTab === 'tickets' && (
+              <div className="space-y-6">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 dark:border-slate-800 pb-3 gap-3 mb-4">
+                    <h3 className="font-extrabold text-base text-black dark:text-white flex items-center gap-2">
+                      <MessageSquare className="w-5 h-5 text-secondary" /> Support Tickets
+                    </h3>
+                    <button
+                      onClick={() => {
+                        setSelectedTicketId(null);
+                        setTicketSuccess('');
+                        setTicketError('');
+                      }}
+                      className="bg-secondary hover:bg-cyan-600 text-white font-bold px-4 py-2 rounded-xl text-xxs transition shadow-sm"
+                    >
+                      Open New Ticket
+                    </button>
+                  </div>
+
+                  {selectedTicketId ? (
+                    /* Ticket Thread View */
+                    <div className="space-y-6 animate-fade-in">
+                      <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-850 p-4 rounded-2xl border border-slate-200 dark:border-slate-800/40">
+                        <div>
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold border uppercase ${
+                            selectedTicket?.status === 'resolved' 
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                          }`}>
+                            {selectedTicket?.status === 'in_progress' ? 'In Progress' : selectedTicket?.status}
+                          </span>
+                          <h4 className="font-extrabold text-xs text-slate-850 dark:text-slate-200 mt-1">{selectedTicket?.subject}</h4>
+                        </div>
+                        <div className="flex gap-2">
+                          {selectedTicket?.status !== 'resolved' && (
+                            <button
+                              onClick={handleResolveTicket}
+                              className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-xl text-xxs shadow-sm transition active:scale-95"
+                            >
+                              Mark Resolved
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setSelectedTicketId(null)}
+                            className="bg-slate-200 hover:bg-slate-350 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold px-3 py-1.5 rounded-xl text-xxs transition active:scale-95"
+                          >
+                            Back to List
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Messages Log */}
+                      <div className="space-y-4 max-h-[300px] overflow-y-auto p-4 border border-slate-100 dark:border-slate-850 rounded-2xl bg-slate-50/50 dark:bg-slate-900/10">
+                        {selectedTicket?.messages?.map((msg, idx) => {
+                          const isAdminSender = msg.sender !== user?._id;
+                          return (
+                            <div key={idx} className={`flex flex-col ${isAdminSender ? 'items-start' : 'items-end'}`}>
+                              <div className={`p-3.5 rounded-2xl max-w-[85%] text-[11px] leading-relaxed font-medium shadow-xs ${
+                                isAdminSender 
+                                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none' 
+                                  : 'bg-secondary text-white rounded-tr-none'
+                              }`}>
+                                <p className="whitespace-pre-wrap">{msg.text}</p>
+                                <span className={`block text-[9px] mt-1 opacity-70 ${isAdminSender ? 'text-slate-400' : 'text-cyan-100'}`}>
+                                  {isAdminSender ? 'Support Team' : 'You'} &middot; {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Reply Form */}
+                      {selectedTicket?.status !== 'resolved' ? (
+                        <form onSubmit={handleReplyTicket} className="flex gap-2">
+                          <textarea
+                            placeholder="Type your response to support team..."
+                            value={ticketReplyText}
+                            onChange={(e) => setTicketReplyText(e.target.value)}
+                            rows={2}
+                            className="flex-1 bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-2xl text-xs outline-none transition resize-none dark:text-slate-200"
+                          />
+                          <button
+                            type="submit"
+                            disabled={isReplyingTicket || !ticketReplyText.trim()}
+                            className="bg-secondary hover:bg-cyan-600 disabled:opacity-50 text-white font-bold p-3.5 rounded-2xl transition active:scale-95 flex items-center justify-center self-end shadow-md"
+                          >
+                            <Send className="w-4 h-4" />
+                          </button>
+                        </form>
+                      ) : (
+                        <p className="text-xxs text-slate-400 text-center py-2 border border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/50">This support ticket is closed and resolved.</p>
+                      )}
+                    </div>
+                  ) : (
+                    /* Ticket List & Create View */
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+                      {/* Ticket Submission Form */}
+                      <div className="md:col-span-1 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl bg-slate-50/30 dark:bg-slate-900/10 space-y-4">
+                        <h4 className="font-extrabold text-xs uppercase text-slate-655 dark:text-slate-450 tracking-wider">Submit Support Inquiry</h4>
+                        {ticketSuccess && <p className="text-xxs text-emerald-500 font-bold bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 p-2.5 rounded-xl">{ticketSuccess}</p>}
+                        {ticketError && <p className="text-xxs text-red-500 font-bold bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/40 p-2.5 rounded-xl">{ticketError}</p>}
+                        
+                        <form onSubmit={handleCreateTicket} className="space-y-3.5">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Subject</label>
+                            <input
+                              type="text"
+                              value={ticketSubject}
+                              onChange={(e) => setTicketSubject(e.target.value)}
+                              placeholder="e.g. Refund issue"
+                              className="w-full bg-slate-100 dark:bg-slate-850 border border-transparent focus:border-secondary px-3 py-2 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Priority</label>
+                            <select
+                              value={ticketPriority}
+                              onChange={(e) => setTicketPriority(e.target.value)}
+                              className="w-full bg-slate-100 dark:bg-slate-850 border border-transparent focus:border-secondary px-3 py-2 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                            >
+                              <option value="low">Low Priority</option>
+                              <option value="medium">Medium Priority</option>
+                              <option value="high">High Priority</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Inquiry Details</label>
+                            <textarea
+                              value={ticketDescription}
+                              onChange={(e) => setTicketDescription(e.target.value)}
+                              rows={4}
+                              placeholder="Describe your issue in detail..."
+                              className="w-full bg-slate-100 dark:bg-slate-850 border border-transparent focus:border-secondary px-3 py-2 rounded-xl text-xs outline-none transition resize-none dark:text-slate-200"
+                            />
+                          </div>
+                          <button
+                            type="submit"
+                            disabled={isCreatingTicket}
+                            className="w-full bg-secondary hover:bg-cyan-600 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl text-xxs transition shadow-sm"
+                          >
+                            {isCreatingTicket ? 'Submitting...' : 'Submit Ticket'}
+                          </button>
+                        </form>
+                      </div>
+
+                      {/* Ticket History */}
+                      <div className="md:col-span-2 space-y-4">
+                        <h4 className="font-extrabold text-xs uppercase text-slate-655 dark:text-slate-450 tracking-wider">Your Active Inquiries</h4>
+                        {ticketsLoading ? (
+                          <p className="text-xxs text-slate-400 animate-pulse">Loading active tickets...</p>
+                        ) : ticketsList.length === 0 ? (
+                          <p className="text-xxs text-slate-450 italic py-6">No support tickets opened yet. Submit one on the left if you need help.</p>
+                        ) : (
+                          <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                            {ticketsList.map((ticket) => (
+                              <div
+                                key={ticket._id}
+                                onClick={() => {
+                                  setSelectedTicketId(ticket._id);
+                                  setTicketSuccess('');
+                                  setTicketError('');
+                                }}
+                                className="p-4 border border-slate-150 dark:border-slate-850 bg-white dark:bg-slate-900 rounded-2xl hover:bg-slate-50/50 dark:hover:bg-slate-850/10 cursor-pointer transition flex justify-between items-start gap-4"
+                              >
+                                <div className="space-y-1 flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase ${
+                                      ticket.status === 'resolved' 
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
+                                        : 'bg-amber-50 text-amber-700 border-amber-100'
+                                    }`}>
+                                      {ticket.status === 'in_progress' ? 'In Progress' : ticket.status}
+                                    </span>
+                                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wide border ${
+                                      ticket.priority === 'high' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-slate-100 text-slate-655 border-transparent'
+                                    }`}>{ticket.priority}</span>
+                                    <span className="text-[9px] text-slate-400 font-semibold">
+                                      {new Date(ticket.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                    </span>
+                                  </div>
+                                  <h5 className="font-extrabold text-xs text-slate-855 dark:text-slate-200 truncate mt-1">{ticket.subject}</h5>
+                                  <p className="text-[10px] text-slate-455 truncate leading-relaxed">{ticket.messages?.[ticket.messages.length - 1]?.text || ticket.description}</p>
+                                </div>
+                                <div className="text-right flex-shrink-0 flex items-center justify-center p-2 bg-slate-50 dark:bg-slate-800 rounded-xl">
+                                  <span className="text-[10px] font-bold text-slate-400">{ticket.messages?.length || 1} msgs</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'deleteAccount' && (
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-6">
+                <h3 className="font-extrabold text-base text-red-600 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-red-600" /> Danger Zone: Delete Account
+                </h3>
+
+                <div className="bg-red-50/50 dark:bg-red-950/10 border border-red-200 dark:border-red-900/30 p-5 rounded-2xl text-xs space-y-3 text-slate-655 dark:text-slate-350 leading-relaxed font-semibold">
+                  <p className="font-extrabold text-red-700 dark:text-red-400">WARNING: This operation is permanent and irreversible.</p>
+                  <p>Deleting your Daykart account will completely erase all your details from our servers, including:</p>
+                  <ul className="list-disc list-inside space-y-1 text-slate-500 font-medium pl-2">
+                    <li>Your profile details and credentials.</li>
+                    <li>All saved shipping and billing addresses.</li>
+                    <li>Your transaction logs and wallet credit balance (₹{wallet.balance}).</li>
+                    {user?.role === 'seller' && (
+                      <li className="text-red-600 font-semibold">Your store profile and all product catalog listings.</li>
+                    )}
+                  </ul>
+                  <p className="font-bold">Once deleted, your account cannot be recovered. Any outstanding order history will be deleted, and you will be logged out immediately.</p>
+                </div>
+
+                <div className="flex items-start gap-2.5 pt-2">
+                  <input
+                    type="checkbox"
+                    id="confirmDeleteCheck"
+                    checked={deleteCheckboxChecked}
+                    onChange={(e) => setDeleteCheckboxChecked(e.target.checked)}
+                    className="accent-red-600 h-4.5 w-4.5 rounded cursor-pointer mt-0.5"
+                  />
+                  <label htmlFor="confirmDeleteCheck" className="text-xxs sm:text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer select-none leading-relaxed">
+                    I understand the consequences and confirm that I wish to permanently delete my Daykart account.
+                  </label>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleDeleteAccount}
+                  disabled={!deleteCheckboxChecked || isDeletingProfile}
+                  className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-extrabold px-6 py-3 rounded-xl text-xs shadow-md transition active:scale-98"
+                >
+                  {isDeletingProfile ? 'Deleting Account...' : 'Permanently Delete My Account'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </main>
+
+      <ConfirmationModal
+        isOpen={confirmConfig.isOpen}
+        onClose={() => setConfirmConfig({ ...confirmConfig, isOpen: false })}
+        onConfirm={confirmConfig.onConfirm}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        confirmText={confirmConfig.confirmText}
+        cancelText={confirmConfig.cancelText}
+        type={confirmConfig.type}
+      />
 
       <Footer />
     </div>

@@ -99,9 +99,20 @@ const HERO_SLIDES = [
 
 export default function Home() {
   const router = useRouter();
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const { isAuthenticated, user } = useSelector((state) => state.auth);
   const [currentSlide, setCurrentSlide] = React.useState(0);
   const [currentSubSlide, setCurrentSubSlide] = React.useState(0);
+
+  // Redirect logged-in sellers and admins to their dashboards
+  React.useEffect(() => {
+    if (isAuthenticated && user) {
+      if (user.role === 'seller') {
+        router.push('/seller/dashboard');
+      } else if (user.role === 'admin') {
+        router.push('/admin/dashboard');
+      }
+    }
+  }, [isAuthenticated, user, router]);
 
   // Fetch dynamic hero slides
   const { data: slidesRes } = useGetHeroSlidesQuery();

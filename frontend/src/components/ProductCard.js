@@ -89,6 +89,25 @@ export default function ProductCard({ product, wishlistMode = false }) {
     }
   };
 
+  const handleBuyNow = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!isAuthenticated) {
+      router.push('/login');
+      return;
+    }
+
+    const buyNowItem = {
+      product,
+      quantity: 1,
+      variantSku: null,
+    };
+
+    sessionStorage.setItem('buyNowItem', JSON.stringify(buyNowItem));
+    router.push('/checkout');
+  };
+
   const discountPercent = product.compareAtPrice
     ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
     : 0;
@@ -170,41 +189,59 @@ export default function ProductCard({ product, wishlistMode = false }) {
           </div>
 
           {quantityInCart > 0 ? (
-            <div className="w-full flex items-center justify-between bg-slate-100 dark:bg-slate-800 rounded-lg sm:rounded-xl p-0.5 border border-slate-200 dark:border-slate-700">
+            <div className="flex flex-col gap-1.5">
+              <div className="w-full flex items-center justify-between bg-slate-100 dark:bg-slate-800 rounded-lg sm:rounded-xl p-0.5 border border-slate-200 dark:border-slate-700">
+                <button
+                  onClick={(e) => handleUpdateQuantity(e, quantityInCart - 1)}
+                  disabled={isLoading}
+                  className="p-1 sm:p-1.5 text-slate-500 hover:text-red-500 hover:bg-white dark:hover:bg-slate-700 rounded-md sm:rounded-lg transition active:scale-90 disabled:opacity-50 flex items-center justify-center"
+                  title="Decrease quantity"
+                >
+                  {quantityInCart === 1 ? (
+                    <Trash2 className="w-3.5 h-3.5" />
+                  ) : (
+                    <Minus className="w-3.5 h-3.5" />
+                  )}
+                </button>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 select-none px-2">
+                  {quantityInCart}
+                </span>
+                <button
+                  onClick={(e) => handleUpdateQuantity(e, quantityInCart + 1)}
+                  disabled={isLoading || quantityInCart >= (product.inventory?.quantity || 100)}
+                  className="p-1 sm:p-1.5 text-slate-500 hover:text-secondary hover:bg-white dark:hover:bg-slate-700 rounded-md sm:rounded-lg transition active:scale-90 disabled:opacity-50 flex items-center justify-center"
+                  title="Increase quantity"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              </div>
               <button
-                onClick={(e) => handleUpdateQuantity(e, quantityInCart - 1)}
-                disabled={isLoading}
-                className="p-1 sm:p-1.5 text-slate-500 hover:text-red-500 hover:bg-white dark:hover:bg-slate-700 rounded-md sm:rounded-lg transition active:scale-90 disabled:opacity-50 flex items-center justify-center"
-                title="Decrease quantity"
+                type="button"
+                onClick={handleBuyNow}
+                className="w-full bg-accent hover:bg-rose-600 text-white font-extrabold py-1.5 sm:py-2 rounded-lg sm:rounded-xl transition shadow-xs active:scale-98 text-[10px] sm:text-xs flex items-center justify-center"
               >
-                {quantityInCart === 1 ? (
-                  <Trash2 className="w-3.5 h-3.5" />
-                ) : (
-                  <Minus className="w-3.5 h-3.5" />
-                )}
-              </button>
-              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 select-none px-2">
-                {quantityInCart}
-              </span>
-              <button
-                onClick={(e) => handleUpdateQuantity(e, quantityInCart + 1)}
-                disabled={isLoading || quantityInCart >= (product.inventory?.quantity || 100)}
-                className="p-1 sm:p-1.5 text-slate-500 hover:text-secondary hover:bg-white dark:hover:bg-slate-700 rounded-md sm:rounded-lg transition active:scale-90 disabled:opacity-50 flex items-center justify-center"
-                title="Increase quantity"
-              >
-                <Plus className="w-3.5 h-3.5" />
+                Buy Now
               </button>
             </div>
           ) : (
-            <button
-              onClick={handleAddToCart}
-              disabled={isLoading}
-              className="w-full bg-secondary hover:bg-cyan-600 text-white font-bold py-1.5 sm:py-2 rounded-lg sm:rounded-xl transition-all shadow-sm active:scale-98 disabled:opacity-50 flex items-center justify-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs"
-              title="Add to Cart"
-            >
-              <ShoppingCart className="w-3.5 h-3.5" />
-              <span>Add to Cart</span>
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={handleAddToCart}
+                disabled={isLoading}
+                className="bg-secondary hover:bg-cyan-600 text-white font-bold py-1.5 sm:py-2 rounded-lg sm:rounded-xl transition-all shadow-sm active:scale-98 disabled:opacity-50 flex items-center justify-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs"
+                title="Add to Cart"
+              >
+                <ShoppingCart className="w-3.5 h-3.5" />
+                <span>Add</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleBuyNow}
+                className="bg-accent hover:bg-rose-600 text-white font-extrabold py-1.5 sm:py-2 rounded-lg sm:rounded-xl transition shadow-xs active:scale-98 flex items-center justify-center text-[10px] sm:text-xs"
+              >
+                Buy Now
+              </button>
+            </div>
           )}
         </div>
       </div>

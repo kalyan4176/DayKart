@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import Wishlist from '../models/Wishlist.js';
 import Cart from '../models/Cart.js';
 import Seller from '../models/Seller.js';
+import Product from '../models/Product.js';
 import redisClient from '../config/redis.js';
 import { NotFoundError, BadRequestError } from '../utils/customErrors.js';
 import { sendInAppNotification } from '../utils/notificationHelper.js';
@@ -435,6 +436,47 @@ export const getWallet = async (req, res, next) => {
     res.status(200).json({
       status: 'success',
       data: { wallet: user.wallet || { balance: 0, transactions: [] } }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteProfile = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+
+    // Delete User
+    const user = await User.findByIdAndDelete(userId);
+    if (!user) {
+      return next(new NotFoundError('User not found.'));
+    }
+
+    // Delete associated Cart & Wishlist
+    await Cart.findOneAndDelete({ customer: userId });
+    await Wishlist.findOneAndDelete({ customer: userId });
+
+    // If role is seller, delete Seller profile and all products of this seller
+    if (user.role === 'seller') {
+      const seller = await Seller.findOne({ user: userId });
+      if (seller) {
+        await Product.deleteMany({ seller: seller._id });
+        await Seller.findByIdAndDelete(seller._id);
+      }
+    }
+
+    // Clear user cache from Redis
+    try {
+      if (redisClient && redisClient.isOpen) {
+        await redisClient.del(`user:${userId}`);
+      }
+    } catch (redisErr) {
+      console.error('Error clearing Redis cache on user deletion:', redisErr);
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Account and all associated records deleted successfully.',
     });
   } catch (error) {
     next(error);

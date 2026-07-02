@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { User, Mail, Lock, AlertTriangle, ArrowRight, CheckCircle2, Gift, Eye, EyeOff, UserPlus, X, ShieldCheck, Loader2 } from 'lucide-react';
+import { User, Mail, Lock, AlertTriangle, ArrowRight, CheckCircle2, Gift, Eye, EyeOff, UserPlus, X, ShieldCheck, Loader2, Phone } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useToast } from '@/components/ToastProvider';
@@ -21,6 +21,9 @@ const otpSchema = z.object({
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Please enter a valid email address'),
+  phoneNumber: z.string()
+    .min(10, 'Phone number must be at least 10 digits')
+    .regex(/^[0-9]+$/, 'Phone number must contain only numbers'),
   password: z.string()
     .min(8, 'Password must be at least 8 characters long')
     .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
@@ -287,6 +290,22 @@ export default function Register() {
                   <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
                 </div>
                 {errors.email && <p className="text-xxs text-red-500 mt-1">{errors.email.message}</p>}
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">
+                  Phone Number
+                </label>
+                <div className="relative">
+                  <input
+                    type="tel"
+                    placeholder="9876543210"
+                    {...register('phoneNumber')}
+                    className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary pl-10 pr-4 py-2.5 rounded-xl text-sm outline-none transition dark:text-slate-200"
+                  />
+                  <Phone className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                </div>
+                {errors.phoneNumber && <p className="text-xxs text-red-500 mt-1">{errors.phoneNumber.message}</p>}
               </div>
 
               <div>

@@ -1,4 +1,5 @@
 import ShippingRule from '../models/ShippingRule.js';
+import SystemSetting from '../models/SystemSetting.js';
 import { BadRequestError, NotFoundError } from '../utils/customErrors.js';
 
 export const getShippingRules = async (req, res, next) => {
@@ -153,6 +154,42 @@ export const deleteShippingRule = async (req, res, next) => {
     res.status(200).json({
       status: 'success',
       message: 'Shipping rule deleted successfully.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getCodCharge = async (req, res, next) => {
+  try {
+    const codSetting = await SystemSetting.findOne({ key: 'cod_charge' });
+    const charge = codSetting ? Number(codSetting.value) : 0;
+    res.status(200).json({
+      status: 'success',
+      data: { charge },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateCodCharge = async (req, res, next) => {
+  try {
+    const { charge } = req.body;
+    if (charge === undefined || charge === null || Number(charge) < 0) {
+      return next(new BadRequestError('COD charge must be a non-negative number.'));
+    }
+
+    const codSetting = await SystemSetting.findOneAndUpdate(
+      { key: 'cod_charge' },
+      { value: Number(charge) },
+      { upsert: true, new: true }
+    );
+
+    res.status(200).json({
+      status: 'success',
+      message: 'COD charge updated successfully.',
+      data: { charge: Number(codSetting.value) },
     });
   } catch (error) {
     next(error);

@@ -6,6 +6,7 @@ import Cart from '../models/Cart.js';
 import User from '../models/User.js';
 import ShippingRule from '../models/ShippingRule.js';
 import Seller from '../models/Seller.js';
+import SystemSetting from '../models/SystemSetting.js';
 import { logAuditEvent } from '../services/auditService.js';
 import { BadRequestError, NotFoundError, ForbiddenError } from '../utils/customErrors.js';
 import { sendInAppNotification } from '../utils/notificationHelper.js';
@@ -21,17 +22,37 @@ export const checkout = async (req, res, next) => {
       return next(new BadRequestError('Invalid shipping address selected.'));
     }
 
-    // 2. Retrieve persistent cart
-    const cart = await Cart.findOne({ customer: req.user._id }).populate('items.product');
-    if (!cart || cart.items.length === 0) {
-      return next(new BadRequestError('Your shopping cart is empty.'));
+    // 2. Retrieve checkout items (from body or persistent cart)
+    let cart = null;
+    let checkoutItems = [];
+    let isBuyNow = false;
+
+    if (req.body.items && req.body.items.length > 0) {
+      isBuyNow = true;
+      for (const item of req.body.items) {
+        const product = await Product.findById(item.product);
+        if (!product || product.status !== 'approved') {
+          return next(new BadRequestError(`Product is no longer available.`));
+        }
+        checkoutItems.push({
+          product,
+          variantSku: item.variantSku,
+          quantity: item.quantity,
+        });
+      }
+    } else {
+      cart = await Cart.findOne({ customer: req.user._id }).populate('items.product');
+      if (!cart || cart.items.length === 0) {
+        return next(new BadRequestError('Your shopping cart is empty.'));
+      }
+      checkoutItems = cart.items;
     }
 
     // 3. Process items, verify stock and calculate pricing
     let subtotal = 0;
     const orderItems = [];
 
-    for (const item of cart.items) {
+    for (const item of checkoutItems) {
       const product = item.product;
       if (!product || product.status !== 'approved') {
         return next(new BadRequestError(`Product ${product?.title || 'Unknown'} is no longer available.`));
@@ -136,9 +157,17 @@ export const checkout = async (req, res, next) => {
         shippingCharges = matchedRule ? matchedRule.charge : 0;
       }
     }
+
+    // Add COD charge if applicable
+    let codCharge = 0;
+    if (gateway === 'cod') {
+      const codSetting = await SystemSetting.findOne({ key: 'cod_charge' });
+      codCharge = codSetting ? Number(codSetting.value) : 0;
+      shippingCharges += codCharge;
+    }
     
     let taxAccumulator = 0;
-    for (const item of cart.items) {
+    for (const item of checkoutItems) {
       const product = item.product;
       const gstRate = product.gstRate !== undefined ? product.gstRate : 18;
       
@@ -160,7 +189,7 @@ export const checkout = async (req, res, next) => {
     const paymentId = `TXN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     // 7. Decrement stocks
-    for (const item of cart.items) {
+    for (const item of checkoutItems) {
       const product = await Product.findById(item.product._id);
       if (item.variantSku) {
         const variantIndex = product.variants.findIndex(v => v.sku === item.variantSku);
@@ -235,9 +264,9 @@ export const checkout = async (req, res, next) => {
       console.error('Error awarding random coupon:', couponErr);
     }
 
-    // Get product details for notification before clearing cart
-    const firstProductTitle = cart.items[0]?.product?.title || 'Product';
-    const itemsCount = cart.items.length;
+    // Get product details for notification
+    const firstProductTitle = checkoutItems[0]?.product?.title || 'Product';
+    const itemsCount = checkoutItems.length;
     const itemsDescription = itemsCount > 1 
       ? `"${firstProductTitle}" and ${itemsCount - 1} other item${itemsCount > 2 ? 's' : ''}`
       : `"${firstProductTitle}"`;
@@ -248,7 +277,7 @@ export const checkout = async (req, res, next) => {
       for (const sId of uniqueSellerIds) {
         const sellerDoc = await Seller.findById(sId);
         if (sellerDoc && sellerDoc.user) {
-          const sellerCartItems = cart.items.filter(item => item.product?.seller?.toString() === sId);
+          const sellerCartItems = checkoutItems.filter(item => item.product?.seller?.toString() === sId);
           if (sellerCartItems.length > 0) {
             const firstItemTitle = sellerCartItems[0].product.title;
             const sellerItemsCount = sellerCartItems.length;
@@ -270,7 +299,7 @@ export const checkout = async (req, res, next) => {
               'order',
               'New Order Received',
               `You received a new order for ${sellerItemsDesc} (Qty: ${totalQty}). Total value: ₹${sellerTotal.toLocaleString('en-IN')}.`,
-              `/orders/${orderId}`
+              `/seller/dashboard?tab=manage-orders`
             );
           }
         }
@@ -279,9 +308,11 @@ export const checkout = async (req, res, next) => {
       console.error('Error sending seller checkout notifications:', notifErr);
     }
 
-    // 10. Clear Cart
-    cart.items = [];
-    await cart.save();
+    // 10. Clear Cart if not Buy Now
+    if (!isBuyNow && cart) {
+      cart.items = [];
+      await cart.save();
+    }
 
     // Send in-app notification to customer
     await sendInAppNotification(
@@ -384,10 +415,14 @@ export const cancelOrder = async (req, res, next) => {
       return next(new BadRequestError(`Orders cannot be cancelled once they are ${order.status}.`));
     }
 
+    const { reason } = req.body;
+
     order.status = 'cancelled';
     order.statusTimeline.push({
       status: 'cancelled',
-      message: `Cancelled by ${req.user.role === 'customer' ? 'Customer' : 'Store Administrator'}.`,
+      message: reason 
+        ? `Cancelled by ${req.user.role === 'customer' ? 'Customer' : 'Store Administrator'}: ${reason}`
+        : `Cancelled by ${req.user.role === 'customer' ? 'Store Administrator'}.`,
     });
     await order.save();
 
@@ -443,7 +478,7 @@ export const cancelOrder = async (req, res, next) => {
               'order',
               'Order Cancelled by Customer',
               `The order for ${sellerItemsDesc} has been cancelled by the customer.`,
-              `/orders/${id}`
+              `/seller/dashboard?tab=manage-orders`
             );
           }
         }
@@ -479,7 +514,7 @@ export const getSellerOrders = async (req, res, next) => {
     // Retrieve orders that contain items owned by this seller
     const orders = await Order.find({ 'items.seller': seller._id })
       .populate('items.product', 'title images SKU price')
-      .populate('customer', 'name email')
+      .populate('customer', 'name email phoneNumber')
       .sort({ createdAt: -1 });
 
     // Filter items to show only this seller's products for listing clarity
@@ -524,7 +559,7 @@ export const updateOrderStatus = async (req, res, next) => {
     // Progress status
     let timelineMessage = message;
     if (status === 'cancelled' && req.user.role === 'seller') {
-      timelineMessage = 'Order rejected by seller.';
+      timelineMessage = message ? `Order rejected by seller: ${message}` : 'Order rejected by seller.';
     } else {
       timelineMessage = message || `Status updated by ${req.user.role}.`;
     }
@@ -719,7 +754,7 @@ export const returnOrder = async (req, res, next) => {
           sellerProfile.user,
           'Return/Replacement Requested',
           `Customer has requested a return/replacement for items in order ${order.orderId}. Type: ${type === 'replace' ? 'Replacement' : 'Return'}. Reason: ${reason || 'None'}.`,
-          `/orders`
+          `/seller/dashboard?tab=manage-orders`
         );
       }
     }

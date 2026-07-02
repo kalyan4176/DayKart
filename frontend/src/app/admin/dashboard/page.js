@@ -36,6 +36,8 @@ import {
    useCreateShippingRuleMutation,
    useUpdateShippingRuleMutation,
    useDeleteShippingRuleMutation,
+   useGetCodChargeQuery,
+   useUpdateCodChargeMutation,
    useGetWalletQuery,
    useGetReferralSettingsQuery,
    useUpdateReferralSettingsMutation,
@@ -122,6 +124,17 @@ export default function AdminDashboard() {
   const [maxCartValue, setMaxCartValue] = useState('');
   const [noUpperLimit, setNoUpperLimit] = useState(false);
   const [shippingCharge, setShippingCharge] = useState(0);
+
+  // COD Charge query and mutation
+  const { data: codChargeRes, refetch: refetchCodCharge } = useGetCodChargeQuery(undefined, { skip: activeTab !== 'shipping' || !isAdmin || !mounted });
+  const [updateCodCharge, { isLoading: isUpdatingCodCharge }] = useUpdateCodChargeMutation();
+  const [codChargeInput, setCodChargeInput] = useState(0);
+
+  useEffect(() => {
+    if (codChargeRes?.data?.charge !== undefined) {
+      setCodChargeInput(codChargeRes.data.charge);
+    }
+  }, [codChargeRes]);
 
   // Wallet query
   const { data: walletRes, isLoading: walletLoading } = useGetWalletQuery(undefined, { skip: activeTab !== 'wallet' || !isAdmin || !mounted });
@@ -2474,7 +2487,7 @@ export default function AdminDashboard() {
                                 {sel.status}
                               </span>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-y-1 sm:gap-x-4 text-slate-500 font-medium text-[11px] leading-relaxed">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-y-1.5 sm:gap-x-4 text-slate-500 font-medium text-[11px] leading-relaxed">
                               <div>
                                 <span className="text-slate-400 font-semibold mr-1">Owner Email:</span>
                                 <span className="text-slate-700 dark:text-slate-350">{sel.user?.email || 'N/A'}</span>
@@ -2486,6 +2499,42 @@ export default function AdminDashboard() {
                               <div>
                                 <span className="text-slate-400 font-semibold mr-1">PAN:</span>
                                 <code className="text-slate-700 dark:text-slate-350 font-mono">{sel.pan}</code>
+                              </div>
+                            </div>
+
+                            <div className="mt-2 text-slate-500 font-medium text-[11px] leading-relaxed">
+                              <span className="text-slate-400 font-semibold mr-1">Description:</span>
+                              <span className="text-slate-700 dark:text-slate-300">{sel.storeDescription || 'No description provided.'}</span>
+                            </div>
+
+                            <div className="mt-2 text-slate-500 font-medium text-[11px] leading-relaxed">
+                              <span className="text-slate-400 font-semibold mr-1">Store Address:</span>
+                              <span className="text-slate-700 dark:text-slate-300">
+                                {sel.storeAddress 
+                                  ? `${sel.storeAddress.street}, ${sel.storeAddress.city}, ${sel.storeAddress.state}, ${sel.storeAddress.country} - ${sel.storeAddress.postalCode}` 
+                                  : 'N/A'}
+                              </span>
+                            </div>
+
+                            <div className="mt-2 text-slate-500 font-medium text-[11px] leading-relaxed bg-white dark:bg-slate-800/30 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/60 max-w-xl">
+                              <span className="text-slate-455 font-bold uppercase tracking-wider block text-[9px] mb-1">Bank Settlement Details</span>
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                                <div>
+                                  <span className="text-slate-400 font-semibold mr-1">Holder:</span>
+                                  <span className="text-slate-700 dark:text-slate-300">{sel.bankDetails?.accountHolderName || 'N/A'}</span>
+                                </div>
+                                <div>
+                                  <span className="text-slate-400 font-semibold mr-1">Bank:</span>
+                                  <span className="text-slate-700 dark:text-slate-300">{sel.bankDetails?.bankName || 'N/A'}</span>
+                                </div>
+                                <div>
+                                  <span className="text-slate-400 font-semibold mr-1">Account No:</span>
+                                  <code className="text-slate-700 dark:text-slate-300 font-mono">{sel.bankDetails?.accountNumber || 'N/A'}</code>
+                                </div>
+                                <div>
+                                  <span className="text-slate-400 font-semibold mr-1">IFSC:</span>
+                                  <code className="text-slate-700 dark:text-slate-300 font-mono">{sel.bankDetails?.ifsc || 'N/A'}</code>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -3394,6 +3443,42 @@ export default function AdminDashboard() {
                       <Truck className="w-5 h-5 text-secondary" /> Manage Shipping Charges
                     </h3>
                     <p className="text-xxs text-slate-400 mt-1">Configure shipping rates dynamically based on the customer's cart value (subtotal).</p>
+                  </div>
+                </div>
+
+                {/* COD Handling Fee Config */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
+                  <h4 className="font-extrabold text-sm text-black dark:text-white mb-4 pb-2 border-b border-slate-100 dark:border-slate-800 flex items-center gap-1.5 font-bold">
+                    <Wallet className="w-4.5 h-4.5 text-secondary" /> Cash on Delivery (COD) Handling Charge
+                  </h4>
+                  <div className="flex flex-wrap items-end gap-4">
+                    <div className="w-full sm:max-w-xs">
+                      <label className="block text-xs font-extrabold text-black dark:text-white uppercase tracking-wider mb-1">COD Additional Fee (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={codChargeInput}
+                        onChange={(e) => setCodChargeInput(Number(e.target.value))}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-xs text-slate-850 dark:text-white font-semibold focus:outline-none focus:border-secondary transition-all"
+                        placeholder="e.g. 50"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isUpdatingCodCharge}
+                      onClick={async () => {
+                        try {
+                          await updateCodCharge(codChargeInput).unwrap();
+                          showToast('Cash on Delivery handling charge updated successfully!', 'success');
+                          refetchCodCharge();
+                        } catch (err) {
+                          showToast(err.data?.message || 'Failed to update COD charge.', 'error');
+                        }
+                      }}
+                      className="bg-secondary hover:bg-cyan-600 text-white font-bold py-3.5 px-6 rounded-xl text-xs shadow-md active:scale-98 transition disabled:opacity-50"
+                    >
+                      {isUpdatingCodCharge ? 'Saving...' : 'Save COD Charge'}
+                    </button>
                   </div>
                 </div>
 

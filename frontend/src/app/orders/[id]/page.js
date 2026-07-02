@@ -46,8 +46,14 @@ export default function OrderDetailsPage({ params }) {
 
   const handleCancelOrder = async () => {
     if (!order) return;
+    const reason = prompt('Please enter the reason for cancellation (required):');
+    if (reason === null) return;
+    if (!reason.trim()) {
+      showToast('Cancellation reason is required.', 'error');
+      return;
+    }
     try {
-      await cancelOrder(order.orderId).unwrap();
+      await cancelOrder({ id: order.orderId, reason: reason.trim() }).unwrap();
       showToast('Order cancelled successfully.', 'success');
       refetch();
     } catch (err) {

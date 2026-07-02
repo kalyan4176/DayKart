@@ -117,6 +117,22 @@ export default function ProductDetail() {
     }
   };
 
+  const handleBuyNow = () => {
+    if (!isAuthenticated) {
+      router.push('/login');
+      return;
+    }
+
+    const buyNowItem = {
+      product,
+      quantity: 1,
+      variantSku: selectedVariant ? selectedVariant.sku : null,
+    };
+
+    sessionStorage.setItem('buyNowItem', JSON.stringify(buyNowItem));
+    router.push('/checkout');
+  };
+
   const { data: wishlistRes } = useGetWishlistQuery(undefined, { skip: !isAuthenticated });
   const [toggleWishlist] = useToggleWishlistMutation();
   const isInWishlist = wishlistRes?.data?.wishlist?.some(p => p._id === productId);
@@ -323,7 +339,7 @@ export default function ProductDetail() {
                 </p>
               )}
 
-              <div className="flex gap-4">
+              <div className="flex flex-col sm:flex-row gap-4">
                 {quantityInCart > 0 ? (
                   <div className="flex-grow flex items-center justify-between bg-slate-100 dark:bg-slate-800 rounded-2xl p-1 border border-slate-200 dark:border-slate-700 h-[52px]">
                     <button
@@ -358,6 +374,16 @@ export default function ProductDetail() {
                   >
                     <ShoppingCart className="w-4.5 h-4.5" /> 
                     {(selectedVariant ? selectedVariant.inventory === 0 : product.inventory?.quantity === 0) ? 'Out of Stock' : 'Add to Shopping Bag'}
+                  </button>
+                )}
+
+                {(selectedVariant ? selectedVariant.inventory > 0 : product.inventory?.quantity > 0) && (
+                  <button
+                    type="button"
+                    onClick={handleBuyNow}
+                    className="flex-grow inline-flex items-center justify-center bg-accent hover:bg-rose-600 text-white font-extrabold py-3.5 px-6 rounded-2xl shadow-lg hover:shadow-xl active:scale-98 transition duration-200 text-xs sm:text-sm h-[52px]"
+                  >
+                    Buy Now
                   </button>
                 )}
               </div>
