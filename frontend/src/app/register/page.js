@@ -6,13 +6,17 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { User, Mail, Lock, AlertTriangle, ArrowRight, CheckCircle2, Gift, Eye, EyeOff, UserPlus, X } from 'lucide-react';
+import { User, Mail, Lock, AlertTriangle, ArrowRight, CheckCircle2, Gift, Eye, EyeOff, UserPlus, X, ShieldCheck, Loader2 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useToast } from '@/components/ToastProvider';
-import { useRegisterMutation, useGoogleLoginMutation } from '@/store/api';
+import { useRegisterMutation, useGoogleLoginMutation, useVerifyOtpMutation } from '@/store/api';
 import { useDispatch } from 'react-redux';
 import { setCredentials } from '@/store/authSlice';
+
+const otpSchema = z.object({
+  otp: z.string().length(6, 'OTP must be exactly 6 digits'),
+});
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -36,11 +40,18 @@ export default function Register() {
   const dispatch = useDispatch();
   const { showToast } = useToast();
   const [registerApi, { isLoading }] = useRegisterMutation();
+  const [verifyOtpApi, { isLoading: otpLoading }] = useVerifyOtpMutation();
 
+  const [otpSent, setOtpSent] = useState(false);
+  const [userEmail, setUserEmail] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const { register: otpRegister, handleSubmit: handleOtpSubmit, formState: { errors: otpErrors } } = useForm({
+    resolver: zodResolver(otpSchema),
+  });
 
   // Google OAuth Mock State
   const [googleLoginApi, { isLoading: googleLoading }] = useGoogleLoginMutation();
@@ -139,13 +150,32 @@ export default function Register() {
       const res = await registerApi(data).unwrap();
       
       showToast(res.message || 'Registration successful! Verification code sent.', 'success');
-      setSuccessMsg(res.message || 'Registration successful! Verification code sent.');
-      setTimeout(() => {
-        router.push('/login');
-      }, 3000);
+      setUserEmail(data.email);
+      setOtpSent(true);
     } catch (err) {
       showToast(err.data?.message || 'Registration failed. Please check inputs.', 'error');
       setErrorMsg(err.data?.message || 'Registration failed. Please check inputs.');
+    }
+  };
+
+  const onVerifyOtp = async (data) => {
+    try {
+      setErrorMsg('');
+      setSuccessMsg('');
+      const res = await verifyOtpApi({ email: userEmail, otp: data.otp }).unwrap();
+      
+      dispatch(setCredentials({
+        user: res.data.user,
+        accessToken: res.accessToken,
+      }));
+      showToast('Account verified and logged in successfully!', 'success');
+      
+      if (res.data?.user?.role === 'admin') router.push('/admin/dashboard');
+      else if (res.data?.user?.role === 'seller') router.push('/seller/dashboard');
+      else router.push('/');
+    } catch (err) {
+      showToast(err.data?.message || 'Invalid OTP code. Please try again.', 'error');
+      setErrorMsg(err.data?.message || 'Invalid OTP code. Please try again.');
     }
   };
 
@@ -157,10 +187,10 @@ export default function Register() {
         <div className="max-w-md w-full glass p-8 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800">
           <div className="text-center mb-8">
             <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white">
-              Create an account
+              {otpSent ? 'Verify Your Email' : 'Create an account'}
             </h2>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-              Join the Daykart premium marketplace today.
+              {otpSent ? 'Confirm your registration details.' : 'Join the Daykart premium marketplace today.'}
             </p>
           </div>
 
@@ -174,42 +204,90 @@ export default function Register() {
           {successMsg && (
             <div className="mb-4 p-3.5 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/50 rounded-xl flex items-center gap-2.5 text-sm text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="w-4.5 h-4.5 flex-shrink-0" />
-              <span>{successMsg} Redirecting to login...</span>
+              <span>{successMsg}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit(onRegister)} className="space-y-5">
-            <div>
-              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">
-                Full Name
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="John Doe"
-                  {...register('name')}
-                  className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary pl-10 pr-4 py-2.5 rounded-xl text-sm outline-none transition dark:text-slate-200"
-                />
-                <User className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+          {otpSent ? (
+            <form onSubmit={handleOtpSubmit(onVerifyOtp)} className="space-y-5 animate-fade-in">
+              <div className="text-slate-500 dark:text-slate-400 text-xs font-semibold text-center leading-relaxed">
+                We have sent a 6-digit OTP code to <br/>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{userEmail}</span>
               </div>
-              {errors.name && <p className="text-xxs text-red-500 mt-1">{errors.name.message}</p>}
-            </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">
-                Email Address
-              </label>
-              <div className="relative">
-                <input
-                  type="email"
-                  placeholder="name@email.com"
-                  {...register('email')}
-                  className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary pl-10 pr-4 py-2.5 rounded-xl text-sm outline-none transition dark:text-slate-200"
-                />
-                <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">
+                  6-Digit OTP Code
+                </label>
+                <div className="relative">
+                  {/* Anti-autofill decoy inputs */}
+                  <input type="text" name="username" style={{ display: 'none' }} autoComplete="off" />
+                  <input type="password" name="password" style={{ display: 'none' }} autoComplete="off" />
+                  <input
+                    type="text"
+                    maxLength={6}
+                    autoComplete="one-time-code"
+                    placeholder="000000"
+                    {...otpRegister('otp')}
+                    className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary pl-10 pr-4 py-2.5 rounded-xl text-sm outline-none transition font-mono tracking-widest text-center text-slate-800 dark:text-slate-200"
+                  />
+                  <ShieldCheck className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                </div>
+                {otpErrors.otp && <p className="text-xxs text-red-500 mt-1">{otpErrors.otp.message}</p>}
               </div>
-              {errors.email && <p className="text-xxs text-red-500 mt-1">{errors.email.message}</p>}
-            </div>
+
+              <button
+                type="submit"
+                disabled={otpLoading}
+                className="w-full inline-flex items-center justify-center gap-2 bg-secondary hover:bg-cyan-600 text-white font-bold py-3 rounded-xl shadow-md transition active:scale-98 disabled:opacity-50"
+              >
+                {otpLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Verify OTP
+              </button>
+
+              <div className="text-center text-xs">
+                <button
+                  type="button"
+                  onClick={() => setOtpSent(false)}
+                  className="text-slate-400 hover:text-slate-650 dark:hover:text-slate-350 font-semibold hover:underline"
+                >
+                  Back to Registration
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form onSubmit={handleSubmit(onRegister)} className="space-y-5">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="John Doe"
+                    {...register('name')}
+                    className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary pl-10 pr-4 py-2.5 rounded-xl text-sm outline-none transition dark:text-slate-200"
+                  />
+                  <User className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                </div>
+                {errors.name && <p className="text-xxs text-red-500 mt-1">{errors.name.message}</p>}
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    placeholder="name@email.com"
+                    {...register('email')}
+                    className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary pl-10 pr-4 py-2.5 rounded-xl text-sm outline-none transition dark:text-slate-200"
+                  />
+                  <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                </div>
+                {errors.email && <p className="text-xxs text-red-500 mt-1">{errors.email.message}</p>}
+              </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">
@@ -226,7 +304,7 @@ export default function Register() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-350 focus:outline-none"
+                    className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-650 dark:hover:text-slate-350 focus:outline-none"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -234,28 +312,27 @@ export default function Register() {
                 </div>
                 {errors.password && <p className="text-xxs text-red-500 mt-1">{errors.password.message}</p>}
                 
-                {/* Dynamic Password Validation Requirements */}
                 {passwordValue.length > 0 && (
                   <div className="mt-2.5 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/80 rounded-2xl animate-fade-in text-[10px] sm:text-xxs font-extrabold tracking-wide uppercase">
-                    <p className="text-slate-450 dark:text-slate-550 mb-2">Password Requirements Checklist</p>
+                    <p className="text-slate-455 dark:text-slate-550 mb-2">Password Requirements Checklist</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
-                      <div className={hasMinLength ? "text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5" : "text-rose-500 dark:text-rose-450 flex items-center gap-1.5"}>
+                      <div className={hasMinLength ? "text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5" : "text-rose-500 dark:text-rose-455 flex items-center gap-1.5"}>
                         <span className="text-xs">{hasMinLength ? "✓" : "✗"}</span>
                         <span>At least 8 characters</span>
                       </div>
-                      <div className={hasUppercase ? "text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5" : "text-rose-500 dark:text-rose-450 flex items-center gap-1.5"}>
+                      <div className={hasUppercase ? "text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5" : "text-rose-500 dark:text-rose-455 flex items-center gap-1.5"}>
                         <span className="text-xs">{hasUppercase ? "✓" : "✗"}</span>
                         <span>One uppercase letter</span>
                       </div>
-                      <div className={hasLowercase ? "text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5" : "text-rose-500 dark:text-rose-450 flex items-center gap-1.5"}>
+                      <div className={hasLowercase ? "text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5" : "text-rose-500 dark:text-rose-455 flex items-center gap-1.5"}>
                         <span className="text-xs">{hasLowercase ? "✓" : "✗"}</span>
                         <span>One lowercase letter</span>
                       </div>
-                      <div className={hasNumber ? "text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5" : "text-rose-500 dark:text-rose-450 flex items-center gap-1.5"}>
+                      <div className={hasNumber ? "text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5" : "text-rose-500 dark:text-rose-455 flex items-center gap-1.5"}>
                         <span className="text-xs">{hasNumber ? "✓" : "✗"}</span>
                         <span>One number</span>
                       </div>
-                      <div className={hasSpecial ? "text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5" : "text-rose-500 dark:text-rose-450 flex items-center gap-1.5"}>
+                      <div className={hasSpecial ? "text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5" : "text-rose-500 dark:text-rose-455 flex items-center gap-1.5"}>
                         <span className="text-xs">{hasSpecial ? "✓" : "✗"}</span>
                         <span>One special character</span>
                       </div>
@@ -279,7 +356,7 @@ export default function Register() {
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-350 focus:outline-none"
+                    className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-655 dark:hover:text-slate-350 focus:outline-none"
                     aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
                   >
                     {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -288,58 +365,59 @@ export default function Register() {
                 {errors.confirmPassword && <p className="text-xxs text-red-500 mt-1">{errors.confirmPassword.message}</p>}
               </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">
-                Account Type
-              </label>
-              <select
-                {...register('role')}
-                className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-4 py-2.5 rounded-xl text-sm outline-none transition dark:text-slate-200"
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">
+                  Account Type
+                </label>
+                <select
+                  {...register('role')}
+                  className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-4 py-2.5 rounded-xl text-sm outline-none transition dark:text-slate-200"
+                >
+                  <option value="customer">Customer (Buy Products)</option>
+                  <option value="seller">Seller (Sell Products)</option>
+                  <option value="delivery_partner">Delivery Partner (Ship Parcels)</option>
+                </select>
+                {errors.role && <p className="text-xxs text-red-500 mt-1">{errors.role.message}</p>}
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">
+                  Referral Code (Optional)
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="e.g. KALYAN1234"
+                    {...register('referralCode')}
+                    className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary pl-10 pr-4 py-2.5 rounded-xl text-sm outline-none transition"
+                  />
+                  <Gift className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                </div>
+                {errors.referralCode && <p className="text-xxs text-red-500 mt-1">{errors.referralCode.message}</p>}
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full inline-flex items-center justify-center gap-2 bg-secondary hover:bg-cyan-600 text-white font-bold py-3 rounded-xl shadow-md transition-all active:scale-98 disabled:opacity-50"
               >
-                <option value="customer">Customer (Buy Products)</option>
-                <option value="seller">Seller (Sell Products)</option>
-                <option value="delivery_partner">Delivery Partner (Ship Parcels)</option>
-              </select>
-              {errors.role && <p className="text-xxs text-red-500 mt-1">{errors.role.message}</p>}
-            </div>
+                {isLoading ? 'Creating account...' : 'Create Account'} <ArrowRight className="w-4 h-4" />
+              </button>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">
-                Referral Code (Optional)
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="e.g. KALYAN1234"
-                  {...register('referralCode')}
-                  className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary pl-10 pr-4 py-2.5 rounded-xl text-sm outline-none transition"
-                />
-                <Gift className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+              <div className="relative my-5 text-center">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-slate-200 dark:border-slate-800"></div>
+                </div>
+                <span className="relative px-3 bg-white dark:bg-slate-900 text-xxs font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  or
+                </span>
               </div>
-              {errors.referralCode && <p className="text-xxs text-red-500 mt-1">{errors.referralCode.message}</p>}
-            </div>
 
-             <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full inline-flex items-center justify-center gap-2 bg-secondary hover:bg-cyan-600 text-white font-bold py-3 rounded-xl shadow-md transition-all active:scale-98 disabled:opacity-50"
-            >
-              {isLoading ? 'Creating account...' : 'Create Account'} <ArrowRight className="w-4 h-4" />
-            </button>
-
-            <div className="relative my-5 text-center">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-200 dark:border-slate-800"></div>
+              <div className="w-full flex justify-center py-1">
+                <div id="google-login-btn" className="w-full min-h-[44px] flex justify-center"></div>
               </div>
-              <span className="relative px-3 bg-white dark:bg-slate-900 text-xxs font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                or
-              </span>
-            </div>
-
-            <div className="w-full flex justify-center py-1">
-              <div id="google-login-btn" className="w-full min-h-[44px] flex justify-center"></div>
-            </div>
-          </form>
+            </form>
+          )}
 
           <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800 text-center text-xs">
             <span className="text-slate-400">Already have an account? </span>

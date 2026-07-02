@@ -219,6 +219,11 @@ function CheckoutPageContent() {
       return;
     }
 
+    if (selectedGateway === 'cod' && subtotal < 500) {
+      showToast('Minimum order value of ₹500 is required for Cash on Delivery.', 'error');
+      return;
+    }
+
     try {
       const res = await checkoutApi({
         addressId: selectedAddress,

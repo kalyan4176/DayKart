@@ -149,7 +149,13 @@ export default function NotificationBell() {
     <div className="relative" ref={dropdownRef}>
       {/* Trigger Bell Button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          const nextOpen = !isOpen;
+          setIsOpen(nextOpen);
+          if (nextOpen && unreadCount > 0) {
+            markAllRead();
+          }
+        }}
         className="relative p-2 text-slate-600 dark:text-slate-350 hover:bg-slate-100 dark:hover:bg-slate-805/45 rounded-full transition active:scale-95 flex items-center justify-center"
         aria-label="View Notifications"
       >

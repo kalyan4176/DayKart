@@ -64,6 +64,11 @@ export const checkout = async (req, res, next) => {
       });
     }
 
+    // Verify minimum order value for COD (₹500)
+    if (gateway === 'cod' && subtotal < 500) {
+      return next(new BadRequestError('Minimum order value of ₹500 is required for Cash on Delivery (COD).'));
+    }
+
     // 4. Calculate coupon discount
     let discount = 0;
     let couponDoc = null;

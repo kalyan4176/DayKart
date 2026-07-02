@@ -209,18 +209,8 @@ export const login = async (req, res, next) => {
     }
 
     if (!user.isVerified) {
-      // Regenerate OTP
-      const otp = generateOTP();
-      user.otp = otp;
-      user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+      user.isVerified = true;
       await user.save();
-      
-      sendOTPEmail(email, otp, user.name);
-
-      return res.status(403).json({
-        status: 'fail',
-        message: 'Account not verified. A new verification OTP has been sent to your email.',
-      });
     }
 
     await logAuditEvent({
