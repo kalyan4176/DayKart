@@ -16,6 +16,7 @@ import {
   useApproveSellerMutation,
   useApproveProductMutation,
   useUpdateProfileMutation,
+  useGetProfileQuery,
   useGetCategoriesQuery,
   useCreateCategoryMutation,
   useUpdateCategoryMutation,
@@ -38,6 +39,8 @@ import {
    useDeleteShippingRuleMutation,
    useGetCodChargeQuery,
    useUpdateCodChargeMutation,
+   useGetCartLimitsQuery,
+   useUpdateCartLimitsMutation,
    useGetWalletQuery,
    useGetReferralSettingsQuery,
    useUpdateReferralSettingsMutation,
@@ -137,7 +140,7 @@ export default function AdminDashboard() {
   }, [codChargeRes]);
 
   // Wallet query
-  const { data: walletRes, isLoading: walletLoading } = useGetWalletQuery(undefined, { skip: activeTab !== 'wallet' || !isAdmin || !mounted });
+  const { data: walletRes, isLoading: walletLoading, refetch: refetchWallet } = useGetWalletQuery(undefined, { skip: activeTab !== 'wallet' || !isAdmin || !mounted });
   const wallet = walletRes?.data?.wallet || { balance: 0, transactions: [] };
 
   // Referral query & mutations
@@ -181,6 +184,23 @@ export default function AdminDashboard() {
 
   const [replyTicket, { isLoading: isReplying }] = useReplyTicketMutation();
   const [resolveTicket, { isLoading: isResolving }] = useResolveTicketMutation();
+  const { data: profileRes, refetch: refetchProfile } = useGetProfileQuery(undefined, { skip: activeTab !== 'profile' || !isAdmin || !mounted });
+
+  // Cart Settings State
+  const [minCheckoutValInput, setMinCheckoutValInput] = useState('');
+  const [minCodValInput, setMinCodValInput] = useState('');
+  const [settingsSuccess, setSettingsSuccess] = useState('');
+  const [settingsError, setSettingsError] = useState('');
+
+  const { data: cartLimitsRes, refetch: refetchCartLimits } = useGetCartLimitsQuery(undefined, { skip: activeTab !== 'settings' || !isAdmin || !mounted });
+  const [updateCartLimitsMutation, { isLoading: isUpdatingCartLimits }] = useUpdateCartLimitsMutation();
+
+  useEffect(() => {
+    if (cartLimitsRes?.data) {
+      setMinCheckoutValInput(cartLimitsRes.data.minCheckoutValue !== undefined ? cartLimitsRes.data.minCheckoutValue : '');
+      setMinCodValInput(cartLimitsRes.data.minCodValue !== undefined ? cartLimitsRes.data.minCodValue : '');
+    }
+  }, [cartLimitsRes]);
 
   const tickets = ticketsRes?.data?.tickets || [];
   const selectedTicket = tickets.find(t => t._id === selectedTicketId);
@@ -742,6 +762,24 @@ export default function AdminDashboard() {
       setProfileSuccess(true);
     } catch (err) {
       showToast('Failed to update profile.', 'error');
+    }
+  };
+
+  const handleSaveCartSettings = async (e) => {
+    e.preventDefault();
+    setSettingsSuccess('');
+    setSettingsError('');
+    try {
+      await updateCartLimitsMutation({
+        minCheckoutValue: Number(minCheckoutValInput),
+        minCodValue: Number(minCodValInput)
+      }).unwrap();
+      setSettingsSuccess('Cart settings updated successfully!');
+      showToast('Cart settings updated successfully!', 'success');
+      setTimeout(() => setSettingsSuccess(''), 3000);
+    } catch (err) {
+      setSettingsError(err.data?.message || 'Failed to save settings.');
+      showToast(err.data?.message || 'Failed to save settings.', 'error');
     }
   };
 
@@ -1486,6 +1524,7 @@ export default function AdminDashboard() {
     referrals: 'Manage Referrals',
     wallet: 'Admin Wallet',
     tickets: 'Support Tickets',
+    settings: 'Cart Settings',
     profile: 'Profile Details'
   };
 
@@ -1664,6 +1703,16 @@ export default function AdminDashboard() {
               <MessageSquare className="w-4.5 h-4.5" /> Support Tickets
             </button>
             <button
+              onClick={() => setActiveTab('settings')}
+              className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
+                activeTab === 'settings'
+                  ? 'bg-secondary text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Sliders className="w-4.5 h-4.5" /> Cart Settings
+            </button>
+            <button
               onClick={() => setActiveTab('profile')}
               className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
                 activeTab === 'profile'
@@ -1679,11 +1728,28 @@ export default function AdminDashboard() {
           <div className="lg:col-span-3">
             {activeTab === 'overview' && (
               /* Overview Stats Dashboard */
-              <div className="space-y-8">
+              <div className="space-y-6">
+                {/* Header card with Refresh Button */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-3xl shadow-sm flex items-center justify-between animate-fade-in">
+                  <div>
+                    <h3 className="font-extrabold text-base text-black dark:text-white flex items-center gap-2">
+                      <LayoutDashboard className="w-5 h-5 text-secondary" /> Admin Overview
+                    </h3>
+                    <p className="text-xxs text-slate-400 mt-1">Platform metrics, transaction data, analytics and stats.</p>
+                  </div>
+                  <button
+                    onClick={() => refetchStats()}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:text-slate-450 dark:hover:text-slate-250 rounded-xl transition-all"
+                    title="Refresh Stats"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </div>
+
                 {statsLoading ? (
                   <div className="text-sm text-slate-400 animate-pulse">Loading Platform Analytics...</div>
                 ) : (
-                  <div className="space-y-8">
+                  <div className="space-y-6">
                     <div className="grid grid-cols-1 sm:grid-cols-5 gap-6">
                       {/* Total Sales Card */}
                       <div 
@@ -1820,6 +1886,13 @@ export default function AdminDashboard() {
                       <span className="text-[10px] font-bold bg-secondary/15 text-secondary px-2.5 py-0.5 rounded-full">
                         {filteredSellersList.length} {filteredSellersList.length === 1 ? 'store' : 'stores'}
                       </span>
+                      <button 
+                        onClick={() => refetchSellers()}
+                        className="text-slate-500 hover:text-secondary p-1 rounded-lg transition"
+                        title="Refresh Sellers"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </button>
                     </h3>
                     
                     <div className="flex items-center gap-3 w-full sm:w-auto justify-center sm:justify-end">
@@ -2158,6 +2231,13 @@ export default function AdminDashboard() {
                       <span className="text-[10px] font-bold bg-secondary/15 text-secondary px-2.5 py-0.5 rounded-full">
                         {filteredProductsList.length} {filteredProductsList.length === 1 ? 'product' : 'products'}
                       </span>
+                      <button 
+                        onClick={() => refetchProducts()}
+                        className="text-slate-500 hover:text-secondary p-1 rounded-lg transition"
+                        title="Refresh Products"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </button>
                     </h3>
 
                     <div className="flex items-center gap-3 w-full sm:w-auto justify-center sm:justify-end">
@@ -2288,6 +2368,16 @@ export default function AdminDashboard() {
                       <span className="text-[10px] font-bold bg-secondary/15 text-secondary px-2.5 py-0.5 rounded-full">
                         {filteredAdminOrders.length} {filteredAdminOrders.length === 1 ? 'order' : 'orders'}
                       </span>
+                      <button 
+                        onClick={() => {
+                          refetchAdminOrders();
+                          refetchCustomers();
+                        }}
+                        className="text-slate-500 hover:text-secondary p-1 rounded-lg transition"
+                        title="Refresh Orders"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </button>
                     </h3>
 
                     <div className="flex items-center gap-3 w-full sm:w-auto justify-center sm:justify-end">
@@ -2468,7 +2558,27 @@ export default function AdminDashboard() {
 
             {activeTab === 'approvals' && (
               /* Combined pending approvals tab */
-              <div className="space-y-6">
+              <div className="space-y-6 animate-fade-in">
+                {/* Header card with Refresh Button */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-3xl shadow-sm flex items-center justify-between">
+                  <div>
+                    <h3 className="font-extrabold text-base text-black dark:text-white flex items-center gap-2">
+                      <ShieldCheck className="w-5 h-5 text-secondary" /> Pending Approvals
+                    </h3>
+                    <p className="text-xxs text-slate-400 mt-1">Review pending seller profiles and catalog listings submitted for validation.</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      refetchSellers();
+                      refetchProducts();
+                    }}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:text-slate-450 dark:hover:text-slate-250 rounded-xl transition-all"
+                    title="Refresh Approvals"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </div>
+
                 {/* Pending Sellers */}
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
                   <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-3 mb-4 flex items-center gap-2">
@@ -2607,8 +2717,16 @@ export default function AdminDashboard() {
               <div className="space-y-6">
                 {/* Form to Create/Update Category */}
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-4">
-                  <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2">
-                    <Store className="w-5 h-5 text-secondary" /> {editingCategory ? 'Update Category' : 'Create New Category'}
+                  <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <Store className="w-5 h-5 text-secondary" /> {editingCategory ? 'Update Category' : 'Create New Category'}
+                    </span>
+                    <button 
+                      onClick={() => refetchCategories()}
+                      className="text-xs text-secondary hover:underline flex items-center gap-1 font-bold"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" /> Refresh Categories
+                    </button>
                   </h3>
 
                   {categorySuccess && (
@@ -2730,8 +2848,17 @@ export default function AdminDashboard() {
               <div className="space-y-6">
                 {/* Form to Create/Update Slide */}
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-4">
-                  <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2">
-                    <Sliders className="w-5 h-5 text-secondary" /> {editingSlide ? 'Update Hero Slide' : 'Create New Hero Slide'}
+                  <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <Sliders className="w-5 h-5 text-secondary" /> {editingSlide ? 'Update Hero Slide' : 'Create New Hero Slide'}
+                    </span>
+                    <button 
+                      type="button"
+                      onClick={() => refetchSlides()}
+                      className="text-xs text-secondary hover:underline flex items-center gap-1 font-bold"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" /> Refresh Slides
+                    </button>
                   </h3>
 
                   <form onSubmit={handleSaveSlide} className="space-y-4">
@@ -3041,6 +3168,13 @@ export default function AdminDashboard() {
                   <div className="text-center sm:text-left">
                     <h3 className="font-extrabold text-base text-black dark:text-white flex items-center justify-center sm:justify-start gap-2">
                       <Tag className="w-5 h-5 text-secondary" /> Coupon Management System
+                      <button 
+                        onClick={() => refetchCoupons()}
+                        className="text-slate-500 hover:text-secondary p-1 rounded-lg transition"
+                        title="Refresh Coupons"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </button>
                     </h3>
                     <p className="text-xxs text-slate-400 mt-1">Create, update, enable/disable discount coupons and manage random coupon pools.</p>
                   </div>
@@ -3437,13 +3571,23 @@ export default function AdminDashboard() {
             {activeTab === 'shipping' && (
               <div className="space-y-8">
                 {/* Header */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-3xl shadow-sm">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-3xl shadow-sm flex items-center justify-between">
                   <div>
                     <h3 className="font-extrabold text-base text-black dark:text-white flex items-center gap-2">
                       <Truck className="w-5 h-5 text-secondary" /> Manage Shipping Charges
                     </h3>
                     <p className="text-xxs text-slate-400 mt-1">Configure shipping rates dynamically based on the customer's cart value (subtotal).</p>
                   </div>
+                  <button 
+                    onClick={() => {
+                      refetchShippingRules();
+                      refetchCodCharge();
+                    }}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:text-slate-450 dark:hover:text-slate-250 rounded-xl transition"
+                    title="Refresh Shipping Settings"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
                 </div>
 
                 {/* COD Handling Fee Config */}
@@ -3689,8 +3833,16 @@ export default function AdminDashboard() {
 
             {activeTab === 'wallet' && (
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-6">
-                <h3 className="font-extrabold text-base text-black dark:text-white border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2">
-                  <Wallet className="w-5 h-5 text-secondary" /> Admin Wallet
+                <h3 className="font-extrabold text-base text-black dark:text-white border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Wallet className="w-5 h-5 text-secondary" /> Admin Wallet
+                  </span>
+                  <button 
+                    onClick={() => refetchWallet()}
+                    className="text-xs text-secondary hover:underline flex items-center gap-1 font-bold"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Refresh
+                  </button>
                 </h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -3770,13 +3922,23 @@ export default function AdminDashboard() {
             {activeTab === 'referrals' && (
               <div className="space-y-8">
                 {/* Header */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-3xl shadow-sm">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-3xl shadow-sm flex items-center justify-between">
                   <div>
                     <h3 className="font-extrabold text-base text-black dark:text-white flex items-center gap-2">
                       <Gift className="w-5 h-5 text-secondary" /> Referral System Configuration
                     </h3>
                     <p className="text-xxs text-slate-400 mt-1">Configure customer referral bonuses and audit successful platform invites.</p>
                   </div>
+                  <button 
+                    onClick={() => {
+                      refetchReferralSettings();
+                      refetchAdminReferrals();
+                    }}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:text-slate-450 dark:hover:text-slate-250 rounded-xl transition"
+                    title="Refresh Referral Settings"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
                 </div>
 
                 {/* Form & List */}
@@ -3929,6 +4091,13 @@ export default function AdminDashboard() {
                     <div>
                       <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 flex items-center gap-2">
                         <MessageSquare className="w-5 h-5 text-secondary" /> Tokens Raised (Support)
+                        <button 
+                          onClick={() => refetchTickets()}
+                          className="text-slate-500 hover:text-secondary p-1 rounded-lg transition"
+                          title="Refresh Tickets"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                        </button>
                       </h3>
                       <p className="text-xxs text-slate-400 mt-1">Manage and resolve customer support queries on the platform.</p>
                     </div>
@@ -4183,11 +4352,107 @@ export default function AdminDashboard() {
               </div>
             )}
 
+            {activeTab === 'settings' && (
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-6">
+                <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Sliders className="w-5 h-5 text-secondary" /> Cart Value & Checkout Constraints
+                  </span>
+                  <button 
+                    type="button"
+                    onClick={() => refetchCartLimits()}
+                    className="text-xs text-secondary hover:underline flex items-center gap-1 font-bold"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Refresh Settings
+                  </button>
+                </h3>
+
+                <p className="text-xxs text-slate-400 -mt-2">
+                  Configure global limits on cart values. These thresholds are dynamically checked on the user checkout page and during backend order validation.
+                </p>
+
+                {settingsSuccess && (
+                  <p className="text-xs text-emerald-500 font-bold bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 p-2.5 rounded-xl">
+                    {settingsSuccess}
+                  </p>
+                )}
+
+                {settingsError && (
+                  <p className="text-xs text-red-500 font-bold bg-red-50 dark:bg-red-955/20 border border-red-100 dark:border-red-900/40 p-2.5 rounded-xl">
+                    {settingsError}
+                  </p>
+                )}
+
+                <form onSubmit={handleSaveCartSettings} className="space-y-6 max-w-lg">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">
+                        Minimum Cart Value for Checkout (₹)
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="0"
+                          required
+                          value={minCheckoutValInput}
+                          onChange={(e) => setMinCheckoutValInput(e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-205 dark:border-slate-800 focus:border-secondary pl-4 pr-10 py-3 rounded-2xl text-xs font-semibold outline-none transition text-black dark:text-white"
+                          placeholder="e.g. 0 (disabled)"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">₹</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        The minimum order subtotal required before a customer is allowed to proceed to checkout. Set to 0 to disable this minimum.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">
+                        Minimum Cart Value for Cash on Delivery (₹)
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="0"
+                          required
+                          value={minCodValInput}
+                          onChange={(e) => setMinCodValInput(e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-205 dark:border-slate-800 focus:border-secondary pl-4 pr-10 py-3 rounded-2xl text-xs font-semibold outline-none transition text-black dark:text-white"
+                          placeholder="e.g. 500"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">₹</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        The minimum order subtotal required to enable the Cash on Delivery (COD) payment method. Subtotals below this amount will require online payments.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isUpdatingCartLimits}
+                    className="bg-secondary hover:bg-cyan-600 disabled:opacity-50 text-white font-bold text-xs py-3 px-6 rounded-2xl transition shadow-md hover:shadow-lg active:scale-98"
+                  >
+                    {isUpdatingCartLimits ? 'Saving...' : 'Save Settings'}
+                  </button>
+                </form>
+              </div>
+            )}
+
             {activeTab === 'profile' && (
               /* Profile Details edit panel inside Admin Dashboard */
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-6">
-                <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2">
-                  <User className="w-5 h-5 text-secondary" /> Personal Details
+                <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <User className="w-5 h-5 text-secondary" /> Personal Details
+                  </span>
+                  <button 
+                    type="button"
+                    onClick={() => refetchProfile()}
+                    className="text-xs text-secondary hover:underline flex items-center gap-1 font-bold"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Refresh Profile
+                  </button>
                 </h3>
 
                 {profileSuccess && (

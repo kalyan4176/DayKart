@@ -7,7 +7,7 @@ import { MapPin, CreditCard, ShieldCheck, ShoppingBag, PlusCircle, CheckCircle2,
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useToast } from '@/components/ToastProvider';
-import { useGetCartQuery, useCheckoutMutation, useValidateCouponMutation, useAddAddressMutation, useGetShippingRulesQuery, useGetCodChargeQuery } from '@/store/api';
+import { useGetCartQuery, useCheckoutMutation, useValidateCouponMutation, useAddAddressMutation, useGetShippingRulesQuery, useGetCodChargeQuery, useGetCartLimitsQuery } from '@/store/api';
 import { updateUser } from '@/store/authSlice';
 import { getOptimizedImageUrl } from '@/utils/image';
 
@@ -46,6 +46,9 @@ function CheckoutPageContent() {
   const shippingRules = shippingRulesRes?.data?.shippingRules || [];
   const { data: codChargeRes } = useGetCodChargeQuery(undefined, { skip: !isAuthenticated || !mounted });
   const codCharge = codChargeRes?.data?.charge || 0;
+  const { data: cartLimitsRes } = useGetCartLimitsQuery(undefined, { skip: !isAuthenticated || !mounted });
+  const minCheckoutValue = cartLimitsRes?.data?.minCheckoutValue || 0;
+  const minCodValue = cartLimitsRes?.data?.minCodValue || 0;
 
   const [selectedAddress, setSelectedAddress] = useState(user?.addresses?.find(a => a.isDefault)?._id || user?.addresses?.[0]?._id || '');
   const [selectedGateway, setSelectedGateway] = useState('cod');
@@ -233,8 +236,13 @@ function CheckoutPageContent() {
       return;
     }
 
-    if (selectedGateway === 'cod' && subtotal < 500) {
-      showToast('Minimum order value of ₹500 is required for Cash on Delivery.', 'error');
+    if (subtotal < minCheckoutValue) {
+      showToast(`Minimum order value of ₹${minCheckoutValue} is required to place an order.`, 'error');
+      return;
+    }
+
+    if (selectedGateway === 'cod' && subtotal < minCodValue) {
+      showToast(`Minimum order value of ₹${minCodValue} is required for Cash on Delivery.`, 'error');
       return;
     }
 
@@ -451,6 +459,11 @@ function CheckoutPageContent() {
                     <div className="text-xs">
                       <span className="font-extrabold text-slate-800 dark:text-slate-200">{gw.name}</span>
                       <p className="text-slate-500 mt-1">{gw.desc}</p>
+                      {gw.id === 'cod' && subtotal < minCodValue && (
+                        <p className="text-[10px] text-red-500 font-extrabold mt-1">
+                          (Requires a minimum order value of ₹{minCodValue})
+                        </p>
+                      )}
                     </div>
                   </label>
                 ))}

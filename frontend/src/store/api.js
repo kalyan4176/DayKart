@@ -488,6 +488,18 @@ export const api = createApi({
       }),
       invalidatesTags: ['ShippingRule'],
     }),
+    getCartLimits: builder.query({
+      query: () => '/shipping-rules/cart-limits',
+      providesTags: ['ShippingRule'],
+    }),
+    updateCartLimits: builder.mutation({
+      query: (limits) => ({
+        url: '/shipping-rules/cart-limits',
+        method: 'POST',
+        body: limits,
+      }),
+      invalidatesTags: ['ShippingRule'],
+    }),
     createShippingRule: builder.mutation({
       query: (ruleData) => ({
         url: '/shipping-rules',
@@ -611,4 +623,6 @@ export const {
   useDeleteProfileMutation,
   useGetCodChargeQuery,
   useUpdateCodChargeMutation,
+  useGetCartLimitsQuery,
+  useUpdateCartLimitsMutation,
 } = api;

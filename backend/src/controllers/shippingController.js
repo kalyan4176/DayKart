@@ -195,3 +195,61 @@ export const updateCodCharge = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getCartLimits = async (req, res, next) => {
+  try {
+    const minCheckoutSetting = await SystemSetting.findOne({ key: 'min_checkout_value' });
+    const minCodSetting = await SystemSetting.findOne({ key: 'min_cod_value' });
+    res.status(200).json({
+      status: 'success',
+      data: {
+        minCheckoutValue: minCheckoutSetting ? Number(minCheckoutSetting.value) : 0,
+        minCodValue: minCodSetting ? Number(minCodSetting.value) : 0,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateCartLimits = async (req, res, next) => {
+  try {
+    const { minCheckoutValue, minCodValue } = req.body;
+
+    if (minCheckoutValue !== undefined && minCheckoutValue !== null) {
+      if (Number(minCheckoutValue) < 0) {
+        return next(new BadRequestError('Minimum checkout value must be non-negative.'));
+      }
+      await SystemSetting.findOneAndUpdate(
+        { key: 'min_checkout_value' },
+        { value: Number(minCheckoutValue) },
+        { upsert: true, new: true }
+      );
+    }
+
+    if (minCodValue !== undefined && minCodValue !== null) {
+      if (Number(minCodValue) < 0) {
+        return next(new BadRequestError('Minimum COD value must be non-negative.'));
+      }
+      await SystemSetting.findOneAndUpdate(
+        { key: 'min_cod_value' },
+        { value: Number(minCodValue) },
+        { upsert: true, new: true }
+      );
+    }
+
+    const minCheckoutSetting = await SystemSetting.findOne({ key: 'min_checkout_value' });
+    const minCodSetting = await SystemSetting.findOne({ key: 'min_cod_value' });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Cart limits updated successfully.',
+      data: {
+        minCheckoutValue: minCheckoutSetting ? Number(minCheckoutSetting.value) : 0,
+        minCodValue: minCodSetting ? Number(minCodSetting.value) : 0,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};

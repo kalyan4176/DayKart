@@ -51,6 +51,11 @@ export const register = async (req, res, next) => {
       return next(new BadRequestError('Phone number is required.'));
     }
 
+    const phoneRegex = /^[6-9]\d{9}$/;
+    if (!phoneRegex.test(phoneNumber)) {
+      return next(new BadRequestError('Phone number must be a valid 10-digit number starting with 6-9.'));
+    }
+
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return next(new BadRequestError('Email address is already in use.'));

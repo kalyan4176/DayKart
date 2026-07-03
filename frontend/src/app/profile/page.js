@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { User, MapPin, Plus, Trash2, ShieldCheck, Mail, Phone, AlertTriangle, Store, Ticket, Wallet, Gift, Copy, Check, ChevronDown, MessageSquare, Send, Clock, CheckCircle2 } from 'lucide-react';
+import { User, MapPin, Plus, Trash2, ShieldCheck, Mail, Phone, AlertTriangle, Store, Ticket, Wallet, Gift, Copy, Check, ChevronDown, MessageSquare, Send, Clock, CheckCircle2, RefreshCw } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ConfirmationModal from '@/components/ConfirmationModal';
@@ -995,41 +995,104 @@ export default function ProfilePage() {
                 </div>
               </div>
             )}
-
-            {activeTab === 'tickets' && (
-              <div className="space-y-6">
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 dark:border-slate-800 pb-3 gap-3 mb-4">
+                   {activeTab === 'tickets' && (
+              <div className="space-y-6 animate-fade-in">
+                {/* Header card with Title and Refresh Button */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-3xl shadow-sm flex items-center justify-between">
+                  <div>
                     <h3 className="font-extrabold text-base text-black dark:text-white flex items-center gap-2">
                       <MessageSquare className="w-5 h-5 text-secondary" /> Support Tickets
                     </h3>
-                    <button
-                      onClick={() => {
-                        setSelectedTicketId(null);
-                        setTicketSuccess('');
-                        setTicketError('');
-                      }}
-                      className="bg-secondary hover:bg-cyan-600 text-white font-bold px-4 py-2 rounded-xl text-xxs transition shadow-sm"
-                    >
-                      Open New Ticket
-                    </button>
+                    <p className="text-xxs text-slate-400 mt-1">Submit inquiries and chat with our customer support team directly.</p>
+                  </div>
+                  <button
+                    onClick={() => refetchTickets()}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:text-slate-450 dark:hover:text-slate-250 rounded-xl transition-all"
+                    title="Refresh Tickets"
+                  >
+                    <RefreshCw className="w-4 h-4 animate-hover-spin" />
+                  </button>
+                </div>
+
+                {/* Side-by-Side Split View */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                  {/* Left Column: Tickets List */}
+                  <div className="lg:col-span-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-3xl shadow-sm space-y-4">
+                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                      <h4 className="font-extrabold text-xs uppercase text-slate-655 dark:text-slate-450 tracking-wider">Your Inquiries</h4>
+                      <button
+                        onClick={() => {
+                          setSelectedTicketId(null);
+                          setTicketSuccess('');
+                          setTicketError('');
+                        }}
+                        className="bg-secondary hover:bg-cyan-600 text-white font-bold px-3 py-1.5 rounded-lg text-[10px] transition shadow-xs active:scale-95"
+                      >
+                        New Ticket
+                      </button>
+                    </div>
+
+                    {ticketsLoading ? (
+                      <p className="text-xxs text-slate-400 animate-pulse py-4">Loading active tickets...</p>
+                    ) : ticketsList.length === 0 ? (
+                      <p className="text-xxs text-slate-450 italic py-6">No support tickets opened yet.</p>
+                    ) : (
+                      <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1 scrollbar-thin">
+                        {ticketsList.map((ticket) => (
+                          <div
+                            key={ticket._id}
+                            onClick={() => {
+                              setSelectedTicketId(ticket._id);
+                              setTicketSuccess('');
+                              setTicketError('');
+                            }}
+                            className={`p-3.5 border rounded-2xl cursor-pointer transition flex justify-between items-center gap-3 ${
+                              selectedTicketId === ticket._id
+                                ? 'border-secondary bg-cyan-50/10 dark:bg-cyan-950/5'
+                                : 'border-slate-150 dark:border-slate-850 bg-white dark:bg-slate-900 hover:bg-slate-50/50 dark:hover:bg-slate-855/10'
+                            }`}
+                          >
+                            <div className="space-y-1 flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[8px] font-bold border uppercase ${
+                                  ticket.status === 'resolved' 
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
+                                    : 'bg-amber-50 text-amber-700 border-amber-100'
+                                }`}>
+                                  {ticket.status === 'in_progress' ? 'In Progress' : ticket.status}
+                                </span>
+                                <span className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wide border ${
+                                  ticket.priority === 'high' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-slate-100 text-slate-655 border-transparent'
+                                }`}>{ticket.priority}</span>
+                              </div>
+                              <h5 className="font-extrabold text-xs text-slate-855 dark:text-slate-200 truncate mt-1">{ticket.subject}</h5>
+                              <p className="text-[10px] text-slate-400 truncate">{new Date(ticket.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p>
+                            </div>
+                            <div className="text-right flex-shrink-0 flex items-center justify-center p-1.5 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                              <span className="text-[9px] font-bold text-slate-400">{ticket.messages?.length || 1} msgs</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
-                  {selectedTicketId ? (
-                    /* Ticket Thread View */
-                    <div className="space-y-6 animate-fade-in">
-                      <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-850 p-4 rounded-2xl border border-slate-200 dark:border-slate-800/40">
-                        <div>
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold border uppercase ${
-                            selectedTicket?.status === 'resolved' 
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                              : 'bg-amber-50 text-amber-700 border-amber-200'
-                          }`}>
-                            {selectedTicket?.status === 'in_progress' ? 'In Progress' : selectedTicket?.status}
-                          </span>
-                          <h4 className="font-extrabold text-xs text-slate-850 dark:text-slate-200 mt-1">{selectedTicket?.subject}</h4>
-                        </div>
-                        <div className="flex gap-2">
+                  {/* Right Column: Chat/Creation form */}
+                  <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
+                    {selectedTicketId ? (
+                      /* Ticket Thread View */
+                      <div className="space-y-6 animate-fade-in">
+                        <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-850 p-4 rounded-2xl border border-slate-200 dark:border-slate-800/40">
+                          <div>
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold border uppercase ${
+                              selectedTicket?.status === 'resolved' 
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                            }`}>
+                              {selectedTicket?.status === 'in_progress' ? 'In Progress' : selectedTicket?.status}
+                            </span>
+                            <h4 className="font-extrabold text-xs text-slate-850 dark:text-slate-200 mt-1">{selectedTicket?.subject}</h4>
+                          </div>
                           {selectedTicket?.status !== 'resolved' && (
                             <button
                               onClick={handleResolveTicket}
@@ -1038,63 +1101,54 @@ export default function ProfilePage() {
                               Mark Resolved
                             </button>
                           )}
-                          <button
-                            onClick={() => setSelectedTicketId(null)}
-                            className="bg-slate-200 hover:bg-slate-350 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold px-3 py-1.5 rounded-xl text-xxs transition active:scale-95"
-                          >
-                            Back to List
-                          </button>
                         </div>
-                      </div>
 
-                      {/* Messages Log */}
-                      <div className="space-y-4 max-h-[300px] overflow-y-auto p-4 border border-slate-100 dark:border-slate-850 rounded-2xl bg-slate-50/50 dark:bg-slate-900/10">
-                        {selectedTicket?.messages?.map((msg, idx) => {
-                          const isAdminSender = msg.sender !== user?._id;
-                          return (
-                            <div key={idx} className={`flex flex-col ${isAdminSender ? 'items-start' : 'items-end'}`}>
-                              <div className={`p-3.5 rounded-2xl max-w-[85%] text-[11px] leading-relaxed font-medium shadow-xs ${
-                                isAdminSender 
-                                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none' 
-                                  : 'bg-secondary text-white rounded-tr-none'
-                              }`}>
-                                <p className="whitespace-pre-wrap">{msg.text}</p>
-                                <span className={`block text-[9px] mt-1 opacity-70 ${isAdminSender ? 'text-slate-400' : 'text-cyan-100'}`}>
-                                  {isAdminSender ? 'Support Team' : 'You'} &middot; {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
+                        {/* Messages Log */}
+                        <div className="space-y-4 max-h-[300px] overflow-y-auto p-4 border border-slate-100 dark:border-slate-850 rounded-2xl bg-slate-50/50 dark:bg-slate-900/10 scrollbar-thin">
+                          {selectedTicket?.messages?.map((msg, idx) => {
+                            const isAdminSender = msg.sender !== user?._id;
+                            return (
+                              <div key={idx} className={`flex flex-col ${isAdminSender ? 'items-start' : 'items-end'}`}>
+                                <div className={`p-3.5 rounded-2xl max-w-[85%] text-[11px] leading-relaxed font-medium shadow-xs ${
+                                  isAdminSender 
+                                    ? 'bg-slate-150 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none border border-slate-200/20' 
+                                    : 'bg-secondary text-white rounded-tr-none'
+                                }`}>
+                                  <p className="whitespace-pre-wrap">{msg.text}</p>
+                                  <span className={`block text-[9px] mt-1 opacity-70 ${isAdminSender ? 'text-slate-400' : 'text-cyan-100'}`}>
+                                    {isAdminSender ? 'Support Team' : 'You'} &middot; {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                            );
+                          })}
+                        </div>
 
-                      {/* Reply Form */}
-                      {selectedTicket?.status !== 'resolved' ? (
-                        <form onSubmit={handleReplyTicket} className="flex gap-2">
-                          <textarea
-                            placeholder="Type your response to support team..."
-                            value={ticketReplyText}
-                            onChange={(e) => setTicketReplyText(e.target.value)}
-                            rows={2}
-                            className="flex-1 bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-2xl text-xs outline-none transition resize-none dark:text-slate-200"
-                          />
-                          <button
-                            type="submit"
-                            disabled={isReplyingTicket || !ticketReplyText.trim()}
-                            className="bg-secondary hover:bg-cyan-600 disabled:opacity-50 text-white font-bold p-3.5 rounded-2xl transition active:scale-95 flex items-center justify-center self-end shadow-md"
-                          >
-                            <Send className="w-4 h-4" />
-                          </button>
-                        </form>
-                      ) : (
-                        <p className="text-xxs text-slate-400 text-center py-2 border border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/50">This support ticket is closed and resolved.</p>
-                      )}
-                    </div>
-                  ) : (
-                    /* Ticket List & Create View */
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-                      {/* Ticket Submission Form */}
-                      <div className="md:col-span-1 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl bg-slate-50/30 dark:bg-slate-900/10 space-y-4">
+                        {/* Reply Form */}
+                        {selectedTicket?.status !== 'resolved' ? (
+                          <form onSubmit={handleReplyTicket} className="flex gap-2">
+                            <textarea
+                              placeholder="Type your response to support team..."
+                              value={ticketReplyText}
+                              onChange={(e) => setTicketReplyText(e.target.value)}
+                              rows={2}
+                              className="flex-1 bg-slate-100 dark:bg-slate-855 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-2xl text-xs outline-none transition resize-none dark:text-slate-200"
+                            />
+                            <button
+                              type="submit"
+                              disabled={isReplyingTicket || !ticketReplyText.trim()}
+                              className="bg-secondary hover:bg-cyan-600 disabled:opacity-50 text-white font-bold p-3.5 rounded-2xl transition active:scale-95 flex items-center justify-center self-end shadow-md"
+                            >
+                              <Send className="w-4 h-4" />
+                            </button>
+                          </form>
+                        ) : (
+                          <p className="text-xxs text-slate-400 text-center py-2 border border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/50">This support ticket is closed and resolved.</p>
+                        )}
+                      </div>
+                    ) : (
+                      /* Ticket Submission Form */
+                      <div className="space-y-4 animate-fade-in">
                         <h4 className="font-extrabold text-xs uppercase text-slate-655 dark:text-slate-450 tracking-wider">Submit Support Inquiry</h4>
                         {ticketSuccess && <p className="text-xxs text-emerald-500 font-bold bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 p-2.5 rounded-xl">{ticketSuccess}</p>}
                         {ticketError && <p className="text-xxs text-red-500 font-bold bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/40 p-2.5 rounded-xl">{ticketError}</p>}
@@ -1141,55 +1195,8 @@ export default function ProfilePage() {
                           </button>
                         </form>
                       </div>
-
-                      {/* Ticket History */}
-                      <div className="md:col-span-2 space-y-4">
-                        <h4 className="font-extrabold text-xs uppercase text-slate-655 dark:text-slate-450 tracking-wider">Your Active Inquiries</h4>
-                        {ticketsLoading ? (
-                          <p className="text-xxs text-slate-400 animate-pulse">Loading active tickets...</p>
-                        ) : ticketsList.length === 0 ? (
-                          <p className="text-xxs text-slate-450 italic py-6">No support tickets opened yet. Submit one on the left if you need help.</p>
-                        ) : (
-                          <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
-                            {ticketsList.map((ticket) => (
-                              <div
-                                key={ticket._id}
-                                onClick={() => {
-                                  setSelectedTicketId(ticket._id);
-                                  setTicketSuccess('');
-                                  setTicketError('');
-                                }}
-                                className="p-4 border border-slate-150 dark:border-slate-850 bg-white dark:bg-slate-900 rounded-2xl hover:bg-slate-50/50 dark:hover:bg-slate-850/10 cursor-pointer transition flex justify-between items-start gap-4"
-                              >
-                                <div className="space-y-1 flex-1 min-w-0">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase ${
-                                      ticket.status === 'resolved' 
-                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
-                                        : 'bg-amber-50 text-amber-700 border-amber-100'
-                                    }`}>
-                                      {ticket.status === 'in_progress' ? 'In Progress' : ticket.status}
-                                    </span>
-                                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wide border ${
-                                      ticket.priority === 'high' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-slate-100 text-slate-655 border-transparent'
-                                    }`}>{ticket.priority}</span>
-                                    <span className="text-[9px] text-slate-400 font-semibold">
-                                      {new Date(ticket.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                                    </span>
-                                  </div>
-                                  <h5 className="font-extrabold text-xs text-slate-855 dark:text-slate-200 truncate mt-1">{ticket.subject}</h5>
-                                  <p className="text-[10px] text-slate-455 truncate leading-relaxed">{ticket.messages?.[ticket.messages.length - 1]?.text || ticket.description}</p>
-                                </div>
-                                <div className="text-right flex-shrink-0 flex items-center justify-center p-2 bg-slate-50 dark:bg-slate-800 rounded-xl">
-                                  <span className="text-[10px] font-bold text-slate-400">{ticket.messages?.length || 1} msgs</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
             )}

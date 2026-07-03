@@ -10,6 +10,7 @@ import Footer from '@/components/Footer';
 import { useToast } from '@/components/ToastProvider';
 import { useGetOrderByIdQuery, useCancelOrderMutation, useReturnOrderMutation } from '@/store/api';
 import ConfirmationModal from '@/components/ConfirmationModal';
+import ReasonPromptModal from '@/components/ReasonPromptModal';
 
 export default function OrderDetailsPage({ params }) {
   const router = useRouter();
@@ -44,14 +45,8 @@ export default function OrderDetailsPage({ params }) {
     }
   }, [mounted, isAuthenticated, router]);
 
-  const handleCancelOrder = async () => {
+  const handleCancelOrder = async (reason) => {
     if (!order) return;
-    const reason = prompt('Please enter the reason for cancellation (required):');
-    if (reason === null) return;
-    if (!reason.trim()) {
-      showToast('Cancellation reason is required.', 'error');
-      return;
-    }
     try {
       await cancelOrder({ id: order.orderId, reason: reason.trim() }).unwrap();
       showToast('Order cancelled successfully.', 'success');
@@ -403,12 +398,13 @@ export default function OrderDetailsPage({ params }) {
         )}
       </main>
 
-      <ConfirmationModal
+      <ReasonPromptModal
         isOpen={isCancelModalOpen}
         onClose={() => setIsCancelModalOpen(false)}
         onConfirm={handleCancelOrder}
-        title="Cancel Order"
-        message="Are you sure you want to cancel this order? This action cannot be undone."
+        title="Cancel Active Order"
+        message="Are you sure you want to cancel this order? This action cannot be undone. Please specify your reason for cancellation."
+        placeholder="e.g., Ordered wrong size, changed my mind..."
         confirmText="Cancel Order"
         type="danger"
       />

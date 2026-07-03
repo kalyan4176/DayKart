@@ -8,6 +8,7 @@ import { LayoutDashboard, ShoppingBag, PlusCircle, Upload, CheckCircle2, AlertTr
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ConfirmationModal from '@/components/ConfirmationModal';
+import ReasonPromptModal from '@/components/ReasonPromptModal';
 import { useToast } from '@/components/ToastProvider';
 import { updateUser, logoutUser } from '@/store/authSlice';
 import { useCreateProductMutation, useGetSellerProfileQuery, useCreateSellerProfileMutation, useGetCategoriesQuery, useGetBrandsQuery, useUpdateProfileMutation, useUploadProductImageMutation, useUpdateProductMutation, useDeleteProductMutation, useGetProductsQuery, useGetSellerOrdersQuery, useUpdateOrderStatusMutation, useGetWalletQuery, useDeleteProfileMutation } from '@/store/api';
@@ -41,8 +42,10 @@ function SellerDashboardContent() {
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [mounted, setMounted] = useState(false);
+  const [rejectOrderId, setRejectOrderId] = useState(null);
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
 
-  const { data: walletRes, isLoading: walletLoading } = useGetWalletQuery(undefined, {
+  const { data: walletRes, isLoading: walletLoading, refetch: refetchWallet } = useGetWalletQuery(undefined, {
     skip: activeTab !== 'wallet' || !isAuthenticated || !mounted
   });
   const wallet = walletRes?.data?.wallet || { balance: 0, transactions: [] };
@@ -73,8 +76,8 @@ function SellerDashboardContent() {
   const { data: profileRes, isLoading: profileLoading, refetch: refetchProfile } = useGetSellerProfileQuery(undefined, { skip: !isAuthenticated || user?.role !== 'seller' });
   const [createSellerProfile, { isLoading: profileCreating }] = useCreateSellerProfileMutation();
   const [createProduct, { isLoading: productLoading }] = useCreateProductMutation();
-  const { data: categoriesRes } = useGetCategoriesQuery();
-  const { data: brandsRes } = useGetBrandsQuery();
+  const { data: categoriesRes, refetch: refetchCategories } = useGetCategoriesQuery();
+  const { data: brandsRes, refetch: refetchBrands } = useGetBrandsQuery();
 
   const categories = categoriesRes?.data?.categories || [];
   const brands = brandsRes?.data?.brands || [];
@@ -179,29 +182,20 @@ function SellerDashboardContent() {
     });
   };
 
-  const handleRejectOrder = async (orderId) => {
-    const reason = prompt('Please enter the reason for rejection (required):');
-    if (reason === null) return;
-    if (!reason.trim()) {
-      showToast('Rejection reason is required.', 'error');
-      return;
-    }
+  const handleRejectOrder = (orderId) => {
+    setRejectOrderId(orderId);
+    setIsRejectModalOpen(true);
+  };
 
-    triggerConfirmation({
-      title: 'Reject & Cancel Order?',
-      message: `Are you sure you want to reject this order with reason: "${reason.trim()}"?`,
-      type: 'danger',
-      confirmText: 'Reject Order',
-      onConfirm: async () => {
-        try {
-          await updateOrderStatus({ id: orderId, status: 'cancelled', message: reason.trim() }).unwrap();
-          showToast('Order rejected and cancelled.', 'success');
-          refetchSellerOrders();
-        } catch (err) {
-          showToast(err.data?.message || 'Failed to reject order.', 'error');
-        }
-      }
-    });
+  const handleRejectOrderWithReason = async (reason) => {
+    if (!rejectOrderId) return;
+    try {
+      await updateOrderStatus({ id: rejectOrderId, status: 'cancelled', message: reason.trim() }).unwrap();
+      showToast('Order rejected and cancelled.', 'success');
+      refetchSellerOrders();
+    } catch (err) {
+      showToast(err.data?.message || 'Failed to reject order.', 'error');
+    }
   };
 
   const dispatch = useDispatch();
@@ -813,7 +807,23 @@ function SellerDashboardContent() {
             <div className="lg:col-span-3">
               {activeTab === 'overview' && (
                 /* Overview Stats Dashboard */
-                <div className="space-y-8">
+                <div className="space-y-6 animate-fade-in">
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-3xl shadow-sm flex items-center justify-between">
+                    <div>
+                      <h3 className="font-extrabold text-base text-black dark:text-white flex items-center gap-2">
+                        <LayoutDashboard className="w-5 h-5 text-secondary" /> Seller Overview
+                      </h3>
+                      <p className="text-xxs text-slate-400 mt-1">Real-time statistics of your shop performance, earnings, and ratings.</p>
+                    </div>
+                    <button
+                      onClick={() => refetchProfile()}
+                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:text-slate-450 dark:hover:text-slate-250 rounded-xl transition-all"
+                      title="Refresh Overview"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm text-center">
                       <p className="text-xxs font-bold text-slate-400 uppercase tracking-wider">Total Earnings</p>
@@ -1076,8 +1086,18 @@ function SellerDashboardContent() {
               {activeTab === 'add-product' && (
                 /* Single Product Creation Form */
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 rounded-3xl shadow-sm">
-                  <h3 className="font-extrabold text-lg text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-4 mb-6">
-                    Add Catalog Listing
+                  <h3 className="font-extrabold text-lg text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-4 mb-6 flex justify-between items-center">
+                    <span>Add Catalog Listing</span>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        refetchCategories();
+                        refetchBrands();
+                      }}
+                      className="text-xs text-secondary hover:underline flex items-center gap-1 font-bold"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" /> Refresh Options
+                    </button>
                   </h3>
 
                   {successMsg && (
@@ -1318,8 +1338,16 @@ function SellerDashboardContent() {
 
               {activeTab === 'wallet' && (
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-6">
-                  <h3 className="font-extrabold text-base text-black dark:text-white border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2">
-                    <Wallet className="w-5 h-5 text-secondary" /> Store Wallet
+                  <h3 className="font-extrabold text-base text-black dark:text-white border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <Wallet className="w-5 h-5 text-secondary" /> Store Wallet
+                    </span>
+                    <button 
+                      onClick={() => refetchWallet()}
+                      className="text-xs text-secondary hover:underline flex items-center gap-1 font-bold"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" /> Refresh
+                    </button>
                   </h3>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1405,8 +1433,17 @@ function SellerDashboardContent() {
                 <div className="space-y-6">
                   {/* Personal Details Form */}
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-6">
-                    <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2">
-                      <User className="w-5 h-5 text-secondary" /> Personal Details
+                    <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <User className="w-5 h-5 text-secondary" /> Personal Details
+                      </span>
+                      <button 
+                        type="button"
+                        onClick={() => refetchProfile()}
+                        className="text-xs text-secondary hover:underline flex items-center gap-1 font-bold"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" /> Refresh Profile
+                      </button>
                     </h3>
 
                     {personalProfileSuccess && (
@@ -1714,6 +1751,16 @@ function SellerDashboardContent() {
         confirmText={confirmConfig.confirmText}
         cancelText={confirmConfig.cancelText}
         type={confirmConfig.type}
+      />
+      <ReasonPromptModal
+        isOpen={isRejectModalOpen}
+        onClose={() => setIsRejectModalOpen(false)}
+        onConfirm={handleRejectOrderWithReason}
+        title="Reject Store Order"
+        message="Are you sure you want to reject this order? Please specify the reason for rejection (required)."
+        placeholder="e.g., Product out of stock, delivery location unserviceable..."
+        confirmText="Reject Order"
+        type="danger"
       />
       <Footer />
     </div>

@@ -85,9 +85,17 @@ export const checkout = async (req, res, next) => {
       });
     }
 
-    // Verify minimum order value for COD (₹500)
-    if (gateway === 'cod' && subtotal < 500) {
-      return next(new BadRequestError('Minimum order value of ₹500 is required for Cash on Delivery (COD).'));
+    // Verify minimum order value (dynamic system settings)
+    const minCheckoutSetting = await SystemSetting.findOne({ key: 'min_checkout_value' });
+    const minCheckoutVal = minCheckoutSetting ? Number(minCheckoutSetting.value) : 0;
+    if (subtotal < minCheckoutVal) {
+      return next(new BadRequestError(`Minimum order value of ₹${minCheckoutVal} is required to place an order.`));
+    }
+
+    const minCodSetting = await SystemSetting.findOne({ key: 'min_cod_value' });
+    const minCodVal = minCodSetting ? Number(minCodSetting.value) : 500;
+    if (gateway === 'cod' && subtotal < minCodVal) {
+      return next(new BadRequestError(`Minimum order value of ₹${minCodVal} is required for Cash on Delivery (COD).`));
     }
 
     // 4. Calculate coupon discount
