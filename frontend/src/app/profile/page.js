@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { User, MapPin, Plus, Trash2, ShieldCheck, Mail, Phone, AlertTriangle, Store, Ticket, Wallet, Gift, Copy, Check, ChevronDown, MessageSquare, Send, Clock, CheckCircle2, RefreshCw } from 'lucide-react';
+import { User, MapPin, Plus, Trash2, ShieldCheck, Mail, Phone, AlertTriangle, Store, Ticket, Wallet, Gift, Copy, Check, ChevronDown, MessageSquare, Send, Clock, CheckCircle2, RefreshCw, Truck } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ConfirmationModal from '@/components/ConfirmationModal';
@@ -416,6 +416,26 @@ export default function ProfilePage() {
                   <p className="text-xs text-emerald-500 font-bold bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 p-2.5 rounded-xl">
                     Profile updated successfully!
                   </p>
+                )}
+
+                {user?.deliveryStatus === 'pending' && (
+                  <div className="p-4 bg-cyan-50 dark:bg-cyan-955/10 border border-cyan-100 dark:border-cyan-900/40 rounded-2xl text-xs flex items-center gap-3">
+                    <Truck className="w-5 h-5 text-secondary flex-shrink-0 animate-bounce" />
+                    <div>
+                      <p className="font-extrabold text-slate-800 dark:text-slate-200">Delivery Partner Application Pending</p>
+                      <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">Your application to register as a delivery courier is currently under review by our administration team. You can continue shopping as a customer in the meantime.</p>
+                    </div>
+                  </div>
+                )}
+
+                {user?.deliveryStatus === 'rejected' && (
+                  <div className="p-4 bg-red-50 dark:bg-red-955/10 border border-red-100 dark:border-red-900/40 rounded-2xl text-xs flex items-center gap-3">
+                    <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                    <div>
+                      <p className="font-extrabold text-slate-800 dark:text-slate-200">Delivery Application Rejected</p>
+                      <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">Your application to register as a delivery courier was rejected by the administrator. Please contact our support team if you believe this was an error.</p>
+                    </div>
+                  </div>
                 )}
 
                 <form onSubmit={handleUpdateProfile} className="space-y-4">
