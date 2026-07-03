@@ -80,7 +80,12 @@ export const seedDatabase = async () => {
     }
 
     // 2. Seed Seller Profile
-    let sellerProfile = await Seller.findOne({ user: sellerUser._id });
+    let sellerProfile = await Seller.findOne({
+      $or: [
+        { user: sellerUser._id },
+        { storeName: 'Apex Electronics & Fashion' }
+      ]
+    });
     if (!sellerProfile) {
       logger.info('Creating default seller profile...');
       sellerProfile = new Seller({
