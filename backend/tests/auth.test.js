@@ -23,6 +23,7 @@ describe('Authentication API Endpoints', () => {
           email: 'test_integration@daykart.com',
           password: 'Password123!',
           role: 'customer',
+          phoneNumber: '9999999999',
         });
 
       expect(res.statusCode).toEqual(201);
@@ -38,6 +39,7 @@ describe('Authentication API Endpoints', () => {
           email: 'weak_password@daykart.com',
           password: 'pass',
           role: 'customer',
+          phoneNumber: '9999999999',
         });
 
       expect(res.statusCode).toEqual(400);
@@ -51,6 +53,7 @@ describe('Authentication API Endpoints', () => {
           name: 'Duplicate User',
           email: 'test_integration@daykart.com',
           password: 'Password123!',
+          phoneNumber: '9999999999',
         });
 
       expect(res.statusCode).toEqual(400);

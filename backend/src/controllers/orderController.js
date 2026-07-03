@@ -422,7 +422,7 @@ export const cancelOrder = async (req, res, next) => {
       status: 'cancelled',
       message: reason 
         ? `Cancelled by ${req.user.role === 'customer' ? 'Customer' : 'Store Administrator'}: ${reason}`
-        : `Cancelled by ${req.user.role === 'customer' ? 'Store Administrator'}.`,
+        : `Cancelled by ${req.user.role === 'customer' ? 'Customer' : 'Store Administrator'}.`,
     });
     await order.save();
 
