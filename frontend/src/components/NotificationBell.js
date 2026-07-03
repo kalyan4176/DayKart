@@ -43,45 +43,8 @@ export default function NotificationBell() {
   const notifications = notificationsRes?.data?.notifications || [];
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  // Real-Time SSE Listener
-  React.useEffect(() => {
-    if (!token || user?.notificationsEnabled === false) return;
+  // Real-Time SSE Listener is handled globally by NotificationListener.js
 
-    const streamUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5005/api/v1'}/notifications/stream?token=${token}`;
-    const eventSource = new EventSource(streamUrl, { withCredentials: true });
-
-    eventSource.onmessage = (event) => {
-      try {
-        const newNotif = JSON.parse(event.data);
-        
-        // Show standard Toast notification
-        showToast(
-          <div className="flex flex-col gap-0.5">
-            <span className="font-extrabold text-[10px] uppercase tracking-wider text-slate-800 dark:text-white">
-              {newNotif.title}
-            </span>
-            <span className="text-xxs text-slate-500 dark:text-slate-400">
-              {newNotif.message}
-            </span>
-          </div>,
-          'info'
-        );
-
-        // Refetch notifications list
-        refetch();
-      } catch (err) {
-        console.error('Error handling SSE notification event:', err);
-      }
-    };
-
-    eventSource.onerror = () => {
-      // Auto-reconnect is handled natively by browsers
-    };
-
-    return () => {
-      eventSource.close();
-    };
-  }, [token, user?.notificationsEnabled, showToast, refetch]);
 
   const handleTogglePreferences = async () => {
     const currentPreference = user?.notificationsEnabled !== false;

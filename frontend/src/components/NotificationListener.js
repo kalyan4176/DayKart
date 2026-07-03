@@ -16,12 +16,18 @@ export default function NotificationListener() {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5005/api/v1';
     let eventSource;
     let retryTimeout;
+    let retryCount = 0;
+    const maxRetries = 5;
 
     const connectSSE = () => {
       try {
         eventSource = new EventSource(`${apiUrl}/notifications/stream`, {
           withCredentials: true,
         });
+
+        eventSource.onopen = () => {
+          retryCount = 0;
+        };
 
         eventSource.onmessage = (event) => {
           try {
@@ -53,9 +59,15 @@ export default function NotificationListener() {
         eventSource.onerror = (err) => {
           console.warn('SSE stream disconnected, attempt connection recovery...');
           eventSource.close();
-          // Clear any pending timeout and reschedule
           clearTimeout(retryTimeout);
-          retryTimeout = setTimeout(connectSSE, 5000);
+          
+          if (retryCount < maxRetries) {
+            retryCount++;
+            const backoffTime = Math.min(30000, 2000 * Math.pow(2, retryCount));
+            retryTimeout = setTimeout(connectSSE, backoffTime);
+          } else {
+            console.error('SSE connection failed repeatedly. Stopping retries until authentication status changes.');
+          }
         };
       } catch (err) {
         console.error('Failed to initialize SSE EventSource:', err);
