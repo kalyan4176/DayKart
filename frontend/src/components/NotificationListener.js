@@ -6,12 +6,12 @@ import { useToast } from '@/components/ToastProvider';
 import { api } from '@/store/api';
 
 export default function NotificationListener() {
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const { isAuthenticated, token } = useSelector((state) => state.auth);
   const { showToast } = useToast();
   const dispatch = useDispatch();
 
   React.useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !token) return;
 
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5005/api/v1';
     let eventSource;
@@ -21,7 +21,7 @@ export default function NotificationListener() {
 
     const connectSSE = () => {
       try {
-        eventSource = new EventSource(`${apiUrl}/notifications/stream`, {
+        eventSource = new EventSource(`${apiUrl}/notifications/stream?token=${token}`, {
           withCredentials: true,
         });
 
@@ -82,7 +82,7 @@ export default function NotificationListener() {
       }
       clearTimeout(retryTimeout);
     };
-  }, [isAuthenticated, dispatch, showToast]);
+  }, [isAuthenticated, token, dispatch, showToast]);
 
   return null;
 }
