@@ -517,3 +517,63 @@ export const getAdminReferrals = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getDeliveryApplications = async (req, res, next) => {
+  try {
+    const users = await User.find({ deliveryStatus: 'pending' }).select('-password').sort({ createdAt: -1 });
+    res.status(200).json({
+      status: 'success',
+      data: { users },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const approveDeliveryPartner = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body; // approved, rejected
+
+    if (!['approved', 'rejected'].includes(status)) {
+      return next(new BadRequestError('Invalid status selection. Must be approved or rejected.'));
+    }
+
+    const partner = await User.findById(id);
+    if (!partner) return next(new NotFoundError('Delivery partner application not found.'));
+
+    partner.deliveryStatus = status;
+    if (status === 'approved') {
+      partner.role = 'delivery_partner';
+    } else {
+      partner.role = 'customer';
+    }
+    await partner.save();
+
+    // Send in-app notification to the user
+    await sendInAppNotification(
+      partner._id,
+      'info',
+      status === 'approved' ? 'Delivery Partner Approved' : 'Delivery Application Rejected',
+      status === 'approved' 
+        ? `Your application to register as a delivery partner has been approved! Welcome to Daykart's courier network.`
+        : `Your application to register as a delivery partner was rejected by the administrator.`,
+      '/tickets'
+    );
+
+    await logAuditEvent({
+      actor: req.user._id,
+      action: `ADMIN_${status.toUpperCase()}_DELIVERY_PARTNER`,
+      req,
+      details: { partnerId: partner._id, name: partner.name },
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: `Delivery partner application status updated to ${status}.`,
+      data: { user: partner },
+    });
+  } catch (error) {
+    next(error);
+  }
+};

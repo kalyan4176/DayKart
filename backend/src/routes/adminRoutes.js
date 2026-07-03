@@ -1,5 +1,5 @@
 import express from 'express';
-import { getDashboardStats, getUsers, approveSeller, approveProduct, getAuditLogs, createCategory, updateCategory, deleteCategory, createSellerDirectly, deleteSeller, getAdminOrders, getReferralSettings, updateReferralSettings, getAdminReferrals } from '../controllers/adminController.js';
+import { getDashboardStats, getUsers, approveSeller, approveProduct, getAuditLogs, createCategory, updateCategory, deleteCategory, createSellerDirectly, deleteSeller, getAdminOrders, getReferralSettings, updateReferralSettings, getAdminReferrals, getDeliveryApplications, approveDeliveryPartner } from '../controllers/adminController.js';
 import { protect, restrictTo } from '../middlewares/auth.js';
 
 const router = express.Router();
@@ -26,5 +26,9 @@ router.delete('/sellers/:id', deleteSeller);
 router.get('/referral-settings', getReferralSettings);
 router.post('/referral-settings', updateReferralSettings);
 router.get('/referrals', getAdminReferrals);
+
+// Delivery Partner Applications
+router.get('/delivery-applications', getDeliveryApplications);
+router.patch('/delivery-partner/:id/approve', approveDeliveryPartner);
 
 export default router;

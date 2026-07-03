@@ -170,7 +170,11 @@ export default function Register() {
         user: res.data.user,
         accessToken: res.accessToken,
       }));
-      showToast('Account verified and logged in successfully!', 'success');
+      if (res.data?.user?.deliveryStatus === 'pending') {
+        showToast('Account verified! Your Delivery Partner application is pending admin review. Browsing as a customer.', 'info');
+      } else {
+        showToast('Account verified and logged in successfully!', 'success');
+      }
       
       if (res.data?.user?.role === 'admin') router.push('/admin/dashboard');
       else if (res.data?.user?.role === 'seller') router.push('/seller/dashboard');

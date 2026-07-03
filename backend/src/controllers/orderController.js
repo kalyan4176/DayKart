@@ -224,6 +224,7 @@ export const checkout = async (req, res, next) => {
       },
       coupon: couponDoc ? couponDoc._id : undefined,
       status: gateway === 'cod' ? 'placed' : 'pending', // pending payment unless COD
+      deliveryOtp: Math.floor(100000 + Math.random() * 900000).toString(),
       statusTimeline: [{
         status: gateway === 'cod' ? 'placed' : 'pending',
         message: gateway === 'cod' ? 'Order placed with Cash on Delivery' : 'Order initialized. Awaiting payment.',

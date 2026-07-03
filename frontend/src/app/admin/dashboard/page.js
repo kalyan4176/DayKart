@@ -48,6 +48,8 @@ import {
    useGetAdminTicketsQuery,
    useReplyTicketMutation,
    useResolveTicketMutation,
+   useGetDeliveryApplicationsQuery,
+   useApproveDeliveryPartnerMutation,
 } from '@/store/api';
 
 export default function AdminDashboard() {
@@ -194,6 +196,9 @@ export default function AdminDashboard() {
 
   const { data: cartLimitsRes, refetch: refetchCartLimits } = useGetCartLimitsQuery(undefined, { skip: activeTab !== 'settings' || !isAdmin || !mounted });
   const [updateCartLimitsMutation, { isLoading: isUpdatingCartLimits }] = useUpdateCartLimitsMutation();
+
+  const { data: deliveryApplicationsRes, refetch: refetchDeliveryApplications, isLoading: deliveryApplicationsLoading } = useGetDeliveryApplicationsQuery(undefined, { skip: activeTab !== 'delivery' || !isAdmin || !mounted });
+  const [approveDeliveryPartner, { isLoading: isApprovingDelivery }] = useApproveDeliveryPartnerMutation();
 
   useEffect(() => {
     if (cartLimitsRes?.data) {
@@ -780,6 +785,16 @@ export default function AdminDashboard() {
     } catch (err) {
       setSettingsError(err.data?.message || 'Failed to save settings.');
       showToast(err.data?.message || 'Failed to save settings.', 'error');
+    }
+  };
+
+  const handleApproveDelivery = async (id, status) => {
+    try {
+      await approveDeliveryPartner({ id, status }).unwrap();
+      showToast(`Delivery partner application ${status} successfully!`, 'success');
+      refetchDeliveryApplications();
+    } catch (err) {
+      showToast(err.data?.message || 'Failed to update application status.', 'error');
     }
   };
 
@@ -1524,6 +1539,7 @@ export default function AdminDashboard() {
     referrals: 'Manage Referrals',
     wallet: 'Admin Wallet',
     tickets: 'Support Tickets',
+    delivery: 'Delivery Partners',
     settings: 'Cart Settings',
     profile: 'Profile Details'
   };
@@ -1701,6 +1717,16 @@ export default function AdminDashboard() {
               }`}
             >
               <MessageSquare className="w-4.5 h-4.5" /> Support Tickets
+            </button>
+            <button
+              onClick={() => setActiveTab('delivery')}
+              className={`w-auto lg:w-full shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition select-none whitespace-nowrap ${
+                activeTab === 'delivery'
+                  ? 'bg-secondary text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Truck className="w-4.5 h-4.5" /> Delivery Partners
             </button>
             <button
               onClick={() => setActiveTab('settings')}
@@ -4349,6 +4375,82 @@ export default function AdminDashboard() {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {activeTab === 'delivery' && (
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-6">
+                <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Truck className="w-5 h-5 text-secondary" /> Delivery Partner Applications
+                  </span>
+                  <button 
+                    type="button"
+                    onClick={() => refetchDeliveryApplications()}
+                    className="text-xs text-secondary hover:underline flex items-center gap-1 font-bold"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Refresh Applications
+                  </button>
+                </h3>
+
+                <p className="text-xxs text-slate-400 -mt-2">
+                  Review and moderate incoming courier applications. Approved couriers will receive the <strong>delivery_partner</strong> role and access to the Delivery Portal.
+                </p>
+
+                {deliveryApplicationsLoading ? (
+                  <div className="space-y-4">
+                    {Array(3).fill(0).map((_, idx) => (
+                      <div key={idx} className="h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl animate-pulse" />
+                    ))}
+                  </div>
+                ) : !deliveryApplicationsRes?.data?.users || deliveryApplicationsRes.data.users.length === 0 ? (
+                  <div className="text-center py-12 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl">
+                    <div className="inline-flex items-center justify-center p-4 bg-slate-50 dark:bg-slate-800 rounded-full mb-3">
+                      <Truck className="w-8 h-8 text-slate-400" />
+                    </div>
+                    <p className="text-xs text-slate-500 italic">No pending delivery partner applications found.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 uppercase tracking-wider text-[10px] font-bold">
+                          <th className="py-3 px-4">Courier Name</th>
+                          <th className="py-3 px-4">Email Address</th>
+                          <th className="py-3 px-4">Phone Number</th>
+                          <th className="py-3 px-4">Applied Date</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {deliveryApplicationsRes.data.users.map((appUser) => (
+                          <tr key={appUser._id} className="border-b border-slate-55 dark:border-slate-850 hover:bg-slate-50/20 dark:hover:bg-slate-900/10">
+                            <td className="py-3.5 px-4 font-bold text-slate-800 dark:text-slate-200">{appUser.name}</td>
+                            <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400">{appUser.email}</td>
+                            <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400 font-mono">{appUser.phoneNumber || 'N/A'}</td>
+                            <td className="py-3.5 px-4 text-slate-400">{new Date(appUser.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                            <td className="py-3.5 px-4 text-right space-x-2 whitespace-nowrap">
+                              <button
+                                onClick={() => handleApproveDelivery(appUser._id, 'approved')}
+                                disabled={isApprovingDelivery}
+                                className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-extrabold px-3 py-1.5 rounded-xl transition active:scale-95 shadow-xs"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleApproveDelivery(appUser._id, 'rejected')}
+                                disabled={isApprovingDelivery}
+                                className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white font-extrabold px-3 py-1.5 rounded-xl transition active:scale-95 shadow-xs"
+                              >
+                                Reject
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
 

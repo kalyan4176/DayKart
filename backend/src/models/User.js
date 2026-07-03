@@ -15,6 +15,7 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: function() { return !this.googleId; } },
   role: { type: String, enum: ['customer', 'seller', 'admin', 'delivery_partner'], default: 'customer' },
+  deliveryStatus: { type: String, enum: ['none', 'pending', 'approved', 'rejected'], default: 'none' },
   avatar: { type: String },
   phoneNumber: { type: String },
   googleId: { type: String },

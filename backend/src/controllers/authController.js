@@ -97,11 +97,16 @@ export const register = async (req, res, next) => {
       };
     }
 
+    const isDelivery = role === 'delivery_partner';
+    const finalRole = isDelivery ? 'customer' : (role || 'customer');
+    const deliveryStatus = isDelivery ? 'pending' : 'none';
+
     const user = new User({
       name,
       email,
       password,
-      role: role || 'customer',
+      role: finalRole,
+      deliveryStatus,
       phoneNumber,
       otp,
       otpExpires,

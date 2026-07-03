@@ -320,6 +320,18 @@ export const api = createApi({
       }),
       invalidatesTags: ['Product'],
     }),
+    getDeliveryApplications: builder.query({
+      query: () => '/admin/delivery-applications',
+      providesTags: ['User'],
+    }),
+    approveDeliveryPartner: builder.mutation({
+      query: ({ id, status }) => ({
+        url: `/admin/delivery-partner/${id}/approve`,
+        method: 'PATCH',
+        body: { status },
+      }),
+      invalidatesTags: ['User'],
+    }),
 
     getSellerProfile: builder.query({
       query: () => '/users/seller-profile',
@@ -625,4 +637,6 @@ export const {
   useUpdateCodChargeMutation,
   useGetCartLimitsQuery,
   useUpdateCartLimitsMutation,
+  useGetDeliveryApplicationsQuery,
+  useApproveDeliveryPartnerMutation,
 } = api;
