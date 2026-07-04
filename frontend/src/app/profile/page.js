@@ -72,6 +72,16 @@ export default function ProfilePage() {
   const [removeAddressApi] = api.useRemoveAddressMutation();
   const [updateProfileApi] = api.useUpdateProfileMutation();
 
+  const { data: profileRes } = api.useGetProfileQuery(undefined, {
+    skip: !isAuthenticated || !mounted,
+  });
+
+  useEffect(() => {
+    if (profileRes?.data?.user) {
+      dispatch(updateUser(profileRes.data.user));
+    }
+  }, [profileRes, dispatch]);
+
   const { data: sellerProfileRes, refetch: refetchSellerProfile } = api.useGetSellerProfileQuery(undefined, {
     skip: !isAuthenticated || user?.role !== 'seller' || !mounted,
   });
@@ -434,6 +444,22 @@ export default function ProfilePage() {
                     <div>
                       <p className="font-extrabold text-slate-800 dark:text-slate-200">Delivery Application Rejected</p>
                       <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">Your application to register as a delivery courier was rejected by the administrator. Please contact our support team if you believe this was an error.</p>
+                    </div>
+                  </div>
+                )}
+
+                {user?.deliveryStatus === 'approved' && (
+                  <div className="p-4 bg-emerald-50 dark:bg-emerald-955/10 border border-emerald-100 dark:border-emerald-900/40 rounded-2xl text-xs flex items-center gap-3">
+                    <Truck className="w-5 h-5 text-emerald-500 flex-shrink-0 animate-pulse" />
+                    <div>
+                      <p className="font-extrabold text-slate-800 dark:text-slate-200">Delivery Partner Application Approved!</p>
+                      <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">Welcome to Daykart's courier network. You can access the Delivery Portal at any time to accept pick ups and deliver orders.</p>
+                      <a
+                        href="/delivery/dashboard"
+                        className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold mt-2 hover:underline"
+                      >
+                        Go to Delivery Dashboard &rarr;
+                      </a>
                     </div>
                   </div>
                 )}

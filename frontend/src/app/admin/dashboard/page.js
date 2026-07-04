@@ -50,6 +50,7 @@ import {
    useResolveTicketMutation,
    useGetDeliveryApplicationsQuery,
    useApproveDeliveryPartnerMutation,
+   useAssignDeliveryPartnerMutation,
 } from '@/store/api';
 
 export default function AdminDashboard() {
@@ -199,6 +200,8 @@ export default function AdminDashboard() {
 
   const { data: deliveryApplicationsRes, refetch: refetchDeliveryApplications, isLoading: deliveryApplicationsLoading } = useGetDeliveryApplicationsQuery(undefined, { skip: activeTab !== 'delivery' || !isAdmin || !mounted });
   const [approveDeliveryPartner, { isLoading: isApprovingDelivery }] = useApproveDeliveryPartnerMutation();
+  const [assignDeliveryPartner, { isLoading: isAssigningDelivery }] = useAssignDeliveryPartnerMutation();
+  const { data: deliveryPartnersRes } = useGetAdminUsersQuery({ role: 'delivery_partner' }, { skip: activeTab !== 'orders' || !isAdmin || !mounted });
 
   useEffect(() => {
     if (cartLimitsRes?.data) {
@@ -1456,6 +1459,8 @@ export default function AdminDashboard() {
     );
   });
 
+  const deliveryPartners = deliveryPartnersRes?.data?.users || [];
+
   const handleDownloadOrdersPDF = async () => {
     try {
       const { default: jsPDF } = await import('jspdf');
@@ -2572,6 +2577,75 @@ export default function AdminDashboard() {
                                   </div>
                                 ))}
                               </div>
+                            </div>
+                            
+                            {/* Courier Assignment Section */}
+                            <div className="md:col-span-2 border-t border-slate-150 dark:border-slate-800 pt-4.5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                              <div>
+                                <h5 className="font-extrabold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                                  <Truck className="w-3.5 h-3.5" /> Delivery Partner Assignment
+                                </h5>
+                                {order.deliveryPartner ? (
+                                  <div className="flex items-center gap-2 mt-1.5">
+                                    <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                                      <Truck className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                      <p className="font-bold text-slate-800 dark:text-slate-250">
+                                        {typeof order.deliveryPartner === 'object' ? order.deliveryPartner.name : 'Assigned Courier'}
+                                      </p>
+                                      {typeof order.deliveryPartner === 'object' && (
+                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                          Phone: {order.deliveryPartner.phoneNumber || 'N/A'} &middot; Status: {order.status === 'processed' ? 'Pending Pick Up' : order.status}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <p className="text-xxs text-slate-500 dark:text-slate-400 mt-1 italic">
+                                    No delivery partner assigned to this order yet.
+                                  </p>
+                                )}
+                              </div>
+
+                              {/* Assignment Controls */}
+                              {order.status === 'processed' && (
+                                <div className="flex items-center gap-2">
+                                  <select
+                                    id={`assign-select-${order._id}`}
+                                    className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-xl text-xxs font-semibold focus:outline-none focus:border-secondary transition text-slate-850 dark:text-white"
+                                    defaultValue={typeof order.deliveryPartner === 'object' ? order.deliveryPartner._id : (order.deliveryPartner || '')}
+                                  >
+                                    <option value="" disabled>Select Delivery Partner</option>
+                                    {deliveryPartners.map((partner) => (
+                                      <option key={partner._id} value={partner._id}>
+                                        {partner.name} ({partner.phoneNumber || 'No phone'})
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    onClick={async () => {
+                                      const select = document.getElementById(`assign-select-${order._id}`);
+                                      const partnerId = select?.value;
+                                      if (!partnerId) {
+                                        showToast('Please select a delivery partner.', 'error');
+                                        return;
+                                      }
+                                      try {
+                                        await assignDeliveryPartner({ orderId: order.orderId, deliveryPartnerId: partnerId }).unwrap();
+                                        showToast('Delivery partner assigned successfully!', 'success');
+                                        refetchAdminOrders();
+                                      } catch (err) {
+                                        showToast(err.data?.message || 'Failed to assign delivery partner.', 'error');
+                                      }
+                                    }}
+                                    disabled={isAssigningDelivery}
+                                    className="bg-secondary hover:bg-secondary/90 disabled:opacity-50 text-white text-xxs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1 shadow-sm cursor-pointer"
+                                  >
+                                    {order.deliveryPartner ? 'Change Courier' : 'Assign Courier'}
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}

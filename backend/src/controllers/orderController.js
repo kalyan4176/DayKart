@@ -524,6 +524,7 @@ export const getSellerOrders = async (req, res, next) => {
     const orders = await Order.find({ 'items.seller': seller._id })
       .populate('items.product', 'title images SKU price')
       .populate('customer', 'name email phoneNumber')
+      .populate('deliveryPartner', 'name phoneNumber email')
       .sort({ createdAt: -1 });
 
     // Filter items to show only this seller's products for listing clarity

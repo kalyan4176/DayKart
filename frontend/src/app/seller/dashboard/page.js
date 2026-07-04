@@ -11,7 +11,7 @@ import ConfirmationModal from '@/components/ConfirmationModal';
 import ReasonPromptModal from '@/components/ReasonPromptModal';
 import { useToast } from '@/components/ToastProvider';
 import { updateUser, logoutUser } from '@/store/authSlice';
-import { useCreateProductMutation, useGetSellerProfileQuery, useCreateSellerProfileMutation, useGetCategoriesQuery, useGetBrandsQuery, useUpdateProfileMutation, useUploadProductImageMutation, useUpdateProductMutation, useDeleteProductMutation, useGetProductsQuery, useGetSellerOrdersQuery, useUpdateOrderStatusMutation, useGetWalletQuery, useDeleteProfileMutation } from '@/store/api';
+import { useCreateProductMutation, useGetSellerProfileQuery, useCreateSellerProfileMutation, useGetCategoriesQuery, useGetBrandsQuery, useUpdateProfileMutation, useUploadProductImageMutation, useUpdateProductMutation, useDeleteProductMutation, useGetProductsQuery, useGetSellerOrdersQuery, useUpdateOrderStatusMutation, useGetWalletQuery, useDeleteProfileMutation, useGetDeliveryPartnersQuery } from '@/store/api';
 
 function SellerDashboardContent() {
   const router = useRouter();
@@ -100,6 +100,8 @@ function SellerDashboardContent() {
   );
   const sellerOrders = sellerOrdersRes?.data?.orders || [];
   const [updateOrderStatus] = useUpdateOrderStatusMutation();
+  const { data: deliveryPartnersRes, refetch: refetchDeliveryPartners } = useGetDeliveryPartnersQuery(undefined, { skip: !sellerProfile || activeTab !== 'manage-orders' });
+  const deliveryPartners = deliveryPartnersRes?.data?.users || [];
   const [deleteProfile, { isLoading: isDeletingProfile }] = useDeleteProfileMutation();
   const [deleteCheckboxChecked, setDeleteCheckboxChecked] = useState(false);
   const handleDeleteAccount = () => {
@@ -849,12 +851,38 @@ function SellerDashboardContent() {
                   <h3 className="font-extrabold text-lg text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-4 mb-6 flex justify-between items-center">
                     <span>Manage Customer Orders</span>
                     <button 
-                      onClick={() => refetchSellerOrders()}
+                      onClick={() => {
+                        refetchSellerOrders();
+                        refetchDeliveryPartners();
+                      }}
                       className="text-xs text-secondary hover:underline flex items-center gap-1 font-bold"
                     >
                       <RefreshCw className="w-3.5 h-3.5" /> Refresh
                     </button>
                   </h3>
+
+                  {/* Collapsible Courier Directory */}
+                  {deliveryPartners.length > 0 && (
+                    <div className="mb-6 border border-slate-200 dark:border-slate-800 rounded-2xl p-4.5 bg-slate-50/50 dark:bg-slate-900/40">
+                      <h4 className="font-extrabold text-xs text-slate-850 dark:text-slate-200 mb-3 flex items-center gap-1.5">
+                        <Truck className="w-4 h-4 text-secondary animate-pulse" /> Approved Courier Partners ({deliveryPartners.length})
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        {deliveryPartners.map((partner) => (
+                          <div key={partner._id} className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between gap-1.5 text-xxs">
+                            <div>
+                              <p className="font-extrabold text-slate-800 dark:text-slate-100">{partner.name}</p>
+                              <p className="text-slate-450 dark:text-slate-550 mt-0.5">{partner.email}</p>
+                            </div>
+                            <div className="flex items-center gap-1 text-secondary font-bold">
+                              <Phone className="w-3 h-3" />
+                              <a href={`tel:${partner.phoneNumber}`} className="hover:underline">{partner.phoneNumber || 'No phone'}</a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {ordersLoading ? (
                     <div className="flex flex-col items-center justify-center py-12 gap-3">
@@ -956,6 +984,25 @@ function SellerDashboardContent() {
                               </div>
                             </div>
 
+                            {/* Assigned Delivery Partner details */}
+                            {order.deliveryPartner && (
+                              <div className="bg-slate-50/50 dark:bg-slate-900/40 border-t border-slate-200/50 dark:border-slate-850/50 px-5 py-3.5 text-[11px] flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                                  <Truck className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <p className="font-extrabold text-slate-800 dark:text-slate-200">
+                                    Assigned Courier: {typeof order.deliveryPartner === 'object' ? order.deliveryPartner.name : 'Delivery Partner'}
+                                  </p>
+                                  {typeof order.deliveryPartner === 'object' && (
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-450 mt-0.5">
+                                      Contact: {order.deliveryPartner.phoneNumber || 'No phone'} &middot; Email: {order.deliveryPartner.email || 'N/A'}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
                             {/* Order Actions */}
                             {(order.status === 'pending' || order.status === 'placed') && (
                               <div className="bg-slate-50/30 dark:bg-slate-900/30 border-t border-slate-200/50 dark:border-slate-850/50 px-5 py-3.5 flex justify-end gap-3">
@@ -970,6 +1017,30 @@ function SellerDashboardContent() {
                                   className="inline-flex items-center gap-1.5 bg-secondary hover:bg-cyan-600 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-sm transition active:scale-98"
                                 >
                                   <CheckCircle2 className="w-4 h-4" /> Accept & Process
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Handover action for processed order */}
+                            {order.status === 'processed' && order.deliveryPartner && (
+                              <div className="bg-slate-50/30 dark:bg-slate-900/30 border-t border-slate-200/50 dark:border-slate-850/50 px-5 py-3.5 flex justify-end">
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await updateOrderStatus({
+                                        id: order.orderId,
+                                        status: 'shipped',
+                                        message: 'Package handed over to the courier partner for delivery.',
+                                      }).unwrap();
+                                      showToast('Handed over package to courier successfully!', 'success');
+                                      refetchSellerOrders();
+                                    } catch (err) {
+                                      showToast(err.data?.message || 'Failed to update order handover status.', 'error');
+                                    }
+                                  }}
+                                  className="inline-flex items-center gap-1.5 bg-secondary hover:bg-cyan-600 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-sm transition active:scale-98 cursor-pointer"
+                                >
+                                  <Truck className="w-4 h-4" /> Confirm Handover to Courier
                                 </button>
                               </div>
                             )}

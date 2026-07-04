@@ -4,7 +4,7 @@ import Cart from '../models/Cart.js';
 import Seller from '../models/Seller.js';
 import Product from '../models/Product.js';
 import redisClient from '../config/redis.js';
-import { NotFoundError, BadRequestError } from '../utils/customErrors.js';
+import { NotFoundError, BadRequestError, ForbiddenError } from '../utils/customErrors.js';
 import { sendInAppNotification } from '../utils/notificationHelper.js';
 
 export const getProfile = async (req, res, next) => {
@@ -477,6 +477,23 @@ export const deleteProfile = async (req, res, next) => {
     res.status(200).json({
       status: 'success',
       message: 'Account and all associated records deleted successfully.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getApprovedDeliveryPartners = async (req, res, next) => {
+  try {
+    if (req.user.role !== 'seller' && req.user.role !== 'admin') {
+      return next(new ForbiddenError('You are not authorized to view this resource.'));
+    }
+    const users = await User.find({ role: 'delivery_partner', deliveryStatus: 'approved' })
+      .select('name email phoneNumber')
+      .sort({ name: 1 });
+    res.status(200).json({
+      status: 'success',
+      data: { users },
     });
   } catch (error) {
     next(error);

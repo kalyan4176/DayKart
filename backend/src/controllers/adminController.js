@@ -430,6 +430,7 @@ export const getAdminOrders = async (req, res, next) => {
     const orders = await Order.find()
       .populate('items.product', 'title images SKU price')
       .populate('customer', 'name email')
+      .populate('deliveryPartner', 'name phoneNumber email')
       .sort({ createdAt: -1 });
 
     const totalOrders = await Order.countDocuments();

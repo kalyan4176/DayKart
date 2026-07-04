@@ -484,6 +484,14 @@ export const api = createApi({
       }),
       invalidatesTags: ['Order'],
     }),
+    assignDeliveryPartner: builder.mutation({
+      query: ({ orderId, deliveryPartnerId }) => ({
+        url: `/orders/${orderId}/assign`,
+        method: 'PATCH',
+        body: { deliveryPartnerId },
+      }),
+      invalidatesTags: ['Order'],
+    }),
     getShippingRules: builder.query({
       query: () => '/shipping-rules',
       providesTags: ['ShippingRule'],
@@ -503,6 +511,10 @@ export const api = createApi({
     getCartLimits: builder.query({
       query: () => '/shipping-rules/cart-limits',
       providesTags: ['ShippingRule'],
+    }),
+    getDeliveryPartners: builder.query({
+      query: () => '/users/delivery-partners',
+      providesTags: ['User'],
     }),
     updateCartLimits: builder.mutation({
       query: (limits) => ({
@@ -637,6 +649,8 @@ export const {
   useUpdateCodChargeMutation,
   useGetCartLimitsQuery,
   useUpdateCartLimitsMutation,
+  useGetDeliveryPartnersQuery,
   useGetDeliveryApplicationsQuery,
   useApproveDeliveryPartnerMutation,
+  useAssignDeliveryPartnerMutation,
 } = api;

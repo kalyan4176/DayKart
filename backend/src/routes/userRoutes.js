@@ -1,5 +1,5 @@
 import express from 'express';
-import { getProfile, updateProfile, deleteProfile, addAddress, removeAddress, getWishlist, toggleWishlist, getCart, updateCart, getSellerProfile, createSellerProfile, getWallet } from '../controllers/userController.js';
+import { getProfile, updateProfile, deleteProfile, addAddress, removeAddress, getWishlist, toggleWishlist, getCart, updateCart, getSellerProfile, createSellerProfile, getWallet, getApprovedDeliveryPartners } from '../controllers/userController.js';
 import { protect } from '../middlewares/auth.js';
 import { validate } from '../middlewares/validator.js';
 import { addressSchema, sellerProfileSchema } from '../utils/validationSchemas.js';
@@ -8,6 +8,7 @@ const router = express.Router();
 
 router.use(protect); // protect all user routes
 
+router.get('/delivery-partners', getApprovedDeliveryPartners);
 router.get('/profile', getProfile);
 router.patch('/profile', updateProfile);
 router.delete('/profile', deleteProfile);
