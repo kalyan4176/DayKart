@@ -281,27 +281,27 @@ export default function DeliveryDashboard() {
                       {order.items?.[0]?.seller ? (
                         <div className="space-y-1.5 text-slate-350">
                           <p className="font-extrabold text-slate-200 text-sm">
-                            {order.items[0].seller.storeName || 'Partner Store'}
+                            {order.items?.[0]?.seller?.storeName || 'Partner Store'}
                           </p>
                           <p className="flex items-start gap-1.5 mt-1">
                             <MapPin className="w-3.5 h-3.5 text-slate-500 flex-shrink-0 mt-0.5" />
                             <span>
-                              {order.items[0].seller.storeAddress
-                                ? `${order.items[0].seller.storeAddress.street}, ${order.items[0].seller.storeAddress.city}, ${order.items[0].seller.storeAddress.state} - ${order.items[0].seller.storeAddress.postalCode}`
+                              {order.items?.[0]?.seller?.storeAddress
+                                ? `${order.items?.[0]?.seller?.storeAddress?.street}, ${order.items?.[0]?.seller?.storeAddress?.city}, ${order.items?.[0]?.seller?.storeAddress?.state} - ${order.items?.[0]?.seller?.storeAddress?.postalCode}`
                                 : 'Address not registered.'}
                             </span>
                           </p>
-                          {order.items[0].seller.user && (
+                          {order.items?.[0]?.seller?.user && (
                             <div className="pt-1.5 flex flex-col gap-1 text-[11px]">
                               <p className="flex items-center gap-1.5">
                                 <Phone className="w-3.5 h-3.5 text-slate-500" />
-                                <a href={`tel:${order.items[0].seller.user.phoneNumber}`} className="text-secondary hover:underline">
-                                  {order.items[0].seller.user.phoneNumber || 'N/A'}
+                                <a href={`tel:${order.items?.[0]?.seller?.user?.phoneNumber}`} className="text-secondary hover:underline">
+                                  {order.items?.[0]?.seller?.user?.phoneNumber || 'N/A'}
                                 </a>
                               </p>
                               <p className="flex items-center gap-1.5">
                                 <Mail className="w-3.5 h-3.5 text-slate-500" />
-                                <span>{order.items[0].seller.user.email}</span>
+                                <span>{order.items?.[0]?.seller?.user?.email}</span>
                               </p>
                             </div>
                           )}
