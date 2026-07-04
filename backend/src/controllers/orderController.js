@@ -660,6 +660,15 @@ export const getDeliveryOrders = async (req, res, next) => {
     const orders = await Order.find({ deliveryPartner: req.user._id })
       .populate('customer', 'name email phoneNumber')
       .populate('items.product', 'title')
+      .populate({
+        path: 'items.seller',
+        select: 'storeName storeAddress',
+        populate: {
+          path: 'user',
+          select: 'name email phoneNumber'
+        }
+      })
+      .populate('payment')
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -782,6 +791,56 @@ export const returnOrder = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
+      data: { order },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const verifyDeliveryOtp = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { otp } = req.body;
+
+    const order = await Order.findOne({ orderId: id }).populate('payment');
+    if (!order) return next(new NotFoundError('Order not found.'));
+
+    if (order.deliveryPartner?.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return next(new ForbiddenError('You are not authorized to update this order.'));
+    }
+
+    if (order.status !== 'out_for_delivery') {
+      return next(new BadRequestError('Order is not out for delivery.'));
+    }
+
+    if (!order.deliveryOtp) {
+      return next(new BadRequestError('No delivery OTP was generated for this order.'));
+    }
+
+    if (order.deliveryOtp !== otp) {
+      return next(new BadRequestError('Invalid verification OTP. Please try again.'));
+    }
+
+    order.status = 'delivered';
+    order.deliveryOtp = null;
+    order.statusTimeline.push({
+      status: 'delivered',
+      message: 'Order delivered successfully. Courier verified delivery OTP.',
+    });
+
+    if (order.payment) {
+      if (order.payment.paymentMethod === 'cod') {
+        order.payment.paymentStatus = 'completed';
+        await order.payment.save();
+      }
+    }
+
+    await order.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Delivery OTP verified successfully. Order status updated to delivered.',
       data: { order },
     });
   } catch (error) {

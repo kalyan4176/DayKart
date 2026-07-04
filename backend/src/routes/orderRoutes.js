@@ -1,5 +1,5 @@
 import express from 'express';
-import { checkout, getMyOrders, getOrderById, cancelOrder, getSellerOrders, updateOrderStatus, getDeliveryOrders, assignDeliveryPartner, returnOrder } from '../controllers/orderController.js';
+import { checkout, getMyOrders, getOrderById, cancelOrder, getSellerOrders, updateOrderStatus, getDeliveryOrders, assignDeliveryPartner, returnOrder, verifyDeliveryOtp } from '../controllers/orderController.js';
 import { protect, restrictTo } from '../middlewares/auth.js';
 
 const router = express.Router();
@@ -16,5 +16,6 @@ router.post('/:id/cancel', cancelOrder);
 router.post('/:id/return', returnOrder);
 router.patch('/:id/status', restrictTo('seller', 'admin', 'delivery_partner'), updateOrderStatus);
 router.patch('/:id/assign', restrictTo('admin'), assignDeliveryPartner);
+router.patch('/:id/verify-delivery-otp', restrictTo('delivery_partner', 'admin'), verifyDeliveryOtp);
 
 export default router;

@@ -236,8 +236,20 @@ export const api = createApi({
       }),
       invalidatesTags: ['Order'],
     }),
+    verifyDeliveryOtp: builder.mutation({
+      query: ({ orderId, otp }) => ({
+        url: `/orders/${orderId}/verify-delivery-otp`,
+        method: 'PATCH',
+        body: { otp },
+      }),
+      invalidatesTags: ['Order'],
+    }),
     getSellerOrders: builder.query({
       query: () => '/orders/seller-orders',
+      providesTags: ['Order'],
+    }),
+    getDeliveryOrders: builder.query({
+      query: () => '/orders/delivery-orders',
       providesTags: ['Order'],
     }),
     getAdminOrders: builder.query({
@@ -649,8 +661,10 @@ export const {
   useUpdateCodChargeMutation,
   useGetCartLimitsQuery,
   useUpdateCartLimitsMutation,
+  useGetDeliveryOrdersQuery,
   useGetDeliveryPartnersQuery,
   useGetDeliveryApplicationsQuery,
   useApproveDeliveryPartnerMutation,
   useAssignDeliveryPartnerMutation,
+  useVerifyDeliveryOtpMutation,
 } = api;
