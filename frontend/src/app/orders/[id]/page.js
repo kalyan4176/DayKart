@@ -224,6 +224,31 @@ export default function OrderDetailsPage({ params }) {
             </div>
           )}
 
+          {/* Secure Delivery OTP Verification Card */}
+          {order.deliveryOtp && (order.status === 'shipped' || order.status === 'out_for_delivery') && (
+            <div className="mx-6 my-4 p-5 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0">
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wide">
+                    Secure Delivery Verification
+                  </h4>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-450 mt-0.5 max-w-sm leading-relaxed">
+                    Please share this 6-digit OTP with your courier partner once you receive the package to verify the delivery.
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4.5 py-2 rounded-xl text-lg font-black tracking-widest text-secondary text-center shadow-sm">
+                  {order.deliveryOtp}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Cancellation alerts */}
           {(order.status === 'cancelled' || order.status === 'returned') && (
             <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800/80 bg-red-50/10 dark:bg-red-950/10 flex items-center gap-3 text-xs text-red-600 dark:text-red-400">
