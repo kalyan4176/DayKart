@@ -189,6 +189,16 @@ export default function Navbar() {
                       </Link>
                     )}
 
+                    {user?.role === 'delivery_partner' && (
+                      <Link
+                        href="/delivery/dashboard"
+                        onClick={() => setDropdownOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                      >
+                        <LayoutDashboard className="w-4 h-4" /> Delivery Dashboard
+                      </Link>
+                    )}
+
                     <button
                       onClick={() => {
                         setDropdownOpen(false);
@@ -354,6 +364,16 @@ export default function Navbar() {
                         >
                           <LayoutDashboard className="w-4 h-4 text-slate-400" />
                           <span>Admin Dashboard</span>
+                        </Link>
+                      )}
+                      {user?.role === 'delivery_partner' && (
+                        <Link
+                          href="/delivery/dashboard"
+                          onClick={() => setMobileMenuOpen(false)}
+                          className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-slate-700 hover:bg-slate-50 hover:text-secondary text-xs font-semibold transition"
+                        >
+                          <LayoutDashboard className="w-4 h-4 text-slate-400" />
+                          <span>Delivery Dashboard</span>
                         </Link>
                       )}
                       <button

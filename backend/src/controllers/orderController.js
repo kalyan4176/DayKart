@@ -575,6 +575,115 @@ export const updateOrderStatus = async (req, res, next) => {
     }
 
     const previousStatus = order.status;
+
+    // Multi-seller split order cancellation logic
+    if (status === 'cancelled' && req.user.role === 'seller') {
+      const uniqueSellers = [...new Set(order.items.map(item => item.seller.toString()))];
+      if (uniqueSellers.length > 1) {
+        const sellerItems = order.items.filter(item => item.seller.toString() === sellerDoc._id.toString());
+        const remainingItems = order.items.filter(item => item.seller.toString() !== sellerDoc._id.toString());
+
+        if (remainingItems.length > 0) {
+          const totalSubtotal = order.pricing.subtotal || 1;
+          const splitSubtotal = sellerItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+          const splitRatio = splitSubtotal / totalSubtotal;
+          const splitTax = (order.pricing.tax || 0) * splitRatio;
+          const splitDiscount = (order.pricing.discount || 0) * splitRatio;
+          const splitShipping = (order.pricing.shippingCharges || 0) * splitRatio;
+          const splitTotal = splitSubtotal + splitTax + splitShipping - splitDiscount;
+
+          const splitOrderId = `${order.orderId}-C${Date.now().toString().slice(-4)}`;
+          const splitOrder = new Order({
+            orderId: splitOrderId,
+            customer: order.customer,
+            items: sellerItems,
+            shippingAddress: order.shippingAddress,
+            billingAddress: order.billingAddress,
+            pricing: {
+              subtotal: splitSubtotal,
+              tax: splitTax,
+              discount: splitDiscount,
+              shippingCharges: splitShipping,
+              total: splitTotal,
+            },
+            payment: order.payment,
+            coupon: order.coupon,
+            status: 'cancelled',
+            statusTimeline: [{
+              status: 'cancelled',
+              message: timelineMessage || 'Items cancelled/rejected by seller.',
+            }],
+          });
+
+          await splitOrder.save();
+
+          // Restore stock for split items
+          for (const item of sellerItems) {
+            const product = await Product.findById(item.product);
+            if (product) {
+              if (item.variantSku) {
+                const variantIndex = product.variants.findIndex(v => v.sku === item.variantSku);
+                if (variantIndex > -1) {
+                  product.variants[variantIndex].inventory += item.quantity;
+                }
+              } else {
+                if (product.inventory) {
+                  product.inventory.quantity += item.quantity;
+                }
+              }
+              await product.save();
+            }
+          }
+
+          // Recalculate original order pricing
+          const remainingSubtotal = remainingItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+          const remainingRatio = remainingSubtotal / totalSubtotal;
+          order.items = remainingItems;
+          order.pricing.subtotal = remainingSubtotal;
+          order.pricing.tax = (order.pricing.tax || 0) * remainingRatio;
+          order.pricing.discount = (order.pricing.discount || 0) * remainingRatio;
+          order.pricing.shippingCharges = (order.pricing.shippingCharges || 0) * remainingRatio;
+          order.pricing.total = remainingSubtotal + order.pricing.tax + order.pricing.shippingCharges - order.pricing.discount;
+
+          order.statusTimeline.push({
+            status: order.status,
+            message: `Items from rejecting seller ${sellerDoc.name || ''} were split into new cancelled order ${splitOrderId}.`,
+          });
+
+          await order.save();
+
+          // Send in-app notification to the customer about split cancellation
+          const populatedProduct = await Product.findById(sellerItems[0]?.product);
+          const firstProductTitle = populatedProduct?.title || 'Product';
+          const itemsCount = sellerItems.length;
+          const itemsDescription = itemsCount > 1 
+            ? `"${firstProductTitle}" and ${itemsCount - 1} other item${itemsCount > 2 ? 's' : ''}`
+            : `"${firstProductTitle}"`;
+
+          await sendInAppNotification(
+            order.customer,
+            'order',
+            'Order Update: Part of Order Cancelled',
+            `Your items for ${itemsDescription} from your order were cancelled by the seller.`,
+            `/orders/${order.orderId}`
+          );
+
+          await logAuditEvent({
+            actor: req.user._id,
+            action: 'UPDATE_ORDER_STATUS',
+            req,
+            details: { orderId: order.orderId, status: 'cancelled_split', splitOrderId },
+          });
+
+          return res.status(200).json({
+            status: 'success',
+            message: `Items cancelled by seller successfully. Split into order ${splitOrderId}.`,
+            data: { order, splitOrder },
+          });
+        }
+      }
+    }
+
     order.status = status;
     order.statusTimeline.push({
       status,
@@ -836,7 +945,39 @@ export const verifyDeliveryOtp = async (req, res, next) => {
       }
     }
 
+    // Credit seller revenue
+    for (const item of order.items) {
+      const itemSeller = await Seller.findById(item.seller);
+      if (itemSeller) {
+        itemSeller.revenue = (itemSeller.revenue || 0) + (item.price * item.quantity);
+        await itemSeller.save();
+      }
+    }
+
     await order.save();
+
+    // Fetch product details for notification
+    const orderWithProducts = await Order.findOne({ orderId: id }).populate('items.product');
+    const firstProductTitle = orderWithProducts?.items?.[0]?.product?.title || 'Product';
+    const itemsCount = orderWithProducts?.items?.length || 1;
+    const itemsDescription = itemsCount > 1 
+      ? `"${firstProductTitle}" and ${itemsCount - 1} other item${itemsCount > 2 ? 's' : ''}`
+      : `"${firstProductTitle}"`;
+
+    await sendInAppNotification(
+      order.customer,
+      'order',
+      'Order Update: Delivered',
+      `Your order for ${itemsDescription} status is now delivered.`,
+      `/orders/${id}`
+    );
+
+    await logAuditEvent({
+      actor: req.user._id,
+      action: 'VERIFY_DELIVERY_OTP',
+      req,
+      details: { orderId: id },
+    });
 
     res.status(200).json({
       status: 'success',

@@ -51,6 +51,7 @@ import {
    useGetDeliveryApplicationsQuery,
    useApproveDeliveryPartnerMutation,
    useAssignDeliveryPartnerMutation,
+   useGetDeliveryPartnersQuery,
 } from '@/store/api';
 
 export default function AdminDashboard() {
@@ -171,7 +172,8 @@ export default function AdminDashboard() {
   const [orderStatusFilter, setOrderStatusFilter] = useState('all'); // 'all' | 'placed' | 'processed' | 'shipped' | 'out_for_delivery' | 'delivered' | 'cancelled'
 
   // Support Tickets State
-  const [ticketStatusFilter, setTicketStatusFilter] = useState('all'); // 'all' | 'open' | 'in_progress' | 'resolved'
+  const [ticketStatusFilter, setTicketStatusFilter] = useState('pending'); // 'pending' | 'resolved'
+  const [deliverySubTab, setDeliverySubTab] = useState('partners'); // 'partners' | 'applications' | 'shipments'
   const [ticketPriorityFilter, setTicketPriorityFilter] = useState('all'); // 'all' | 'low' | 'medium' | 'high'
   const [ticketSearchQuery, setTicketSearchQuery] = useState('');
   const [selectedTicketId, setSelectedTicketId] = useState(null);
@@ -179,7 +181,7 @@ export default function AdminDashboard() {
 
   const { data: ticketsRes, refetch: refetchTickets, isLoading: ticketsLoading } = useGetAdminTicketsQuery(
     {
-      status: ticketStatusFilter === 'all' ? undefined : ticketStatusFilter,
+      status: ticketStatusFilter === 'resolved' ? 'resolved' : undefined,
       priority: ticketPriorityFilter === 'all' ? undefined : ticketPriorityFilter,
     },
     { skip: activeTab !== 'tickets' || !isAdmin || !mounted }
@@ -201,7 +203,7 @@ export default function AdminDashboard() {
   const { data: deliveryApplicationsRes, refetch: refetchDeliveryApplications, isLoading: deliveryApplicationsLoading } = useGetDeliveryApplicationsQuery(undefined, { skip: activeTab !== 'delivery' || !isAdmin || !mounted });
   const [approveDeliveryPartner, { isLoading: isApprovingDelivery }] = useApproveDeliveryPartnerMutation();
   const [assignDeliveryPartner, { isLoading: isAssigningDelivery }] = useAssignDeliveryPartnerMutation();
-  const { data: deliveryPartnersRes } = useGetAdminUsersQuery({ role: 'delivery_partner' }, { skip: activeTab !== 'orders' || !isAdmin || !mounted });
+  const { data: deliveryPartnersRes, refetch: refetchDeliveryPartners } = useGetAdminUsersQuery({ role: 'delivery_partner' }, { skip: (activeTab !== 'orders' && activeTab !== 'delivery') || !isAdmin || !mounted });
 
   useEffect(() => {
     if (cartLimitsRes?.data) {
@@ -212,8 +214,12 @@ export default function AdminDashboard() {
 
   const tickets = ticketsRes?.data?.tickets || [];
   const selectedTicket = tickets.find(t => t._id === selectedTicketId);
+  const deliveryPartnersList = deliveryPartnersRes?.data?.users || [];
 
   const filteredTickets = tickets.filter(ticket => {
+    if (ticketStatusFilter === 'pending' && ticket.status === 'resolved') return false;
+    if (ticketStatusFilter === 'resolved' && ticket.status !== 'resolved') return false;
+
     const search = ticketSearchQuery.toLowerCase().trim();
     if (!search) return true;
     const subjectMatches = (ticket.subject || '').toLowerCase().includes(search);
@@ -625,11 +631,13 @@ export default function AdminDashboard() {
     {
       skip:
         (activeTab !== 'orders' &&
+          activeTab !== 'delivery' &&
           (activeTab !== 'overview' || !['sales', 'rejections'].includes(selectedMetric))) ||
         !isAdmin ||
         !mounted,
     }
   );
+  const adminOrdersList = adminOrdersRes?.data?.orders || [];
   const { data: customersRes, refetch: refetchCustomers, isLoading: customersLoading } = useGetAdminUsersQuery(
     { role: 'customer' },
     {
@@ -796,8 +804,19 @@ export default function AdminDashboard() {
       await approveDeliveryPartner({ id, status }).unwrap();
       showToast(`Delivery partner application ${status} successfully!`, 'success');
       refetchDeliveryApplications();
+      refetchDeliveryPartners?.();
     } catch (err) {
       showToast(err.data?.message || 'Failed to update application status.', 'error');
+    }
+  };
+
+  const handleAssignPartner = async (orderId, deliveryPartnerId) => {
+    try {
+      await assignDeliveryPartner({ orderId, deliveryPartnerId }).unwrap();
+      showToast('Delivery partner assigned successfully!', 'success');
+      refetchAdminOrders?.();
+    } catch (err) {
+      showToast(err.data?.message || 'Failed to assign delivery partner.', 'error');
     }
   };
 
@@ -4216,17 +4235,6 @@ export default function AdminDashboard() {
                       </div>
 
                       <select
-                        value={ticketStatusFilter}
-                        onChange={(e) => setTicketStatusFilter(e.target.value)}
-                        className="bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-2.5 py-1.5 rounded-xl text-xxs outline-none transition dark:text-slate-200 cursor-pointer"
-                      >
-                        <option value="all">All Statuses</option>
-                        <option value="open">Open</option>
-                        <option value="in_progress">In Progress</option>
-                        <option value="resolved">Resolved</option>
-                      </select>
-
-                      <select
                         value={ticketPriorityFilter}
                         onChange={(e) => setTicketPriorityFilter(e.target.value)}
                         className="bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-2.5 py-1.5 rounded-xl text-xxs outline-none transition dark:text-slate-200 cursor-pointer"
@@ -4237,6 +4245,28 @@ export default function AdminDashboard() {
                         <option value="high">High</option>
                       </select>
                     </div>
+                  </div>
+
+                  {/* Tabs: Pending vs Resolved */}
+                  <div className="flex border-b border-slate-100 dark:border-slate-800 mb-2 gap-5 text-xxs font-bold select-none mt-4">
+                    <button
+                      onClick={() => {
+                        setTicketStatusFilter('pending');
+                        setSelectedTicketId(null);
+                      }}
+                      className={`pb-2 px-1 transition relative ${ticketStatusFilter === 'pending' ? 'text-secondary font-black border-b-2 border-secondary' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'}`}
+                    >
+                      Pending Tickets ({tickets.filter(t => t.status !== 'resolved').length})
+                    </button>
+                    <button
+                      onClick={() => {
+                        setTicketStatusFilter('resolved');
+                        setSelectedTicketId(null);
+                      }}
+                      className={`pb-2 px-1 transition relative ${ticketStatusFilter === 'resolved' ? 'text-secondary font-black border-b-2 border-secondary' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'}`}
+                    >
+                      Resolved Tickets ({tickets.filter(t => t.status === 'resolved').length})
+                    </button>
                   </div>
 
                   {ticketsLoading ? (
@@ -4454,75 +4484,271 @@ export default function AdminDashboard() {
 
             {activeTab === 'delivery' && (
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-6">
-                <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Truck className="w-5 h-5 text-secondary" /> Delivery Partner Applications
-                  </span>
-                  <button 
-                    type="button"
-                    onClick={() => refetchDeliveryApplications()}
-                    className="text-xs text-secondary hover:underline flex items-center gap-1 font-bold"
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+                  <div>
+                    <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                      <Truck className="w-5 h-5 text-secondary" /> Delivery Partner Operations
+                    </h3>
+                    <p className="text-xxs text-slate-400 mt-1">Manage delivery partners, view live shipment tracks, and assign packets.</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        refetchDeliveryApplications?.();
+                        refetchDeliveryPartners?.();
+                        refetchAdminOrders?.();
+                      }}
+                      className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-250 dark:hover:bg-slate-755 text-slate-750 dark:text-slate-250 font-bold px-3 py-1.5 rounded-xl text-xxs transition flex items-center gap-1.5"
+                    >
+                      <RefreshCw className="w-3 h-3" /> Refresh Data
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sub-tab Selectors */}
+                <div className="flex gap-4 border-b border-slate-100 dark:border-slate-850 pb-2 text-xs font-bold">
+                  <button
+                    onClick={() => setDeliverySubTab('partners')}
+                    className={`pb-1.5 transition ${deliverySubTab === 'partners' ? 'text-secondary border-b-2 border-secondary font-black' : 'text-slate-400 hover:text-slate-600'}`}
                   >
-                    <RefreshCw className="w-3.5 h-3.5" /> Refresh Applications
+                    Approved Partners Registry ({deliveryPartnersList.length})
                   </button>
-                </h3>
+                  <button
+                    onClick={() => setDeliverySubTab('applications')}
+                    className={`pb-1.5 transition ${deliverySubTab === 'applications' ? 'text-secondary border-b-2 border-secondary font-black' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    Onboarding Applications ({deliveryApplicationsRes?.data?.users?.length || 0})
+                  </button>
+                  <button
+                    onClick={() => setDeliverySubTab('shipments')}
+                    className={`pb-1.5 transition ${deliverySubTab === 'shipments' ? 'text-secondary border-b-2 border-secondary font-black' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    Shipment Status Tracker ({adminOrdersList.length})
+                  </button>
+                </div>
 
-                <p className="text-xxs text-slate-400 -mt-2">
-                  Review and moderate incoming courier applications. Approved couriers will receive the <strong>delivery_partner</strong> role and access to the Delivery Portal.
-                </p>
-
-                {deliveryApplicationsLoading ? (
+                {/* Sub-tab 1: Registry & Analytics */}
+                {deliverySubTab === 'partners' && (
                   <div className="space-y-4">
-                    {Array(3).fill(0).map((_, idx) => (
-                      <div key={idx} className="h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl animate-pulse" />
-                    ))}
+                    {deliveryPartnersList.length === 0 ? (
+                      <div className="text-center py-12 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl">
+                        <Truck className="w-8 h-8 text-slate-450 mx-auto mb-2" />
+                        <p className="text-xs text-slate-500 italic">No approved delivery partners registered yet.</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {deliveryPartnersList.map((partner) => {
+                          // Compute stats
+                          const partnerOrders = adminOrdersList.filter(o => 
+                            o.deliveryPartner?._id === partner._id || 
+                            o.deliveryPartner === partner._id
+                          );
+                          const assignedCount = partnerOrders.length;
+                          const deliveredCount = partnerOrders.filter(o => o.status === 'delivered').length;
+                          const activeCount = partnerOrders.filter(o => 
+                            ['processed', 'shipped', 'out_for_delivery'].includes(o.status)
+                          ).length;
+                          const earnings = deliveredCount * 50; // ₹50 per delivery
+                          
+                          // Count matching support tickets
+                          const partnerComplaints = tickets.filter(t => 
+                            t.subject?.toLowerCase().includes(partner.name.toLowerCase()) ||
+                            t.customer?.email?.toLowerCase() === partner.email.toLowerCase() ||
+                            t.messages?.some(m => m.text?.toLowerCase().includes(partner.name.toLowerCase()))
+                          ).length;
+
+                          return (
+                            <div key={partner._id} className="bg-slate-50 dark:bg-slate-850/60 border border-slate-100 dark:border-slate-800/80 p-5 rounded-2xl space-y-4 shadow-xxs">
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <h4 className="font-extrabold text-slate-800 dark:text-slate-200 text-sm">{partner.name}</h4>
+                                  <p className="text-xxs text-slate-400 mt-0.5">{partner.email}</p>
+                                  <p className="text-xxs text-slate-400 font-mono mt-0.5">{partner.phoneNumber || 'No phone number'}</p>
+                                </div>
+                                <span className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-450 border border-emerald-100 dark:border-emerald-900/30 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase">
+                                  Approved
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-4 gap-2 text-center">
+                                <div className="bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/40">
+                                  <div className="text-xs font-black text-slate-850 dark:text-slate-100">{assignedCount}</div>
+                                  <div className="text-[8px] text-slate-450 font-bold uppercase mt-0.5">Assigned</div>
+                                </div>
+                                <div className="bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/40">
+                                  <div className="text-xs font-black text-emerald-600 dark:text-emerald-450">{deliveredCount}</div>
+                                  <div className="text-[8px] text-slate-455 font-bold uppercase mt-0.5">Delivered</div>
+                                </div>
+                                <div className="bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/40">
+                                  <div className="text-xs font-black text-indigo-650 dark:text-indigo-400">{activeCount}</div>
+                                  <div className="text-[8px] text-slate-455 font-bold uppercase mt-0.5">In Transit</div>
+                                </div>
+                                <div className="bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/40">
+                                  <div className="text-xs font-black text-red-500 dark:text-red-400">{partnerComplaints}</div>
+                                  <div className="text-[8px] text-slate-455 font-bold uppercase mt-0.5">Complaints</div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between border-t border-slate-150/40 dark:border-slate-800 pt-3 text-xxs font-bold text-slate-650 dark:text-slate-350">
+                                <span>Estimated Earnings:</span>
+                                <span className="text-xs font-black text-slate-800 dark:text-slate-100">₹{earnings}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                ) : !deliveryApplicationsRes?.data?.users || deliveryApplicationsRes.data.users.length === 0 ? (
-                  <div className="text-center py-12 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl">
-                    <div className="inline-flex items-center justify-center p-4 bg-slate-50 dark:bg-slate-800 rounded-full mb-3">
-                      <Truck className="w-8 h-8 text-slate-400" />
-                    </div>
-                    <p className="text-xs text-slate-500 italic">No pending delivery partner applications found.</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 uppercase tracking-wider text-[10px] font-bold">
-                          <th className="py-3 px-4">Courier Name</th>
-                          <th className="py-3 px-4">Email Address</th>
-                          <th className="py-3 px-4">Phone Number</th>
-                          <th className="py-3 px-4">Applied Date</th>
-                          <th className="py-3 px-4 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {deliveryApplicationsRes.data.users.map((appUser) => (
-                          <tr key={appUser._id} className="border-b border-slate-55 dark:border-slate-850 hover:bg-slate-50/20 dark:hover:bg-slate-900/10">
-                            <td className="py-3.5 px-4 font-bold text-slate-800 dark:text-slate-200">{appUser.name}</td>
-                            <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400">{appUser.email}</td>
-                            <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400 font-mono">{appUser.phoneNumber || 'N/A'}</td>
-                            <td className="py-3.5 px-4 text-slate-400">{new Date(appUser.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
-                            <td className="py-3.5 px-4 text-right space-x-2 whitespace-nowrap">
-                              <button
-                                onClick={() => handleApproveDelivery(appUser._id, 'approved')}
-                                disabled={isApprovingDelivery}
-                                className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-extrabold px-3 py-1.5 rounded-xl transition active:scale-95 shadow-xs"
-                              >
-                                Approve
-                              </button>
-                              <button
-                                onClick={() => handleApproveDelivery(appUser._id, 'rejected')}
-                                disabled={isApprovingDelivery}
-                                className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white font-extrabold px-3 py-1.5 rounded-xl transition active:scale-95 shadow-xs"
-                              >
-                                Reject
-                              </button>
-                            </td>
-                          </tr>
+                )}
+
+                {/* Sub-tab 2: Onboarding Applications */}
+                {deliverySubTab === 'applications' && (
+                  <div className="space-y-4">
+                    {deliveryApplicationsLoading ? (
+                      <div className="space-y-4">
+                        {Array(3).fill(0).map((_, idx) => (
+                          <div key={idx} className="h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl animate-pulse" />
                         ))}
-                      </tbody>
-                    </table>
+                      </div>
+                    ) : !deliveryApplicationsRes?.data?.users || deliveryApplicationsRes.data.users.length === 0 ? (
+                      <div className="text-center py-12 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl">
+                        <Truck className="w-8 h-8 text-slate-455 mx-auto mb-2" />
+                        <p className="text-xs text-slate-500 italic">No pending onboarding applications found.</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 uppercase tracking-wider text-[10px] font-bold">
+                              <th className="py-3 px-4">Courier Name</th>
+                              <th className="py-3 px-4">Email Address</th>
+                              <th className="py-3 px-4">Phone Number</th>
+                              <th className="py-3 px-4">Applied Date</th>
+                              <th className="py-3 px-4 text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {deliveryApplicationsRes.data.users.map((appUser) => (
+                              <tr key={appUser._id} className="border-b border-slate-55 dark:border-slate-850 hover:bg-slate-50/20 dark:hover:bg-slate-900/10">
+                                <td className="py-3.5 px-4 font-bold text-slate-800 dark:text-slate-200">{appUser.name}</td>
+                                <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400">{appUser.email}</td>
+                                <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400 font-mono">{appUser.phoneNumber || 'N/A'}</td>
+                                <td className="py-3.5 px-4 text-slate-400">{new Date(appUser.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                                <td className="py-3.5 px-4 text-right space-x-2 whitespace-nowrap">
+                                  <button
+                                    onClick={() => handleApproveDelivery(appUser._id, 'approved')}
+                                    disabled={isApprovingDelivery}
+                                    className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-extrabold px-3 py-1.5 rounded-xl transition active:scale-95 shadow-xs"
+                                  >
+                                    Approve
+                                  </button>
+                                  <button
+                                    onClick={() => handleApproveDelivery(appUser._id, 'rejected')}
+                                    disabled={isApprovingDelivery}
+                                    className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white font-extrabold px-3 py-1.5 rounded-xl transition active:scale-95 shadow-xs"
+                                  >
+                                    Reject
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Sub-tab 3: Shipments Tracker & Partner Assignment */}
+                {deliverySubTab === 'shipments' && (
+                  <div className="space-y-4">
+                    {adminOrdersList.length === 0 ? (
+                      <div className="text-center py-12 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl">
+                        <ShoppingBag className="w-8 h-8 text-slate-455 mx-auto mb-2" />
+                        <p className="text-xs text-slate-500 italic">No orders found on the platform.</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-[10px]">
+                          <thead>
+                            <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 uppercase tracking-wider text-[9px] font-bold">
+                              <th className="py-3 px-4">Order ID</th>
+                              <th className="py-3 px-4">Customer</th>
+                              <th className="py-3 px-4">Items</th>
+                              <th className="py-3 px-4">Status</th>
+                              <th className="py-3 px-4">Assigned Partner</th>
+                              <th className="py-3 px-4 text-right">Assign partner</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {adminOrdersList.map((order) => {
+                              const currentPartnerId = order.deliveryPartner?._id || order.deliveryPartner || '';
+                              
+                              const statusStyles = {
+                                placed: 'bg-blue-50 text-blue-700 dark:bg-blue-950/20 dark:text-blue-400',
+                                processed: 'bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400',
+                                shipped: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/20 dark:text-indigo-400',
+                                out_for_delivery: 'bg-purple-50 text-purple-700 dark:bg-purple-950/20 dark:text-purple-400',
+                                delivered: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-450',
+                                cancelled: 'bg-rose-50 text-rose-700 dark:bg-rose-950/20 dark:text-rose-455',
+                              };
+
+                              return (
+                                <tr key={order._id} className="border-b border-slate-55 dark:border-slate-850 hover:bg-slate-50/20 dark:hover:bg-slate-900/10">
+                                  <td className="py-3 px-4 font-mono font-bold text-slate-800 dark:text-slate-200">
+                                    {order.orderId || order._id}
+                                    <div className="text-[8px] text-slate-400 font-normal">
+                                      {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <div className="font-bold text-slate-800 dark:text-slate-200">{order.shippingAddress?.name || 'N/A'}</div>
+                                    <div className="text-[9px] text-slate-450">{order.shippingAddress?.city} ({order.shippingAddress?.postalCode})</div>
+                                  </td>
+                                  <td className="py-3 px-4 max-w-[150px] truncate font-bold text-slate-700 dark:text-slate-300">
+                                    {order.items?.[0]?.product?.name || 'Package'}
+                                    {order.items?.length > 1 && ` (+${order.items.length - 1} items)`}
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <span className={`text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded-full border dark:border-transparent ${statusStyles[order.status] || 'bg-slate-100 text-slate-650'}`}>
+                                      {order.status}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-4 font-bold text-slate-700 dark:text-slate-300">
+                                    {order.deliveryPartner ? (
+                                      <div>
+                                        <div className="text-[10px] text-slate-800 dark:text-slate-200">{order.deliveryPartner.name || 'Unknown'}</div>
+                                        <div className="text-[8px] text-slate-400 font-mono">{order.deliveryPartner.phoneNumber}</div>
+                                      </div>
+                                    ) : (
+                                      <span className="text-[8px] text-amber-600 dark:text-amber-500 font-bold bg-amber-50 dark:bg-amber-950/20 px-1.5 py-0.5 rounded">
+                                        Unassigned
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-3 px-4 text-right">
+                                    <select
+                                      value={currentPartnerId}
+                                      onChange={(e) => handleAssignPartner(order.orderId || order._id, e.target.value)}
+                                      disabled={isAssigningDelivery || order.status === 'delivered' || order.status === 'cancelled'}
+                                      className="bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-2 py-1 rounded-xl text-xxs font-bold text-slate-700 dark:text-slate-200 cursor-pointer outline-none transition disabled:opacity-50"
+                                    >
+                                      <option value="">Select Partner</option>
+                                      {deliveryPartnersList.map((partner) => (
+                                        <option key={partner._id} value={partner._id}>
+                                          {partner.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
