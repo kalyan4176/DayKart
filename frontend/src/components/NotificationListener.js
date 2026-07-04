@@ -4,6 +4,7 @@ import React from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useToast } from '@/components/ToastProvider';
 import { api } from '@/store/api';
+import { setCredentials, logoutUser } from '@/store/authSlice';
 
 export default function NotificationListener() {
   const { isAuthenticated, token } = useSelector((state) => state.auth);
@@ -18,6 +19,31 @@ export default function NotificationListener() {
     let retryTimeout;
     let retryCount = 0;
     const maxRetries = 5;
+
+    const refreshAccessToken = async () => {
+      try {
+        const response = await fetch(`${apiUrl}/auth/refresh-token`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const resData = await response.json();
+          if (resData?.accessToken) {
+            dispatch(setCredentials({
+              user: resData.data?.user,
+              accessToken: resData.accessToken,
+            }));
+            return resData.accessToken;
+          }
+        }
+      } catch (err) {
+        console.error('Silent token refresh failed:', err);
+      }
+      return null;
+    };
 
     const connectSSE = () => {
       try {
@@ -56,10 +82,18 @@ export default function NotificationListener() {
           }
         };
 
-        eventSource.onerror = (err) => {
-          console.warn('SSE stream disconnected, attempt connection recovery...');
+        eventSource.onerror = async (err) => {
+          console.warn('SSE stream disconnected, checking authentication token...');
           eventSource.close();
           clearTimeout(retryTimeout);
+          
+          // Attempt silent token refresh
+          const newToken = await refreshAccessToken();
+          if (!newToken) {
+            console.warn('Token expired or invalid during SSE reconnect. Logging out user.');
+            dispatch(logoutUser());
+            return;
+          }
           
           if (retryCount < maxRetries) {
             retryCount++;
