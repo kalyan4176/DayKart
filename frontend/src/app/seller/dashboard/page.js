@@ -985,6 +985,22 @@ function SellerDashboardContent() {
                             </div>
 
                             {/* Assigned Delivery Partner details */}
+                            {order.status === 'processed' && !order.deliveryPartner && (
+                              <div className="bg-amber-500/5 border-t border-slate-200/50 dark:border-slate-850/50 px-5 py-3.5 text-[11px] flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                                  <Clock className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <p className="font-extrabold text-amber-700 dark:text-amber-400">
+                                    Waiting for Courier Assignment
+                                  </p>
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-450 mt-0.5">
+                                    The administration is assigning a courier partner to pick up this package.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+
                             {order.deliveryPartner && (
                               <div className="bg-slate-50/50 dark:bg-slate-900/40 border-t border-slate-200/50 dark:border-slate-850/50 px-5 py-3.5 text-[11px] flex items-center gap-2">
                                 <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
@@ -992,11 +1008,16 @@ function SellerDashboardContent() {
                                 </div>
                                 <div>
                                   <p className="font-extrabold text-slate-800 dark:text-slate-200">
-                                    Assigned Courier: {typeof order.deliveryPartner === 'object' ? order.deliveryPartner.name : 'Delivery Partner'}
+                                    Admin Assigned Courier: {typeof order.deliveryPartner === 'object' ? order.deliveryPartner.name : 'Delivery Partner'}
                                   </p>
                                   {typeof order.deliveryPartner === 'object' && (
                                     <p className="text-[10px] text-slate-500 dark:text-slate-450 mt-0.5">
                                       Contact: {order.deliveryPartner.phoneNumber || 'No phone'} &middot; Email: {order.deliveryPartner.email || 'N/A'}
+                                    </p>
+                                  )}
+                                  {order.status === 'processed' && (
+                                    <p className="text-[9px] text-cyan-600 dark:text-cyan-400 font-extrabold mt-1 uppercase tracking-wider">
+                                      Ready for Pickup: Hand over package to courier and click "Confirm Handover" below.
                                     </p>
                                   )}
                                 </div>

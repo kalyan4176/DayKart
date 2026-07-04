@@ -25,6 +25,7 @@ export default function DeliveryDashboard() {
   const [otpInput, setOtpInput] = useState({});
   const [activeVerifyOrderId, setActiveVerifyOrderId] = useState(null);
   const [verifyOtpError, setVerifyOtpError] = useState('');
+  const [cashCollectedOrders, setCashCollectedOrders] = useState({});
 
   // API Queries & Mutations
   const { data: deliveryOrdersRes, refetch: refetchOrders, isLoading: ordersLoading } = api.useGetDeliveryOrdersQuery(undefined, {
@@ -83,6 +84,20 @@ export default function DeliveryDashboard() {
     dispatch(logoutUser());
     showToast('Logged out successfully.', 'success');
     router.push('/login');
+  };
+
+  const handleConfirmPickup = async (orderId) => {
+    try {
+      await updateOrderStatus({
+        id: orderId,
+        status: 'shipped',
+        message: 'Courier picked up package from seller store.'
+      }).unwrap();
+      showToast('Package pickup confirmed successfully!', 'success');
+      refetchOrders();
+    } catch (err) {
+      showToast(err.data?.message || 'Failed to update order status.', 'error');
+    }
   };
 
   const handleMarkOutForDelivery = async (orderId) => {
@@ -378,80 +393,109 @@ export default function DeliveryDashboard() {
                         Status: {order.status === 'processed' ? 'Seller packaging...' : order.status === 'shipped' ? 'Handed over' : order.status}
                       </span>
                     </div>
-
                     <div className="flex items-center gap-3">
-                      {/* Step 3: Awaiting seller handover */}
-                      {isPendingPickup && (
-                        <span className="text-amber-500 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-xl uppercase tracking-wider font-extrabold">
-                          Awaiting Seller Handover
-                        </span>
-                      )}
-
-                      {/* Step 4: Marked handover. Courier confirms package picked up from seller, marks out for delivery */}
-                      {isShipped && (
-                        <button
-                          onClick={() => handleMarkOutForDelivery(order.orderId)}
-                          disabled={isUpdatingStatus}
-                          className="bg-secondary hover:bg-cyan-600 disabled:opacity-50 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition shadow-sm cursor-pointer"
-                        >
-                          Mark Out for Delivery
-                        </button>
-                      )}
-
-                      {/* Step 5: Verify delivery OTP to complete delivery */}
-                      {isOutForDelivery && (
-                        <div className="w-full sm:w-auto">
-                          {activeVerifyOrderId === order.orderId ? (
-                            <form 
-                              onSubmit={(e) => handleVerifyOtpSubmit(e, order.orderId)}
-                              className="flex flex-col gap-2 bg-slate-900 border border-slate-850 p-4 rounded-xl max-w-sm"
-                            >
-                              <div className="flex items-center gap-2">
-                                <KeyRound className="w-4 h-4 text-orange-400" />
-                                <span className="text-xxs uppercase tracking-wider text-slate-400 font-extrabold">Enter Customer Delivery OTP</span>
-                              </div>
-                              
-                              <div className="flex items-center gap-2 mt-1">
-                                <input
-                                  type="text"
-                                  maxLength={6}
-                                  placeholder="6-digit OTP"
-                                  value={otpInput[order.orderId] || ''}
-                                  onChange={(e) => setOtpInput(prev => ({ ...prev, [order.orderId]: e.target.value }))}
-                                  className="bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold text-center tracking-widest text-white focus:outline-none focus:border-secondary w-32"
-                                />
-                                <button
-                                  type="submit"
-                                  disabled={isVerifyingOtp}
-                                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg shadow-sm transition cursor-pointer"
-                                >
-                                  Verify & Deliver
-                                </button>
-                              </div>
-                              {verifyOtpError && (
-                                <p className="text-[10px] text-red-500 font-bold mt-1 flex items-center gap-1">
-                                  <AlertCircle className="w-3 h-3" /> {verifyOtpError}
-                                </p>
-                              )}
-                            </form>
-                          ) : (
+                      {isCOD ? (
+                        <>
+                          {/* 1st Button: Delivery Pickup (Active when status is processed/awaiting handover) */}
+                          {isPendingPickup && (
                             <button
-                              onClick={() => {
-                                setVerifyOtpError('');
-                                setActiveVerifyOrderId(order.orderId);
-                              }}
-                              className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition shadow-sm cursor-pointer"
+                              onClick={() => handleConfirmPickup(order.orderId)}
+                              disabled={isUpdatingStatus}
+                              className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition shadow-sm cursor-pointer uppercase tracking-wider"
                             >
-                              Verify OTP & Complete Delivery
+                              1. Delivery Pickup
                             </button>
                           )}
-                        </div>
-                      )}
 
-                      {/* Completed */}
-                      {isDelivered && (
-                        <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3.5 py-2 rounded-xl flex items-center gap-1.5 uppercase font-extrabold text-xxs tracking-wider">
-                          <CheckCircle className="w-4 h-4" /> Delivered & Verified
+                          {/* 2nd Button: Delivery Checking (Active when status is shipped or out_for_delivery) */}
+                          {isShipped && (
+                            <button
+                              onClick={() => handleMarkOutForDelivery(order.orderId)}
+                              disabled={isUpdatingStatus}
+                              className="bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition shadow-sm cursor-pointer uppercase tracking-wider"
+                            >
+                              2. Start Delivery Checking
+                            </button>
+                          )}
+
+                          {isOutForDelivery && (
+                            <div className="w-full sm:w-auto">
+                              {activeVerifyOrderId === order.orderId ? (
+                                <form 
+                                  onSubmit={(e) => handleVerifyOtpSubmit(e, order.orderId)}
+                                  className="flex flex-col gap-2 bg-slate-900 border border-slate-850 p-4 rounded-xl max-w-sm"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <KeyRound className="w-4 h-4 text-orange-400" />
+                                    <span className="text-xxs uppercase tracking-wider text-slate-450 font-extrabold">Enter Customer Delivery OTP</span>
+                                  </div>
+                                  
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <input
+                                      type="text"
+                                      maxLength={6}
+                                      placeholder="6-digit OTP"
+                                      value={otpInput[order.orderId] || ''}
+                                      onChange={(e) => setOtpInput(prev => ({ ...prev, [order.orderId]: e.target.value }))}
+                                      className="bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold text-center tracking-widest text-white focus:outline-none focus:border-secondary w-32"
+                                    />
+                                    <button
+                                      type="submit"
+                                      disabled={isVerifyingOtp}
+                                      className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg shadow-sm transition cursor-pointer"
+                                    >
+                                      Verify & Deliver
+                                    </button>
+                                  </div>
+                                  {verifyOtpError && (
+                                    <p className="text-[10px] text-red-500 font-bold mt-1 flex items-center gap-1">
+                                      <AlertCircle className="w-3.5 h-3.5" /> {verifyOtpError}
+                                    </p>
+                                  )}
+                                </form>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    setVerifyOtpError('');
+                                    setActiveVerifyOrderId(order.orderId);
+                                  }}
+                                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition shadow-sm cursor-pointer uppercase tracking-wider"
+                                >
+                                  2. Delivery Checking (OTP)
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          {/* 3rd Button: Cash Collected (COD) (Active when status is out_for_delivery) */}
+                          {isOutForDelivery && (
+                            <button
+                              onClick={() => {
+                                setCashCollectedOrders(prev => ({ ...prev, [order.orderId]: true }));
+                                showToast('Cash payment collected successfully! Now verify delivery OTP.', 'success');
+                              }}
+                              disabled={cashCollectedOrders[order.orderId]}
+                              className={`font-extrabold text-xs px-4 py-2 rounded-xl transition shadow-sm cursor-pointer uppercase tracking-wider ${
+                                cashCollectedOrders[order.orderId]
+                                  ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 cursor-default'
+                                  : 'bg-amber-600 hover:bg-amber-500 text-white'
+                              }`}
+                            >
+                              {cashCollectedOrders[order.orderId] ? '3. Cash Collected ✓' : '3. Cash Collected (COD)'}
+                            </button>
+                          )}
+
+                          {/* Completed */}
+                          {isDelivered && (
+                            <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3.5 py-2 rounded-xl flex items-center gap-1.5 uppercase font-extrabold text-xxs tracking-wider">
+                              <CheckCircle className="w-4 h-4" /> Delivered & Verified
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        // Prepaid orders: no buttons appear
+                        <span className="text-slate-500 italic text-xxs font-bold">
+                          Prepaid Online Order (No actions required)
                         </span>
                       )}
                     </div>

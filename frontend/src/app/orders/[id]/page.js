@@ -224,28 +224,55 @@ export default function OrderDetailsPage({ params }) {
             </div>
           )}
 
-          {/* Secure Delivery OTP Verification Card */}
-          {order.deliveryOtp && (order.status === 'shipped' || order.status === 'out_for_delivery') && (
-            <div className="mx-6 my-4 p-5 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0">
-                  <ShieldAlert className="w-5 h-5" />
+          {/* Secure Delivery OTP Verification Card & Courier Details */}
+          {(order.status === 'shipped' || order.status === 'out_for_delivery') && (
+            <div className="mx-6 my-4 p-5 rounded-2xl bg-amber-500/10 border border-amber-500/25 space-y-4">
+              <div className="flex items-center justify-between gap-4 flex-wrap pb-3 border-b border-slate-200/10 dark:border-slate-800/60">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0">
+                    <ShieldAlert className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wide">
+                      Secure Delivery Verification
+                    </h4>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-450 mt-0.5 max-w-sm leading-relaxed">
+                      Please share this 6-digit OTP with your courier partner once you receive the package to verify the delivery.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wide">
-                    Secure Delivery Verification
-                  </h4>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-450 mt-0.5 max-w-sm leading-relaxed">
-                    Please share this 6-digit OTP with your courier partner once you receive the package to verify the delivery.
-                  </p>
+                
+                <div className="flex items-center gap-2">
+                  <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4.5 py-2 rounded-xl text-lg font-black tracking-widest text-secondary text-center shadow-sm">
+                    {order.deliveryOtp || '------'}
+                  </div>
                 </div>
               </div>
-              
-              <div className="flex items-center gap-2">
-                <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4.5 py-2 rounded-xl text-lg font-black tracking-widest text-secondary text-center shadow-sm">
-                  {order.deliveryOtp}
+
+              {/* Courier Partner Details */}
+              {order.deliveryPartner && (
+                <div className="flex items-center justify-between gap-4 flex-wrap pt-1 text-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 flex items-center justify-center flex-shrink-0">
+                      <Truck className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Assigned Courier Partner</span>
+                      <span className="font-bold text-slate-850 dark:text-slate-200 text-sm mt-0.5">{order.deliveryPartner.name}</span>
+                    </div>
+                  </div>
+                  {order.deliveryPartner.phoneNumber && (
+                    <div className="flex items-center gap-2">
+                      <a 
+                        href={`tel:${order.deliveryPartner.phoneNumber}`} 
+                        className="bg-secondary hover:bg-cyan-600 text-white font-extrabold px-3.5 py-1.5 rounded-xl text-xxs transition shadow-xs"
+                      >
+                        Call Courier: {order.deliveryPartner.phoneNumber}
+                      </a>
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
             </div>
           )}
 
