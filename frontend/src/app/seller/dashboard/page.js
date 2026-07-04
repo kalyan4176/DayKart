@@ -67,17 +67,17 @@ function SellerDashboardContent() {
   };
 
   useEffect(() => {
-    if (!isAuthenticated || !user || user.role !== 'seller') {
+    if (mounted && (!isAuthenticated || !user || user.role !== 'seller')) {
       router.push('/');
     }
-  }, [isAuthenticated, user, router]);
+  }, [mounted, isAuthenticated, user, router]);
 
   // Seller profile query & mutation
-  const { data: profileRes, isLoading: profileLoading, refetch: refetchProfile } = useGetSellerProfileQuery(undefined, { skip: !isAuthenticated || user?.role !== 'seller' });
+  const { data: profileRes, isLoading: profileLoading, refetch: refetchProfile } = useGetSellerProfileQuery(undefined, { skip: !mounted || !isAuthenticated || user?.role !== 'seller' });
   const [createSellerProfile, { isLoading: profileCreating }] = useCreateSellerProfileMutation();
   const [createProduct, { isLoading: productLoading }] = useCreateProductMutation();
-  const { data: categoriesRes, refetch: refetchCategories } = useGetCategoriesQuery();
-  const { data: brandsRes, refetch: refetchBrands } = useGetBrandsQuery();
+  const { data: categoriesRes, refetch: refetchCategories } = useGetCategoriesQuery(undefined, { skip: !mounted || !isAuthenticated || user?.role !== 'seller' });
+  const { data: brandsRes, refetch: refetchBrands } = useGetBrandsQuery(undefined, { skip: !mounted || !isAuthenticated || user?.role !== 'seller' });
 
   const categories = categoriesRes?.data?.categories || [];
   const brands = brandsRes?.data?.brands || [];

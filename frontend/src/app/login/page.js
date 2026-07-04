@@ -121,7 +121,10 @@ export default function Login() {
         accessToken: res.accessToken,
       }));
       showToast(`Welcome back, ${res.data.user.name || 'User'}!`, 'success');
-      router.push('/');
+      if (res.data?.user?.role === 'admin') router.push('/admin/dashboard');
+      else if (res.data?.user?.role === 'seller') router.push('/seller/dashboard');
+      else if (res.data?.user?.role === 'delivery_partner') router.push('/delivery/dashboard');
+      else router.push('/');
     } catch (err) {
       setErrorMsg(err.data?.message || 'Login failed. Please check credentials.');
     }
