@@ -29,6 +29,7 @@ export default function DeliveryDashboard() {
   const [activePickupOrderId, setActivePickupOrderId] = useState(null);
   const [pickupCodeInput, setPickupCodeInput] = useState({});
   const [pickupError, setPickupError] = useState('');
+  const [confirmCodOrderId, setConfirmCodOrderId] = useState(null);
 
   // API Queries & Mutations
   const { data: deliveryOrdersRes, refetch: refetchOrders, isLoading: ordersLoading } = api.useGetDeliveryOrdersQuery(undefined, {
@@ -534,11 +535,45 @@ export default function DeliveryDashboard() {
                                 </p>
                               )}
                             </form>
+                          ) : confirmCodOrderId === order.orderId ? (
+                            <div className="flex flex-col gap-2 bg-slate-800 border border-amber-500/30 p-4 rounded-xl max-w-sm">
+                              <div className="flex items-center gap-2">
+                                <DollarSign className="w-4 h-4 text-amber-400" />
+                                <span className="text-[10px] uppercase tracking-wider text-amber-400 font-extrabold">COD Payment Confirmation</span>
+                              </div>
+                              <p className="text-[11px] text-slate-350 leading-relaxed font-semibold">
+                                This is a Cash on Delivery (COD) order. Have you collected the cash of <span className="text-white font-extrabold">₹{order.pricing?.total?.toLocaleString()}</span>?
+                              </p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    await handleConfirmCashCollected(order.orderId);
+                                    setConfirmCodOrderId(null);
+                                    setActiveVerifyOrderId(order.orderId);
+                                  }}
+                                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-extrabold px-3 py-1.5 rounded-lg shadow-sm transition cursor-pointer"
+                                >
+                                  Yes, Collected
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmCodOrderId(null)}
+                                  className="bg-slate-700 hover:bg-slate-655 text-slate-300 text-[10px] font-extrabold px-3 py-1.5 rounded-lg transition cursor-pointer"
+                                >
+                                  No, Go Back
+                                </button>
+                              </div>
+                            </div>
                           ) : (
                             <button
                               onClick={() => {
                                 setVerifyOtpError('');
-                                setActiveVerifyOrderId(order.orderId);
+                                if (isCOD && order.payment?.paymentStatus !== 'completed' && !cashCollectedOrders[order.orderId]) {
+                                  setConfirmCodOrderId(order.orderId);
+                                } else {
+                                  setActiveVerifyOrderId(order.orderId);
+                                }
                               }}
                               className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition shadow-sm cursor-pointer uppercase tracking-wider"
                             >

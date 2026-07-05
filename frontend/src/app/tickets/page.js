@@ -26,7 +26,7 @@ export default function SupportTicketsPage() {
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  const [selectedTicketId, setSelectedTicketId] = useState(null);
+  const [selectedTicketId, setSelectedTicketId] = useState('new');
   const [ticketReplyText, setTicketReplyText] = useState('');
 
   // Fetch support tickets
@@ -64,6 +64,10 @@ export default function SupportTicketsPage() {
       setDescription('');
       setPriority('medium');
       refetch();
+      setTimeout(() => {
+        setSelectedTicketId(null);
+        setSuccessMsg('');
+      }, 3000);
     } catch (err) {
       setErrorMsg(err.data?.message || 'Failed to submit support ticket.');
     }
@@ -170,7 +174,7 @@ export default function SupportTicketsPage() {
               <h4 className="font-extrabold text-xs uppercase text-slate-655 dark:text-slate-455 tracking-wider">Your Inquiries</h4>
               <button
                 onClick={() => {
-                  setSelectedTicketId(null);
+                  setSelectedTicketId('new');
                   setSuccessMsg('');
                   setErrorMsg('');
                 }}
@@ -221,7 +225,7 @@ export default function SupportTicketsPage() {
 
           {/* Right Column: Chat Thread or Creation Form */}
           <div className={`${!selectedTicketId ? 'hidden lg:block' : 'block'} lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm`}>
-            {selectedTicketId ? (
+            {selectedTicketId && selectedTicketId !== 'new' ? (
               /* Ticket Thread View */
               <div className="space-y-6 animate-fade-in">
                 {/* Back button on mobile */}
@@ -301,6 +305,13 @@ export default function SupportTicketsPage() {
             ) : (
               /* Ticket Submission Form */
               <div className="space-y-4 animate-fade-in">
+                {/* Back button on mobile */}
+                <button
+                  onClick={() => setSelectedTicketId(null)}
+                  className="lg:hidden text-xs text-secondary font-bold flex items-center gap-1 mb-2 hover:underline animate-fade-in"
+                >
+                  &larr; Back to Inquiries
+                </button>
                 <h4 className="font-extrabold text-xs uppercase text-slate-655 dark:text-slate-450 tracking-wider">Submit Support Inquiry</h4>
                 {successMsg && <p className="text-xxs text-emerald-500 font-bold bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 p-2.5 rounded-xl">{successMsg}</p>}
                 {errorMsg && <p className="text-xxs text-red-500 font-bold bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/40 p-2.5 rounded-xl">{errorMsg}</p>}

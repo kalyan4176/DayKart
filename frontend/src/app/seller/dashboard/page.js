@@ -869,15 +869,8 @@ function SellerDashboardContent() {
                       </h4>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         {deliveryPartners.map((partner) => (
-                          <div key={partner._id} className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col justify-between gap-1.5 text-xxs">
-                            <div>
-                              <p className="font-extrabold text-slate-800 dark:text-slate-100">{partner.name}</p>
-                              <p className="text-slate-450 dark:text-slate-550 mt-0.5">{partner.email}</p>
-                            </div>
-                            <div className="flex items-center gap-1 text-secondary font-bold">
-                              <Phone className="w-3 h-3" />
-                              <a href={`tel:${partner.phoneNumber}`} className="hover:underline">{partner.phoneNumber || 'No phone'}</a>
-                            </div>
+                          <div key={partner._id} className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-between text-xs">
+                            <p className="font-extrabold text-slate-800 dark:text-slate-100">{partner.name}</p>
                           </div>
                         ))}
                       </div>

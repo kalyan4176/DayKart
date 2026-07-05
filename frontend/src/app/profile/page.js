@@ -152,7 +152,7 @@ export default function ProfilePage() {
   const [ticketSubject, setTicketSubject] = useState('');
   const [ticketDescription, setTicketDescription] = useState('');
   const [ticketPriority, setTicketPriority] = useState('medium');
-  const [selectedTicketId, setSelectedTicketId] = useState(null);
+  const [selectedTicketId, setSelectedTicketId] = useState('new');
   const [ticketReplyText, setTicketReplyText] = useState('');
   const [ticketSuccess, setTicketSuccess] = useState('');
   const [ticketError, setTicketError] = useState('');
@@ -187,6 +187,10 @@ export default function ProfilePage() {
       setTicketDescription('');
       setTicketPriority('medium');
       refetchTickets();
+      setTimeout(() => {
+        setSelectedTicketId(null);
+        setTicketSuccess('');
+      }, 3000);
     } catch (err) {
       setTicketError(err.data?.message || 'Failed to submit support ticket.');
     }
@@ -1063,12 +1067,12 @@ export default function ProfilePage() {
                 {/* Side-by-Side Split View */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
                   {/* Left Column: Tickets List */}
-                  <div className="lg:col-span-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-3xl shadow-sm space-y-4">
+                  <div className={`${selectedTicketId ? 'hidden lg:block' : 'block'} lg:col-span-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-3xl shadow-sm space-y-4`}>
                     <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-                      <h4 className="font-extrabold text-xs uppercase text-slate-655 dark:text-slate-450 tracking-wider">Your Inquiries</h4>
+                      <h4 className="font-extrabold text-xs uppercase text-slate-655 dark:text-slate-455 tracking-wider">Your Inquiries</h4>
                       <button
                         onClick={() => {
-                          setSelectedTicketId(null);
+                          setSelectedTicketId('new');
                           setTicketSuccess('');
                           setTicketError('');
                         }}
@@ -1124,10 +1128,17 @@ export default function ProfilePage() {
                   </div>
 
                   {/* Right Column: Chat/Creation form */}
-                  <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
-                    {selectedTicketId ? (
+                  <div className={`${!selectedTicketId ? 'hidden lg:block' : 'block'} lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm`}>
+                    {selectedTicketId && selectedTicketId !== 'new' ? (
                       /* Ticket Thread View */
                       <div className="space-y-6 animate-fade-in">
+                        {/* Back button on mobile */}
+                        <button
+                          onClick={() => setSelectedTicketId(null)}
+                          className="lg:hidden text-xs text-secondary font-bold flex items-center gap-1 mb-2 hover:underline animate-fade-in"
+                        >
+                          &larr; Back to Inquiries
+                        </button>
                         <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-850 p-4 rounded-2xl border border-slate-200 dark:border-slate-800/40">
                           <div>
                             <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold border uppercase ${
@@ -1195,6 +1206,13 @@ export default function ProfilePage() {
                     ) : (
                       /* Ticket Submission Form */
                       <div className="space-y-4 animate-fade-in">
+                        {/* Back button on mobile */}
+                        <button
+                          onClick={() => setSelectedTicketId(null)}
+                          className="lg:hidden text-xs text-secondary font-bold flex items-center gap-1 mb-2 hover:underline animate-fade-in"
+                        >
+                          &larr; Back to Inquiries
+                        </button>
                         <h4 className="font-extrabold text-xs uppercase text-slate-655 dark:text-slate-450 tracking-wider">Submit Support Inquiry</h4>
                         {ticketSuccess && <p className="text-xxs text-emerald-500 font-bold bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 p-2.5 rounded-xl">{ticketSuccess}</p>}
                         {ticketError && <p className="text-xxs text-red-500 font-bold bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/40 p-2.5 rounded-xl">{ticketError}</p>}
