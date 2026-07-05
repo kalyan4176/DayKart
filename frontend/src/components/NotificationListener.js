@@ -90,7 +90,8 @@ export default function NotificationListener() {
           // Attempt silent token refresh
           const newToken = await refreshAccessToken();
           if (!newToken) {
-            console.warn('Token refresh failed during SSE reconnect. Main queries will manage auth state.');
+            console.warn('Token refresh failed during SSE reconnect. Logging out user.');
+            dispatch(logoutUser());
             return;
           }
           
