@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSelector } from 'react-redux';
-import { ArrowLeft, XCircle, Clock, CheckCircle2, ChevronRight, Package, Truck, ShieldAlert, CreditCard, MapPin, RefreshCw, AlertCircle } from 'lucide-react';
+import { ArrowLeft, XCircle, Clock, CheckCircle2, ChevronRight, Package, Truck, ShieldAlert, CreditCard, MapPin, RefreshCw, AlertCircle, Store } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useToast } from '@/components/ToastProvider';
@@ -17,7 +17,7 @@ export default function OrderDetailsPage({ params }) {
   const router = useRouter();
   const unwrappedParams = React.use ? React.use(params) : params;
   const id = unwrappedParams?.id;
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const { isAuthenticated, user } = useSelector((state) => state.auth);
   const [mounted, setMounted] = React.useState(false);
   const { showToast } = useToast();
   const [timelineExpanded, setTimelineExpanded] = React.useState(true);
@@ -102,10 +102,10 @@ export default function OrderDetailsPage({ params }) {
             <h2 className="text-xl font-bold mt-4 text-slate-900 dark:text-white">Order Not Found</h2>
             <p className="text-xs text-slate-500 mt-2">The requested order details could not be found or you do not have permission.</p>
             <Link
-              href="/orders"
-              className="inline-flex items-center gap-2 mt-6 bg-secondary hover:bg-cyan-600 text-white font-bold px-6 py-3 rounded-full text-xs"
+              href={user?.role === 'admin' ? '/admin/dashboard' : '/orders'}
+              className="inline-flex items-center gap-2 mt-6 bg-secondary hover:bg-cyan-600 text-white font-bold px-6 py-3 rounded-full text-xs cursor-pointer"
             >
-              <ArrowLeft className="w-4 h-4" /> Back to History
+              <ArrowLeft className="w-4 h-4" /> {user?.role === 'admin' ? 'Back to Dashboard' : 'Back to History'}
             </Link>
           </div>
         </main>
@@ -144,10 +144,10 @@ export default function OrderDetailsPage({ params }) {
       <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-6 animate-fade-in">
         {/* Back navigation */}
         <Link
-          href="/orders"
+          href={user?.role === 'admin' ? '/admin/dashboard' : '/orders'}
           className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-850 dark:hover:text-slate-200 mb-6 transition"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to Order History
+          <ArrowLeft className="w-4 h-4" /> {user?.role === 'admin' ? 'Back to Admin Dashboard' : 'Back to Order History'}
         </Link>
 
         {/* Detailed Order Card */}
@@ -221,6 +221,47 @@ export default function OrderDetailsPage({ params }) {
                 <span>Dispatched</span>
                 <span>Out</span>
                 <span>Delivered</span>
+              </div>
+            </div>
+          )}
+
+          {/* Admin Details Overview Card */}
+          {user?.role === 'admin' && (
+            <div className="mx-6 my-4 p-5 rounded-2xl bg-cyan-500/5 dark:bg-cyan-950/10 border border-slate-200 dark:border-slate-800 space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                <Store className="w-4.5 h-4.5 text-secondary" />
+                <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                  Admin Pipeline Control Details
+                </h4>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                {/* Customer Info */}
+                <div className="space-y-1">
+                  <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Customer Details</span>
+                  <p className="font-extrabold text-slate-800 dark:text-slate-200">{order.customer?.name || 'Guest'}</p>
+                  <p className="text-slate-500 dark:text-slate-400 text-xxs font-medium">{order.customer?.email || 'No email'}</p>
+                  <p className="text-slate-500 dark:text-slate-400 text-xxs font-medium">{order.customer?.phoneNumber || 'No phone number'}</p>
+                </div>
+
+                {/* Verification OTPs */}
+                <div className="space-y-2">
+                  <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Pipeline Verification Codes</span>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-900/60 p-2 rounded-xl border border-slate-100 dark:border-slate-850">
+                      <span className="text-xxs font-bold text-slate-500">1. Seller Pickup OTP:</span>
+                      <span className="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-black px-2 py-0.5 rounded text-xxs tracking-wider">
+                        {generateDeterministicOtp(order.orderId, 'pickup')}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-900/60 p-2 rounded-xl border border-slate-100 dark:border-slate-850">
+                      <span className="text-xxs font-bold text-slate-500">2. Customer Delivery OTP:</span>
+                      <span className="bg-amber-500/10 text-amber-600 dark:text-amber-400 font-black px-2 py-0.5 rounded text-xxs tracking-wider">
+                        {generateDeterministicOtp(order.orderId, 'delivery')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -376,7 +417,21 @@ export default function OrderDetailsPage({ params }) {
                   </div>
                 </div>
 
-                {order.status === 'delivered' && item.product && (
+                {/* Seller Info for Admins */}
+                {user?.role === 'admin' && item.seller && (
+                  <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-150 dark:border-slate-850 px-4 py-2.5 rounded-2xl flex flex-wrap items-center justify-between gap-4 text-xxs font-semibold text-slate-500">
+                    <div className="flex items-center gap-1.5">
+                      <Store className="w-3.5 h-3.5 text-secondary" />
+                      <span>Seller: <span className="font-extrabold text-slate-700 dark:text-slate-200">{item.seller.storeName || 'Unknown Store'}</span></span>
+                    </div>
+                    <div className="flex gap-4">
+                      {item.seller.email && <span>Email: <span className="text-slate-700 dark:text-slate-350">{item.seller.email}</span></span>}
+                      {item.seller.phoneNumber && <span>Phone: <span className="text-slate-700 dark:text-slate-350">{item.seller.phoneNumber}</span></span>}
+                    </div>
+                  </div>
+                )}
+
+                {order.status === 'delivered' && item.product && user?.role === 'customer' && (
                   <ProductReviewForm productId={item.product._id} />
                 )}
               </div>

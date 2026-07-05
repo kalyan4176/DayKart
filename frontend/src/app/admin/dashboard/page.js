@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSelector, useDispatch } from 'react-redux';
 import { LayoutDashboard, Users, ShoppingBag, ShieldCheck, CheckCircle2, XCircle, User, Mail, Phone, AlertTriangle, Store, Plus, Trash2, Edit, FolderOpen, ClipboardList, RefreshCw, ChevronRight, Sliders, Tag, Gift, Percent, Calendar, Truck, Wallet, Search, ChevronDown, MessageSquare } from 'lucide-react';
@@ -2527,15 +2528,20 @@ export default function AdminDashboard() {
                           </div>
 
                           <div className="flex items-center gap-3">
-                            <span className={`inline-block px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase ${
-                              order.status === 'processed' || order.status === 'shipped' || order.status === 'delivered'
-                                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600'
-                                : order.status === 'pending' || order.status === 'placed'
-                                  ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-600'
-                                  : 'bg-red-50 dark:bg-red-950/40 text-red-600'
-                            }`}>
-                              {order.status === 'processed' ? 'Approved' : order.status}
-                            </span>
+                            <Link
+                              href={`/orders/${order.orderId}`}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl font-extrabold text-[10px] uppercase border transition active:scale-95 cursor-pointer ${
+                                order.status === 'processed' || order.status === 'shipped' || order.status === 'delivered'
+                                  ? 'bg-emerald-50 hover:bg-emerald-100/50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/40'
+                                  : order.status === 'pending' || order.status === 'placed'
+                                    ? 'bg-orange-50 hover:bg-orange-100/50 dark:bg-orange-950/20 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-850'
+                                    : 'bg-red-50 hover:bg-red-100/50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-850'
+                              }`}
+                              title="View Full Delivery Pipeline"
+                            >
+                              <span>{order.status === 'processed' ? 'Approved' : order.status}</span>
+                              <ChevronRight className="w-3.5 h-3.5 text-current" />
+                            </Link>
                             
                             <button
                               onClick={() => toggleOrderExpand(order._id)}

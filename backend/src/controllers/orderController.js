@@ -376,6 +376,7 @@ export const getOrderById = async (req, res, next) => {
     const { id } = req.params;
     const order = await Order.findOne({ orderId: id })
       .populate('items.product', 'title images price sku')
+      .populate('items.seller', 'storeName email phoneNumber')
       .populate('payment')
       .populate('customer', 'name email phoneNumber')
       .populate('deliveryPartner', 'name phoneNumber');
