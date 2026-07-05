@@ -1,7 +1,7 @@
 import Order from '../models/Order.js';
 import SystemSetting from '../models/SystemSetting.js';
 import User from '../models/User.js';
-import { sendInAppNotification } from './notificationService.js';
+import { sendInAppNotification } from '../utils/notificationHelper.js';
 import logger from '../config/logger.js';
 
 export const runAutoAssignmentCheck = async () => {
