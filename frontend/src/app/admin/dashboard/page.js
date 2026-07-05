@@ -194,6 +194,7 @@ export default function AdminDashboard() {
   // Cart Settings State
   const [minCheckoutValInput, setMinCheckoutValInput] = useState('');
   const [minCodValInput, setMinCodValInput] = useState('');
+  const [defaultAgentInput, setDefaultAgentInput] = useState('');
   const [settingsSuccess, setSettingsSuccess] = useState('');
   const [settingsError, setSettingsError] = useState('');
 
@@ -203,12 +204,13 @@ export default function AdminDashboard() {
   const { data: deliveryApplicationsRes, refetch: refetchDeliveryApplications, isLoading: deliveryApplicationsLoading } = useGetDeliveryApplicationsQuery(undefined, { skip: activeTab !== 'delivery' || !isAdmin || !mounted });
   const [approveDeliveryPartner, { isLoading: isApprovingDelivery }] = useApproveDeliveryPartnerMutation();
   const [assignDeliveryPartner, { isLoading: isAssigningDelivery }] = useAssignDeliveryPartnerMutation();
-  const { data: deliveryPartnersRes, refetch: refetchDeliveryPartners } = useGetAdminUsersQuery({ role: 'delivery_partner' }, { skip: (activeTab !== 'orders' && activeTab !== 'delivery') || !isAdmin || !mounted });
+  const { data: deliveryPartnersRes, refetch: refetchDeliveryPartners } = useGetAdminUsersQuery({ role: 'delivery_partner' }, { skip: (activeTab !== 'orders' && activeTab !== 'delivery' && activeTab !== 'settings') || !isAdmin || !mounted });
 
   useEffect(() => {
     if (cartLimitsRes?.data) {
       setMinCheckoutValInput(cartLimitsRes.data.minCheckoutValue !== undefined ? cartLimitsRes.data.minCheckoutValue : '');
       setMinCodValInput(cartLimitsRes.data.minCodValue !== undefined ? cartLimitsRes.data.minCodValue : '');
+      setDefaultAgentInput(cartLimitsRes.data.defaultDeliveryAgent || '');
     }
   }, [cartLimitsRes]);
 
@@ -788,7 +790,8 @@ export default function AdminDashboard() {
     try {
       await updateCartLimitsMutation({
         minCheckoutValue: Number(minCheckoutValInput),
-        minCodValue: Number(minCodValInput)
+        minCodValue: Number(minCodValInput),
+        defaultDeliveryAgent: defaultAgentInput || ''
       }).unwrap();
       setSettingsSuccess('Cart settings updated successfully!');
       showToast('Cart settings updated successfully!', 'success');
@@ -4826,6 +4829,27 @@ export default function AdminDashboard() {
                       </div>
                       <p className="text-[10px] text-slate-400 mt-1">
                         The minimum order subtotal required to enable the Cash on Delivery (COD) payment method. Subtotals below this amount will require online payments.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">
+                        Default Delivery Agent (Fallback)
+                      </label>
+                      <select
+                        value={defaultAgentInput}
+                        onChange={(e) => setDefaultAgentInput(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-205 dark:border-slate-800 focus:border-secondary px-4 py-3 rounded-2xl text-xs font-semibold outline-none transition text-black dark:text-white"
+                      >
+                        <option value="">-- No Default Agent Selected --</option>
+                        {deliveryPartnersList.map((partner) => (
+                          <option key={partner._id} value={partner._id}>
+                            {partner.name} ({partner.email})
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        Select the default courier partner. If no action (courier assignment) is taken on an order within 2 hours of placement, the system will automatically assign this agent.
                       </p>
                     </div>
                   </div>

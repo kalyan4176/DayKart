@@ -105,7 +105,7 @@ export default function ProductCard({ product, wishlistMode = false }) {
     };
 
     sessionStorage.setItem('buyNowItem', JSON.stringify(buyNowItem));
-    router.push('/checkout');
+    router.push('/checkout?source=buy_now');
   };
 
   const discountPercent = product.compareAtPrice

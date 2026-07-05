@@ -1010,11 +1010,7 @@ function SellerDashboardContent() {
                                   <p className="font-extrabold text-slate-800 dark:text-slate-200">
                                     Admin Assigned Courier: {typeof order.deliveryPartner === 'object' ? order.deliveryPartner.name : 'Delivery Partner'}
                                   </p>
-                                  {typeof order.deliveryPartner === 'object' && (
-                                    <p className="text-[10px] text-slate-500 dark:text-slate-450 mt-0.5">
-                                      Contact: {order.deliveryPartner.phoneNumber || 'No phone'} &middot; Email: {order.deliveryPartner.email || 'N/A'}
-                                    </p>
-                                  )}
+
                                   {order.status === 'processed' && (
                                     <p className="text-[9px] text-cyan-600 dark:text-cyan-400 font-extrabold mt-1 uppercase tracking-wider">
                                       Ready for Pickup: Hand over package to courier and click "Confirm Handover" below.

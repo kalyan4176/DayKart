@@ -4,6 +4,7 @@ import app from './app.js';
 import { connectDB } from './config/db.js';
 import { seedDatabase } from './services/seedService.js';
 import { runAprioriPipeline } from './services/aprioriEngine.js';
+import { startAutoAssignmentScheduler } from './services/autoAssignmentScheduler.js';
 import logger from './config/logger.js';
 import dotenv from 'dotenv';
 
@@ -53,6 +54,7 @@ const startServer = async () => {
   }
 
   await runAprioriPipeline();
+  startAutoAssignmentScheduler();
 
   server.listen(PORT, () => {
     logger.info(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);

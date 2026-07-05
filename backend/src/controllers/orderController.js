@@ -546,7 +546,7 @@ export const getSellerOrders = async (req, res, next) => {
 export const updateOrderStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { status, message } = req.body;
+    const { status, message, paymentStatus } = req.body;
 
     const order = await Order.findOne({ orderId: id });
     if (!order) return next(new NotFoundError('Order not found.'));
@@ -684,11 +684,20 @@ export const updateOrderStatus = async (req, res, next) => {
       }
     }
 
-    order.status = status;
-    order.statusTimeline.push({
-      status,
-      message: timelineMessage,
-    });
+    if (paymentStatus && order.payment) {
+      if (order.payment.paymentMethod === 'cod') {
+        order.payment.paymentStatus = paymentStatus;
+        await order.payment.save();
+      }
+    }
+
+    if (status) {
+      order.status = status;
+      order.statusTimeline.push({
+        status,
+        message: timelineMessage || `Status updated to ${status}.`,
+      });
+    }
     
     await order.save();
 

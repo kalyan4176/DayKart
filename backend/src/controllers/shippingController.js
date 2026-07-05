@@ -200,11 +200,13 @@ export const getCartLimits = async (req, res, next) => {
   try {
     const minCheckoutSetting = await SystemSetting.findOne({ key: 'min_checkout_value' });
     const minCodSetting = await SystemSetting.findOne({ key: 'min_cod_value' });
+    const defaultAgentSetting = await SystemSetting.findOne({ key: 'default_delivery_agent' });
     res.status(200).json({
       status: 'success',
       data: {
         minCheckoutValue: minCheckoutSetting ? Number(minCheckoutSetting.value) : 0,
         minCodValue: minCodSetting ? Number(minCodSetting.value) : 0,
+        defaultDeliveryAgent: defaultAgentSetting ? defaultAgentSetting.value : '',
       },
     });
   } catch (error) {
@@ -214,7 +216,7 @@ export const getCartLimits = async (req, res, next) => {
 
 export const updateCartLimits = async (req, res, next) => {
   try {
-    const { minCheckoutValue, minCodValue } = req.body;
+    const { minCheckoutValue, minCodValue, defaultDeliveryAgent } = req.body;
 
     if (minCheckoutValue !== undefined && minCheckoutValue !== null) {
       if (Number(minCheckoutValue) < 0) {
@@ -238,15 +240,25 @@ export const updateCartLimits = async (req, res, next) => {
       );
     }
 
+    if (defaultDeliveryAgent !== undefined) {
+      await SystemSetting.findOneAndUpdate(
+        { key: 'default_delivery_agent' },
+        { value: defaultDeliveryAgent },
+        { upsert: true, new: true }
+      );
+    }
+
     const minCheckoutSetting = await SystemSetting.findOne({ key: 'min_checkout_value' });
     const minCodSetting = await SystemSetting.findOne({ key: 'min_cod_value' });
+    const defaultAgentSetting = await SystemSetting.findOne({ key: 'default_delivery_agent' });
 
     res.status(200).json({
       status: 'success',
-      message: 'Cart limits updated successfully.',
+      message: 'System settings updated successfully.',
       data: {
         minCheckoutValue: minCheckoutSetting ? Number(minCheckoutSetting.value) : 0,
         minCodValue: minCodSetting ? Number(minCodSetting.value) : 0,
+        defaultDeliveryAgent: defaultAgentSetting ? defaultAgentSetting.value : '',
       },
     });
   } catch (error) {

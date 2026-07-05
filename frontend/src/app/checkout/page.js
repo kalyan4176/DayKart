@@ -146,12 +146,18 @@ function CheckoutPageContent() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const stored = sessionStorage.getItem('buyNowItem');
-      if (stored) {
-        setBuyNowItem(JSON.parse(stored));
+      const source = searchParams.get('source');
+      if (source === 'buy_now') {
+        const stored = sessionStorage.getItem('buyNowItem');
+        if (stored) {
+          setBuyNowItem(JSON.parse(stored));
+        }
+      } else {
+        sessionStorage.removeItem('buyNowItem');
+        setBuyNowItem(null);
       }
     }
-  }, []);
+  }, [searchParams]);
 
   const dbCartItems = cartRes?.data?.cart || [];
   const cartItems = buyNowItem ? [buyNowItem] : dbCartItems;

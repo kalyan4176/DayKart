@@ -130,7 +130,7 @@ export default function ProductDetail() {
     };
 
     sessionStorage.setItem('buyNowItem', JSON.stringify(buyNowItem));
-    router.push('/checkout');
+    router.push('/checkout?source=buy_now');
   };
 
   const { data: wishlistRes } = useGetWishlistQuery(undefined, { skip: !isAuthenticated });

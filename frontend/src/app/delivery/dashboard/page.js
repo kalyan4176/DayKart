@@ -26,6 +26,9 @@ export default function DeliveryDashboard() {
   const [activeVerifyOrderId, setActiveVerifyOrderId] = useState(null);
   const [verifyOtpError, setVerifyOtpError] = useState('');
   const [cashCollectedOrders, setCashCollectedOrders] = useState({});
+  const [activePickupOrderId, setActivePickupOrderId] = useState(null);
+  const [pickupCodeInput, setPickupCodeInput] = useState({});
+  const [pickupError, setPickupError] = useState('');
 
   // API Queries & Mutations
   const { data: deliveryOrdersRes, refetch: refetchOrders, isLoading: ordersLoading } = api.useGetDeliveryOrdersQuery(undefined, {
@@ -86,14 +89,26 @@ export default function DeliveryDashboard() {
     router.push('/login');
   };
 
-  const handleConfirmPickup = async (orderId) => {
+  const handleConfirmPickupSubmit = async (e, orderId, actualOrderId) => {
+    e.preventDefault();
+    setPickupError('');
+    const enteredCode = (pickupCodeInput[orderId] || '').trim();
+    const expectedCode = actualOrderId.slice(-4);
+    
+    if (enteredCode !== expectedCode) {
+      setPickupError('Invalid Handover Code. Please ask the seller for the last 4 digits of the Order ID.');
+      return;
+    }
+
     try {
       await updateOrderStatus({
         id: orderId,
         status: 'shipped',
-        message: 'Courier picked up package from seller store.'
+        message: 'Courier verified handover code and picked up package.'
       }).unwrap();
       showToast('Package pickup confirmed successfully!', 'success');
+      setActivePickupOrderId(null);
+      setPickupCodeInput(prev => ({ ...prev, [orderId]: '' }));
       refetchOrders();
     } catch (err) {
       showToast(err.data?.message || 'Failed to update order status.', 'error');
@@ -111,6 +126,21 @@ export default function DeliveryDashboard() {
       refetchOrders();
     } catch (err) {
       showToast(err.data?.message || 'Failed to update order status.', 'error');
+    }
+  };
+
+  const handleConfirmCashCollected = async (orderId) => {
+    try {
+      await updateOrderStatus({
+        id: orderId,
+        paymentStatus: 'completed',
+        message: 'Cash payment collected by courier.'
+      }).unwrap();
+      setCashCollectedOrders(prev => ({ ...prev, [orderId]: true }));
+      showToast('Cash payment collected successfully! Now verify delivery OTP.', 'success');
+      refetchOrders();
+    } catch (err) {
+      showToast(err.data?.message || 'Failed to update payment status.', 'error');
     }
   };
 
@@ -393,109 +423,150 @@ export default function DeliveryDashboard() {
                         Status: {order.status === 'processed' ? 'Seller packaging...' : order.status === 'shipped' ? 'Handed over' : order.status}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      {isCOD ? (
-                        <>
-                          {/* 1st Button: Delivery Pickup (Active when status is processed/awaiting handover) */}
-                          {isPendingPickup && (
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {/* 1st Button: Delivery Pickup (Active when status is processed/awaiting handover) */}
+                      {isPendingPickup && (
+                        <div className="w-full sm:w-auto">
+                          {activePickupOrderId === order.orderId ? (
+                            <form 
+                              onSubmit={(e) => handleConfirmPickupSubmit(e, order.orderId, order.orderId)}
+                              className="flex flex-col gap-2 bg-slate-900 border border-slate-850 p-4 rounded-xl max-w-sm"
+                            >
+                              <div className="flex items-center gap-2">
+                                <KeyRound className="w-4 h-4 text-cyan-400" />
+                                <span className="text-xxs uppercase tracking-wider text-slate-455 font-extrabold">Enter Pickup Handover Code</span>
+                              </div>
+                              
+                              <div className="flex items-center gap-2 mt-1">
+                                <input
+                                  type="text"
+                                  maxLength={4}
+                                  placeholder="Last 4 digits of Order ID"
+                                  value={pickupCodeInput[order.orderId] || ''}
+                                  onChange={(e) => setPickupCodeInput(prev => ({ ...prev, [order.orderId]: e.target.value }))}
+                                  className="bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold text-center tracking-widest text-white focus:outline-none focus:border-secondary w-32"
+                                />
+                                <button
+                                  type="submit"
+                                  disabled={isUpdatingStatus}
+                                  className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg shadow-sm transition cursor-pointer"
+                                >
+                                  Verify & Pickup
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActivePickupOrderId(null)}
+                                  className="text-slate-400 hover:text-slate-200 text-xs px-2 font-bold"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                              {pickupError && (
+                                <p className="text-[10px] text-red-500 font-bold mt-1 flex items-center gap-1">
+                                  <AlertCircle className="w-3.5 h-3.5" /> {pickupError}
+                                </p>
+                              )}
+                            </form>
+                          ) : (
                             <button
-                              onClick={() => handleConfirmPickup(order.orderId)}
-                              disabled={isUpdatingStatus}
-                              className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition shadow-sm cursor-pointer uppercase tracking-wider"
+                              onClick={() => {
+                                setPickupError('');
+                                setActivePickupOrderId(order.orderId);
+                              }}
+                              className="bg-cyan-600 hover:bg-cyan-500 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition shadow-sm cursor-pointer uppercase tracking-wider"
                             >
                               1. Delivery Pickup
                             </button>
                           )}
+                        </div>
+                      )}
 
-                          {/* 2nd Button: Delivery Checking (Active when status is shipped or out_for_delivery) */}
-                          {isShipped && (
-                            <button
-                              onClick={() => handleMarkOutForDelivery(order.orderId)}
-                              disabled={isUpdatingStatus}
-                              className="bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition shadow-sm cursor-pointer uppercase tracking-wider"
+                      {/* 2nd Button: Delivery Checking (Active when status is shipped or out_for_delivery) */}
+                      {isShipped && (
+                        <button
+                          onClick={() => handleMarkOutForDelivery(order.orderId)}
+                          disabled={isUpdatingStatus}
+                          className="bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition shadow-sm cursor-pointer uppercase tracking-wider"
+                        >
+                          2. Start Delivery Checking
+                        </button>
+                      )}
+
+                      {isOutForDelivery && (
+                        <div className="w-full sm:w-auto">
+                          {activeVerifyOrderId === order.orderId ? (
+                            <form 
+                              onSubmit={(e) => handleVerifyOtpSubmit(e, order.orderId)}
+                              className="flex flex-col gap-2 bg-slate-900 border border-slate-850 p-4 rounded-xl max-w-sm"
                             >
-                              2. Start Delivery Checking
-                            </button>
-                          )}
-
-                          {isOutForDelivery && (
-                            <div className="w-full sm:w-auto">
-                              {activeVerifyOrderId === order.orderId ? (
-                                <form 
-                                  onSubmit={(e) => handleVerifyOtpSubmit(e, order.orderId)}
-                                  className="flex flex-col gap-2 bg-slate-900 border border-slate-850 p-4 rounded-xl max-w-sm"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <KeyRound className="w-4 h-4 text-orange-400" />
-                                    <span className="text-xxs uppercase tracking-wider text-slate-450 font-extrabold">Enter Customer Delivery OTP</span>
-                                  </div>
-                                  
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <input
-                                      type="text"
-                                      maxLength={6}
-                                      placeholder="6-digit OTP"
-                                      value={otpInput[order.orderId] || ''}
-                                      onChange={(e) => setOtpInput(prev => ({ ...prev, [order.orderId]: e.target.value }))}
-                                      className="bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold text-center tracking-widest text-white focus:outline-none focus:border-secondary w-32"
-                                    />
-                                    <button
-                                      type="submit"
-                                      disabled={isVerifyingOtp}
-                                      className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg shadow-sm transition cursor-pointer"
-                                    >
-                                      Verify & Deliver
-                                    </button>
-                                  </div>
-                                  {verifyOtpError && (
-                                    <p className="text-[10px] text-red-500 font-bold mt-1 flex items-center gap-1">
-                                      <AlertCircle className="w-3.5 h-3.5" /> {verifyOtpError}
-                                    </p>
-                                  )}
-                                </form>
-                              ) : (
+                              <div className="flex items-center gap-2">
+                                <KeyRound className="w-4 h-4 text-orange-400" />
+                                <span className="text-xxs uppercase tracking-wider text-slate-455 font-extrabold">Enter Customer Delivery OTP</span>
+                              </div>
+                              
+                              <div className="flex items-center gap-2 mt-1">
+                                <input
+                                  type="text"
+                                  maxLength={6}
+                                  placeholder="6-digit OTP"
+                                  value={otpInput[order.orderId] || ''}
+                                  onChange={(e) => setOtpInput(prev => ({ ...prev, [order.orderId]: e.target.value }))}
+                                  className="bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold text-center tracking-widest text-white focus:outline-none focus:border-secondary w-32"
+                                />
                                 <button
-                                  onClick={() => {
-                                    setVerifyOtpError('');
-                                    setActiveVerifyOrderId(order.orderId);
-                                  }}
-                                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition shadow-sm cursor-pointer uppercase tracking-wider"
+                                  type="submit"
+                                  disabled={isVerifyingOtp}
+                                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg shadow-sm transition cursor-pointer"
                                 >
-                                  2. Delivery Checking (OTP)
+                                  Verify & Deliver
                                 </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveVerifyOrderId(null)}
+                                  className="text-slate-400 hover:text-slate-200 text-xs px-2 font-bold"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                              {verifyOtpError && (
+                                <p className="text-[10px] text-red-500 font-bold mt-1 flex items-center gap-1">
+                                  <AlertCircle className="w-3.5 h-3.5" /> {verifyOtpError}
+                                </p>
                               )}
-                            </div>
-                          )}
-
-                          {/* 3rd Button: Cash Collected (COD) (Active when status is out_for_delivery) */}
-                          {isOutForDelivery && (
+                            </form>
+                          ) : (
                             <button
                               onClick={() => {
-                                setCashCollectedOrders(prev => ({ ...prev, [order.orderId]: true }));
-                                showToast('Cash payment collected successfully! Now verify delivery OTP.', 'success');
+                                setVerifyOtpError('');
+                                setActiveVerifyOrderId(order.orderId);
                               }}
-                              disabled={cashCollectedOrders[order.orderId]}
-                              className={`font-extrabold text-xs px-4 py-2 rounded-xl transition shadow-sm cursor-pointer uppercase tracking-wider ${
-                                cashCollectedOrders[order.orderId]
-                                  ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 cursor-default'
-                                  : 'bg-amber-600 hover:bg-amber-500 text-white'
-                              }`}
+                              className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition shadow-sm cursor-pointer uppercase tracking-wider"
                             >
-                              {cashCollectedOrders[order.orderId] ? '3. Cash Collected ✓' : '3. Cash Collected (COD)'}
+                              2. Delivery Checking (OTP)
                             </button>
                           )}
+                        </div>
+                      )}
 
-                          {/* Completed */}
-                          {isDelivered && (
-                            <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3.5 py-2 rounded-xl flex items-center gap-1.5 uppercase font-extrabold text-xxs tracking-wider">
-                              <CheckCircle className="w-4 h-4" /> Delivered & Verified
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        // Prepaid orders: no buttons appear
-                        <span className="text-slate-500 italic text-xxs font-bold">
-                          Prepaid Online Order (No actions required)
+                      {/* 3rd Button: Cash Collected (COD) (Active ONLY when isCOD and status is out_for_delivery) */}
+                      {isCOD && isOutForDelivery && (
+                        <button
+                          onClick={() => handleConfirmCashCollected(order.orderId)}
+                          disabled={cashCollectedOrders[order.orderId] || order.payment?.paymentStatus === 'completed'}
+                          className={`font-extrabold text-xs px-4 py-2 rounded-xl transition shadow-sm cursor-pointer uppercase tracking-wider ${
+                            (cashCollectedOrders[order.orderId] || order.payment?.paymentStatus === 'completed')
+                              ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 cursor-default'
+                              : 'bg-amber-600 hover:bg-amber-500 text-white'
+                          }`}
+                        >
+                          {(cashCollectedOrders[order.orderId] || order.payment?.paymentStatus === 'completed') ? '3. Cash Collected ✓' : '3. Cash Collected (COD)'}
+                        </button>
+                      )}
+
+                      {/* Completed */}
+                      {isDelivered && (
+                        <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3.5 py-2 rounded-xl flex items-center gap-1.5 uppercase font-extrabold text-xxs tracking-wider">
+                          <CheckCircle className="w-4 h-4" /> Delivered & Verified
                         </span>
                       )}
                     </div>
