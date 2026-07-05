@@ -30,10 +30,8 @@ export const runAutoAssignmentCheck = async () => {
     });
 
     if (ordersToAssign.length > 0) {
-      logger.info(`Auto-assignment scheduler: Found ${ordersToAssign.length} orders to assign to default courier ${defaultAgent.name}`);
       for (const order of ordersToAssign) {
         order.deliveryPartner = defaultAgent._id;
-        order.deliveryOtp = Math.floor(100000 + Math.random() * 900000).toString();
         await order.save();
 
         // Notify courier

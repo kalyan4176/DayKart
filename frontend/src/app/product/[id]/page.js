@@ -264,10 +264,10 @@ export default function ProductDetail() {
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1 bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/25 dark:border-amber-500/15 px-3 py-1 rounded-full text-xs font-bold text-amber-700 dark:text-amber-400">
                   <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                  <span>{product.ratings?.average || '4.5'}</span>
+                  <span>{product.ratings?.count > 0 ? Number(product.ratings.average).toFixed(1) : '0.0'}</span>
                 </div>
-                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">
-                  {product.ratings?.count || 12} Customer Reviews
+                <span className="text-xs font-semibold text-slate-400 dark:text-slate-550">
+                  {product.ratings?.count || 0} Customer Reviews
                 </span>
               </div>
 

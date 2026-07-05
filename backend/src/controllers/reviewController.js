@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Review from '../models/Review.js';
 import Product from '../models/Product.js';
 import Order from '../models/Order.js';
@@ -7,7 +8,7 @@ import { BadRequestError, NotFoundError } from '../utils/customErrors.js';
 // Helper to recalculate average ratings
 const updateProductRatings = async (productId) => {
   const stats = await Review.aggregate([
-    { $match: { product: productId, status: 'approved' } },
+    { $match: { product: new mongoose.Types.ObjectId(productId), status: 'approved' } },
     {
       $group: {
         _id: '$product',

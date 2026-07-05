@@ -13,6 +13,7 @@ import Footer from '@/components/Footer';
 import { api } from '@/store/api';
 import { useToast } from '@/components/ToastProvider';
 import { logoutUser } from '@/store/authSlice';
+import { generateDeterministicOtp } from '@/utils/otpHelper';
 
 export default function DeliveryDashboard() {
   const router = useRouter();
@@ -94,10 +95,10 @@ export default function DeliveryDashboard() {
     e.preventDefault();
     setPickupError('');
     const enteredCode = (pickupCodeInput[orderId] || '').trim();
-    const expectedCode = actualOrderId.slice(-4);
+    const expectedCode = generateDeterministicOtp(actualOrderId, 'pickup');
     
     if (enteredCode !== expectedCode) {
-      setPickupError('Invalid Handover Code. Please ask the seller for the last 4 digits of the Order ID.');
+      setPickupError('Invalid Handover Code. Please ask the seller for the 4-digit pickup OTP displayed on their dashboard.');
       return;
     }
 
@@ -442,7 +443,7 @@ export default function DeliveryDashboard() {
                                 <input
                                   type="text"
                                   maxLength={4}
-                                  placeholder="Last 4 digits of Order ID"
+                                  placeholder="4-digit OTP"
                                   value={pickupCodeInput[order.orderId] || ''}
                                   onChange={(e) => setPickupCodeInput(prev => ({ ...prev, [order.orderId]: e.target.value }))}
                                   className="bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold text-center tracking-widest text-white focus:outline-none focus:border-secondary w-32"

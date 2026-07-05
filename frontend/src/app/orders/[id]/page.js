@@ -4,13 +4,14 @@ import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSelector } from 'react-redux';
-import { ArrowLeft, XCircle, Clock, CheckCircle2, ChevronRight, Package, Truck, ShieldAlert, CreditCard, MapPin, RefreshCw } from 'lucide-react';
+import { ArrowLeft, XCircle, Clock, CheckCircle2, ChevronRight, Package, Truck, ShieldAlert, CreditCard, MapPin, RefreshCw, AlertCircle } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useToast } from '@/components/ToastProvider';
-import { useGetOrderByIdQuery, useCancelOrderMutation, useReturnOrderMutation } from '@/store/api';
+import { useGetOrderByIdQuery, useCancelOrderMutation, useReturnOrderMutation, useCreateReviewMutation } from '@/store/api';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import ReasonPromptModal from '@/components/ReasonPromptModal';
+import { generateDeterministicOtp } from '@/utils/otpHelper';
 
 export default function OrderDetailsPage({ params }) {
   const router = useRouter();
@@ -244,7 +245,7 @@ export default function OrderDetailsPage({ params }) {
                 
                 <div className="flex items-center gap-2">
                   <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4.5 py-2 rounded-xl text-lg font-black tracking-widest text-secondary text-center shadow-sm">
-                    {order.deliveryOtp || '------'}
+                    {generateDeterministicOtp(order.orderId, 'delivery')}
                   </div>
                 </div>
               </div>
@@ -341,37 +342,43 @@ export default function OrderDetailsPage({ params }) {
           <div className="p-6 divide-y divide-slate-100 dark:divide-slate-800/50">
             <h4 className="text-xxs font-extrabold text-slate-900 dark:text-white uppercase tracking-wider mb-3">Order Items</h4>
             {order.items?.map((item) => (
-              <div key={item._id} className="py-4 first:pt-0 last:pb-0 flex items-center gap-4">
-                <div className="w-14 h-14 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-800 flex-shrink-0">
-                  {item.product?.images?.[0] ? (
-                    <img
-                      src={item.product.images[0]}
-                      alt={item.product.title}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-slate-400">
-                      <Package className="w-6 h-6" />
-                    </div>
-                  )}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <h4 className="text-xs font-bold text-slate-800 dark:text-slate-250 truncate">
-                    {item.product ? (
-                      <Link href={`/product/${item.product._id}`} className="hover:text-secondary">{item.product.title}</Link>
+              <div key={item._id} className="py-4 first:pt-0 last:pb-0 flex flex-col gap-3">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-800 flex-shrink-0">
+                    {item.product?.images?.[0] ? (
+                      <img
+                        src={item.product.images[0]}
+                        alt={item.product.title}
+                        className="w-full h-full object-cover"
+                      />
                     ) : (
-                      'Product Deleted'
+                      <div className="w-full h-full flex items-center justify-center text-slate-400">
+                        <Package className="w-6 h-6" />
+                      </div>
                     )}
-                  </h4>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                    Qty: <span className="font-semibold">{item.quantity}</span> &middot; Price: <span className="font-semibold">₹{item.price.toLocaleString('en-IN')}</span>
-                  </p>
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-xs font-bold text-slate-800 dark:text-slate-250 truncate">
+                      {item.product ? (
+                        <Link href={`/product/${item.product._id}`} className="hover:text-secondary">{item.product.title}</Link>
+                      ) : (
+                        'Product Deleted'
+                      )}
+                    </h4>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                      Qty: <span className="font-semibold">{item.quantity}</span> &middot; Price: <span className="font-semibold">₹{item.price.toLocaleString('en-IN')}</span>
+                    </p>
+                  </div>
+
+                  <div className="text-right text-xs font-bold text-slate-850 dark:text-slate-200">
+                    ₹{(item.price * item.quantity).toLocaleString('en-IN')}
+                  </div>
                 </div>
 
-                <div className="text-right text-xs font-bold text-slate-850 dark:text-slate-200">
-                  ₹{(item.price * item.quantity).toLocaleString('en-IN')}
-                </div>
+                {order.status === 'delivered' && item.product && (
+                  <ProductReviewForm productId={item.product._id} />
+                )}
               </div>
             ))}
           </div>
@@ -544,5 +551,116 @@ export default function OrderDetailsPage({ params }) {
 
       <Footer />
     </div>
+  );
+}
+
+function ProductReviewForm({ productId }) {
+  const [rating, setRating] = React.useState(0);
+  const [hoverRating, setHoverRating] = React.useState(0);
+  const [reviewText, setReviewText] = React.useState('');
+  const [success, setSuccess] = React.useState(false);
+  const [error, setError] = React.useState('');
+  const { showToast } = useToast();
+  
+  const [createReview, { isLoading }] = useCreateReviewMutation();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    
+    if (rating === 0) {
+      setError('Please select a star rating.');
+      return;
+    }
+    if (!reviewText.trim()) {
+      setError('Please write a short review description.');
+      return;
+    }
+
+    try {
+      await createReview({
+        productId,
+        rating,
+        text: reviewText.trim()
+      }).unwrap();
+      setSuccess(true);
+      showToast('Thank you! Your review has been submitted.', 'success');
+    } catch (err) {
+      setError(err.data?.message || 'Failed to submit review.');
+    }
+  };
+
+  if (success) {
+    return (
+      <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 p-3.5 rounded-2xl flex items-center gap-2 text-xxs font-extrabold tracking-wide max-w-md md:ml-18">
+        <CheckCircle2 className="w-4.5 h-4.5 text-emerald-500" />
+        <span>Thank you for your rating! Your review was posted successfully.</span>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="bg-slate-50/50 dark:bg-slate-900/40 p-4 border border-slate-100 dark:border-slate-800/85 rounded-2xl flex flex-col gap-3 max-w-xl md:ml-18">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-[9px] font-bold text-slate-400 dark:text-slate-550 uppercase tracking-wider">Share your experience</span>
+        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Rate & Review this product</span>
+      </div>
+
+      {/* Star Rating Selector */}
+      <div className="flex items-center gap-1.5">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            type="button"
+            onClick={() => setRating(star)}
+            onMouseEnter={() => setHoverRating(star)}
+            onMouseLeave={() => setHoverRating(0)}
+            className="focus:outline-none transition-transform duration-100 hover:scale-110 cursor-pointer"
+          >
+            <svg
+              className={`w-5 h-5 ${
+                star <= (hoverRating || rating)
+                  ? 'text-amber-400 fill-amber-400'
+                  : 'text-slate-350 dark:text-slate-655 fill-transparent'
+              }`}
+              stroke="currentColor"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+            >
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+            </svg>
+          </button>
+        ))}
+        {rating > 0 && (
+          <span className="text-xxs font-extrabold text-amber-500 ml-1.5 uppercase tracking-wide">
+            {rating === 1 ? 'Poor' : rating === 2 ? 'Fair' : rating === 3 ? 'Good' : rating === 4 ? 'Very Good' : 'Excellent'}
+          </span>
+        )}
+      </div>
+
+      {/* Review Text Input */}
+      <div className="flex gap-2">
+        <textarea
+          rows={2}
+          value={reviewText}
+          onChange={(e) => setReviewText(e.target.value)}
+          placeholder="What did you like or dislike about this product? Write your review here..."
+          className="flex-grow bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 focus:border-secondary p-3 rounded-xl text-xxs outline-none transition resize-none dark:text-slate-200"
+        />
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="bg-secondary hover:bg-cyan-600 text-white font-extrabold text-[10px] px-4 rounded-xl shadow-xs transition active:scale-98 disabled:opacity-40 uppercase tracking-wider whitespace-nowrap self-end h-10 cursor-pointer"
+        >
+          {isLoading ? 'Posting...' : 'Submit'}
+        </button>
+      </div>
+
+      {error && (
+        <p className="text-[10px] text-red-500 font-bold flex items-center gap-1 mt-0.5">
+          <AlertCircle className="w-3.5 h-3.5 text-red-500" /> {error}
+        </p>
+      )}
+    </form>
   );
 }

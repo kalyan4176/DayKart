@@ -10,6 +10,7 @@ import SystemSetting from '../models/SystemSetting.js';
 import { logAuditEvent } from '../services/auditService.js';
 import { BadRequestError, NotFoundError, ForbiddenError } from '../utils/customErrors.js';
 import { sendInAppNotification } from '../utils/notificationHelper.js';
+import { generateDeterministicOtp } from '../utils/otpHelper.js';
 
 
 export const checkout = async (req, res, next) => {
@@ -224,7 +225,6 @@ export const checkout = async (req, res, next) => {
       },
       coupon: couponDoc ? couponDoc._id : undefined,
       status: gateway === 'cod' ? 'placed' : 'pending', // pending payment unless COD
-      deliveryOtp: Math.floor(100000 + Math.random() * 900000).toString(),
       statusTimeline: [{
         status: gateway === 'cod' ? 'placed' : 'pending',
         message: gateway === 'cod' ? 'Order placed with Cash on Delivery' : 'Order initialized. Awaiting payment.',
@@ -932,16 +932,13 @@ export const verifyDeliveryOtp = async (req, res, next) => {
       return next(new BadRequestError('Order is not out for delivery.'));
     }
 
-    if (!order.deliveryOtp) {
-      return next(new BadRequestError('No delivery OTP was generated for this order.'));
-    }
+    const expectedOtp = generateDeterministicOtp(order.orderId, 'delivery');
 
-    if (order.deliveryOtp !== otp) {
+    if (expectedOtp !== otp) {
       return next(new BadRequestError('Invalid verification OTP. Please try again.'));
     }
 
     order.status = 'delivered';
-    order.deliveryOtp = null;
     order.statusTimeline.push({
       status: 'delivered',
       message: 'Order delivered successfully. Courier verified delivery OTP.',

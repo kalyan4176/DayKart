@@ -12,6 +12,7 @@ import ReasonPromptModal from '@/components/ReasonPromptModal';
 import { useToast } from '@/components/ToastProvider';
 import { updateUser, logoutUser } from '@/store/authSlice';
 import { useCreateProductMutation, useGetSellerProfileQuery, useCreateSellerProfileMutation, useGetCategoriesQuery, useGetBrandsQuery, useUpdateProfileMutation, useUploadProductImageMutation, useUpdateProductMutation, useDeleteProductMutation, useGetProductsQuery, useGetSellerOrdersQuery, useUpdateOrderStatusMutation, useGetWalletQuery, useDeleteProfileMutation, useGetDeliveryPartnersQuery } from '@/store/api';
+import { generateDeterministicOtp } from '@/utils/otpHelper';
 
 function SellerDashboardContent() {
   const router = useRouter();
@@ -1005,9 +1006,17 @@ function SellerDashboardContent() {
                                   </p>
 
                                   {order.status === 'processed' && (
-                                    <p className="text-[9px] text-cyan-600 dark:text-cyan-400 font-extrabold mt-1 uppercase tracking-wider">
-                                      Ready for Pickup: Hand over package to courier and click "Confirm Handover" below.
-                                    </p>
+                                    <div className="mt-1.5 flex flex-col gap-1">
+                                      <p className="text-[9px] text-cyan-600 dark:text-cyan-400 font-extrabold uppercase tracking-wider">
+                                        Ready for Pickup: Hand over package to courier and click "Confirm Handover" below.
+                                      </p>
+                                      <div className="flex items-center gap-1.5 mt-0.5">
+                                        <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Handover Verification OTP:</span>
+                                        <span className="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-black px-2 py-0.5 rounded text-[10px] tracking-widest">
+                                          {generateDeterministicOtp(order.orderId, 'pickup')}
+                                        </span>
+                                      </div>
+                                    </div>
                                   )}
                                 </div>
                               </div>
