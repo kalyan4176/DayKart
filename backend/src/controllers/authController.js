@@ -465,3 +465,102 @@ export const googleLoginMock = async (req, res, next) => {
     next(error);
   }
 };
+
+const sendChangePasswordOTPEmail = async (email, otp, name) => {
+  try {
+    const sender = process.env.EMAIL_FROM || process.env.SMTP_USER || 'support@daykart.com';
+    const mailOptions = {
+      from: `"Daykart Support" <${sender}>`,
+      to: email,
+      subject: 'Daykart Password Change Verification OTP',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+          <h2 style="color: #06b6d4; text-align: center;">Change Your Daykart Password</h2>
+          <p>Hello ${name},</p>
+          <p>We received a request to change the password for your Daykart account. Please use the following One-Time Password (OTP) to verify this action:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #0f172a; border: 1px dashed #06b6d4; padding: 10px 20px; border-radius: 4px;">${otp}</span>
+          </div>
+          <p>This OTP is valid for 10 minutes. If you did not request a password change, please secure your account immediately.</p>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+          <p style="font-size: 12px; color: #64748b; text-align: center;">If you did not request this email, please ignore it.</p>
+        </div>
+      `,
+    };
+    await transporter.sendMail(mailOptions);
+    logger.info(`Password change OTP Email successfully sent to ${email}`);
+  } catch (error) {
+    logger.error(`Error sending password change OTP email: ${error.message}`);
+    logger.info(`[DEVELOPMENT BACKUP] Password Change OTP for ${email}: ${otp}`);
+  }
+};
+
+export const sendChangePasswordOtp = async (req, res, next) => {
+  try {
+    const otp = generateOTP();
+    
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return next(new NotFoundError('User not found.'));
+    }
+
+    user.otp = otp;
+    user.otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes expiry
+    await user.save();
+
+    await sendChangePasswordOTPEmail(user.email, otp, user.name);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Password change OTP verification code sent to your registered email.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, otp, newPassword } = req.body;
+
+    if (!currentPassword || !otp || !newPassword) {
+      return next(new BadRequestError('Current password, OTP code, and new password are required.'));
+    }
+
+    // Fetch user with password field since req.user excludes it
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return next(new NotFoundError('User not found.'));
+    }
+
+    // Verify current password
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return next(new UnauthorizedError('Incorrect current password. Please try again.'));
+    }
+
+    // Verify OTP and expiration
+    if (user.otp !== otp || !user.otpExpires || user.otpExpires < new Date()) {
+      return next(new UnauthorizedError('Invalid or expired OTP code. Please request a new one.'));
+    }
+
+    // Clear verified OTP fields and update user password
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    user.password = newPassword;
+    await user.save();
+
+    await logAuditEvent({
+      actor: user._id,
+      action: 'USER_PASSWORD_CHANGE_SECURE',
+      req,
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Your password has been changed successfully.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};

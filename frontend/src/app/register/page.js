@@ -270,7 +270,7 @@ export default function Register() {
                 <div className="relative">
                   <input
                     type="text"
-                    placeholder="John Doe"
+                    placeholder="Enter your name"
                     {...register('name')}
                     className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary pl-10 pr-4 py-2.5 rounded-xl text-sm outline-none transition dark:text-slate-200"
                   />

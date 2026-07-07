@@ -82,6 +82,19 @@ export const api = createApi({
       }),
       invalidatesTags: ['User', 'Cart'],
     }),
+    sendChangePasswordOtp: builder.mutation({
+      query: () => ({
+        url: '/auth/change-password-otp',
+        method: 'POST',
+      }),
+    }),
+    changePassword: builder.mutation({
+      query: (data) => ({
+        url: '/auth/change-password',
+        method: 'POST',
+        body: data,
+      }),
+    }),
 
     getProducts: builder.query({
       query: (params) => ({
@@ -587,6 +600,8 @@ export const {
   useRegisterMutation,
   useVerifyOtpMutation,
   useLogoutMutation,
+  useSendChangePasswordOtpMutation,
+  useChangePasswordMutation,
   useGetWishlistQuery,
   useToggleWishlistMutation,
   useGetProfileQuery,

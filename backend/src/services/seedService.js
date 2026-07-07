@@ -14,12 +14,12 @@ export const seedDatabase = async () => {
     // 1. Seed Users (Independently check and create default users)
     logger.info('Checking/Seeding default users...');
     
-    let adminUser = await User.findOne({ email: 'admin@daykart.com' });
+    let adminUser = await User.findOne({ email: 'daykart.services@gmail.com' });
     if (!adminUser) {
       logger.info('Creating default admin...');
       adminUser = new User({
         name: 'Super Admin',
-        email: 'admin@daykart.com',
+        email: 'daykart.services@gmail.com',
         password: 'AdminPassword123!',
         role: 'admin',
         isVerified: true,

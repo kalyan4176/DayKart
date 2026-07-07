@@ -1,5 +1,5 @@
 import express from 'express';
-import { register, verifyOtp, login, refreshToken, logout, forgotPassword, resetPassword, googleLoginMock } from '../controllers/authController.js';
+import { register, verifyOtp, login, refreshToken, logout, forgotPassword, resetPassword, googleLoginMock, sendChangePasswordOtp, changePassword } from '../controllers/authController.js';
 import { validate } from '../middlewares/validator.js';
 import { protect } from '../middlewares/auth.js';
 import { registerSchema, loginSchema, otpSchema, forgotPasswordSchema, resetPasswordSchema } from '../utils/validationSchemas.js';
@@ -14,5 +14,9 @@ router.post('/logout', logout);
 router.post('/forgot-password', validate(forgotPasswordSchema), forgotPassword);
 router.post('/reset-password', validate(resetPasswordSchema), resetPassword);
 router.post('/google-login', googleLoginMock);
+
+// Secure logged-in password changes
+router.post('/change-password-otp', protect, sendChangePasswordOtp);
+router.post('/change-password', protect, changePassword);
 
 export default router;
