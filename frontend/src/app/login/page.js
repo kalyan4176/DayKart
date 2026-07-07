@@ -46,6 +46,8 @@ export default function Login() {
   const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
   const [forgotStep, setForgotStep] = useState(1); // 1 = request, 2 = reset
   const [forgotErrorMsg, setForgotErrorMsg] = useState('');
+  const [showForgotNewPassword, setShowForgotNewPassword] = useState(false);
+  const [showForgotConfirmPassword, setShowForgotConfirmPassword] = useState(false);
 
   const [sendForgotPasswordOtpApi, { isLoading: isSendingForgotOtp }] = useForgotPasswordMutation();
   const [resetPasswordApi, { isLoading: isResettingPassword }] = useResetPasswordMutation();
@@ -532,14 +534,22 @@ export default function Login() {
                     </label>
                     <div className="relative">
                       <input
-                        type="password"
+                        type={showForgotNewPassword ? 'text' : 'password'}
                         placeholder="Enter new password"
                         value={forgotNewPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary pl-10 pr-4 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                        onChange={(e) => setForgotNewPassword(e.target.value)}
+                        className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary pl-10 pr-10 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
                         required
                       />
                       <Lock className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                      <button
+                        type="button"
+                        onClick={() => setShowForgotNewPassword(!showForgotNewPassword)}
+                        className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-650 dark:hover:text-slate-350 focus:outline-none"
+                        aria-label={showForgotNewPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showForgotNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
                     </div>
                   </div>
 
@@ -550,14 +560,22 @@ export default function Login() {
                     </label>
                     <div className="relative">
                       <input
-                        type="password"
+                        type={showForgotConfirmPassword ? 'text' : 'password'}
                         placeholder="Confirm new password"
                         value={forgotConfirmPassword}
                         onChange={(e) => setForgotConfirmPassword(e.target.value)}
-                        className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary pl-10 pr-4 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                        className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary pl-10 pr-10 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
                         required
                       />
                       <Lock className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                      <button
+                        type="button"
+                        onClick={() => setShowForgotConfirmPassword(!showForgotConfirmPassword)}
+                        className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-650 dark:hover:text-slate-350 focus:outline-none"
+                        aria-label={showForgotConfirmPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showForgotConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
                     </div>
                   </div>
 
