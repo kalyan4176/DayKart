@@ -95,6 +95,20 @@ export const api = createApi({
         body: data,
       }),
     }),
+    forgotPassword: builder.mutation({
+      query: (data) => ({
+        url: '/auth/forgot-password',
+        method: 'POST',
+        body: data,
+      }),
+    }),
+    resetPassword: builder.mutation({
+      query: (data) => ({
+        url: '/auth/reset-password',
+        method: 'POST',
+        body: data,
+      }),
+    }),
 
     getProducts: builder.query({
       query: (params) => ({
@@ -602,6 +616,8 @@ export const {
   useLogoutMutation,
   useSendChangePasswordOtpMutation,
   useChangePasswordMutation,
+  useForgotPasswordMutation,
+  useResetPasswordMutation,
   useGetWishlistQuery,
   useToggleWishlistMutation,
   useGetProfileQuery,

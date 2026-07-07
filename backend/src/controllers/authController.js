@@ -309,6 +309,10 @@ export const forgotPassword = async (req, res, next) => {
       return next(new NotFoundError('No account found with this email.'));
     }
 
+    if (user.role === 'admin') {
+      return next(new BadRequestError('Password recovery is disabled for administrators. Please contact support.'));
+    }
+
     const otp = generateOTP();
     user.otp = otp;
     user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
