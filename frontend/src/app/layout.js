@@ -13,7 +13,10 @@ export const metadata = {
   title: "Daykart | Premium Multi-Vendor E-Commerce Platform",
   description: "Experience lag-free, ultra-secure, and modern e-commerce shopping. Shop top-brand electronics, custom fashion, and kitchen appliances with smart recommendations and fast checkout.",
   icons: {
-    icon: "/logo-circular.png",
+    icon: [
+      { url: "/logo-circular.png", sizes: "32x32", type: "image/png" },
+      { url: "/logo-circular.png", sizes: "192x192", type: "image/png" }
+    ],
     shortcut: "/logo-circular.png",
     apple: "/logo-circular.png",
   },
