@@ -52,6 +52,8 @@ app.use(cors({
     if (!origin) return callback(null, true);
     const isAllowed = allowedOrigins.includes(origin) || 
                       origin.endsWith('.vercel.app') || 
+                      origin.endsWith('daykart.in') ||
+                      origin === 'https://daykart.in' ||
                       origin.includes('localhost:');
     if (isAllowed) {
       callback(null, true);
