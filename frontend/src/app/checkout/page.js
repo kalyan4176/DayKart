@@ -13,6 +13,7 @@ import { getOptimizedImageUrl } from '@/utils/image';
 
 const GATEWAYS = [
   { id: 'cod', name: 'Cash on Delivery (COD)', desc: 'Pay with cash upon package delivery.' },
+  { id: 'phonepe', name: 'PhonePe UPI / Card', desc: 'Secure payment via PhonePe gateway.' },
   { id: 'stripe', name: 'Stripe Credit Card', desc: 'Secure card transaction processing.' },
   { id: 'razorpay', name: 'Razorpay UPI / Wallet', desc: 'Instant UPI, net banking, or wallet.' }
 ];
@@ -36,6 +37,23 @@ function CheckoutPageContent() {
       router.push('/login');
     }
   }, [mounted, isAuthenticated, router]);
+
+  useEffect(() => {
+    if (mounted) {
+      const status = searchParams.get('status');
+      const orderId = searchParams.get('orderId');
+      const error = searchParams.get('error');
+
+      if (status === 'success' && orderId) {
+        setOrderSuccess({ orderId });
+        showToast('Payment verified and order placed successfully!', 'success');
+        router.replace('/checkout');
+      } else if (status === 'failed') {
+        showToast(error === 'payment_failed' ? 'Payment failed. Please try again.' : 'Order verification failed.', 'error');
+        router.replace('/checkout');
+      }
+    }
+  }, [mounted, searchParams, router]);
 
   // API Hooks
   const { data: cartRes, isLoading } = useGetCartQuery(undefined, { skip: !isAuthenticated || !mounted });
@@ -271,6 +289,12 @@ function CheckoutPageContent() {
 
       if (buyNowItem) {
         sessionStorage.removeItem('buyNowItem');
+      }
+
+      if (res.data?.paymentUrl) {
+        showToast('Redirecting to secure PhonePe page...', 'info');
+        window.location.href = res.data.paymentUrl;
+        return;
       }
 
       setOrderSuccess(res.data);
