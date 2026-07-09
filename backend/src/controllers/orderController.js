@@ -1170,6 +1170,25 @@ export const phonepeCallback = async (req, res) => {
       return res.status(400).json({ status: 'fail', message: 'No response payload' });
     }
 
+    // Verify webhook callback signature integrity to prevent spoofing
+    const xVerifyHeader = req.headers['x-verify'] || req.headers['X-Verify'];
+    if (xVerifyHeader) {
+      const saltKey = process.env.PHONEPE_SALT_KEY || '099eb0cd-02cf-4e2a-8aca-3e6c6aff0399';
+      const saltIndex = process.env.PHONEPE_SALT_INDEX || '1';
+
+      const stringToHash = responsePayloadBase64 + saltKey;
+      const crypto = await import('crypto');
+      const sha256 = crypto.createHash('sha256').update(stringToHash).digest('hex');
+      const expectedChecksum = sha256 + '###' + saltIndex;
+
+      if (xVerifyHeader !== expectedChecksum) {
+        console.warn('PhonePe Webhook verification failed: checksum mismatch.');
+        return res.status(401).json({ status: 'fail', message: 'Signature verification failed' });
+      }
+    } else {
+      console.warn('PhonePe Webhook payload missing X-VERIFY header.');
+    }
+
     const decodedResponse = JSON.parse(Buffer.from(responsePayloadBase64, 'base64').toString('utf-8'));
     const { success, code, data } = decodedResponse;
     const transactionId = data?.merchantTransactionId;
