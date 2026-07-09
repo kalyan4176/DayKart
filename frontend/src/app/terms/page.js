@@ -78,8 +78,8 @@ export default function TermsPage() {
           <div className="border-t border-slate-100 dark:border-slate-800 pt-6 mt-6 text-xs text-slate-500">
             <p><strong>Legal Entity Name:</strong> ADHILAKSHMI ENTERPRISES</p>
             <p><strong>Udyam Registration No:</strong> UDYAM-AP-17-0054999</p>
-            <p><strong>Registered Address:</strong> Peddapuram, Andhra Pradesh, India</p>
             <p><strong>Contact Email:</strong> daykart.services@gmail.com</p>
+            <p><strong>Registered Address:</strong> Peddapuram, Andhra Pradesh, India</p>
           </div>
         </div>
       </main>

@@ -69,14 +69,20 @@ export default function RefundPage() {
             We can only offer a <strong>one-time replacement</strong> for any given product. If a product is replaced, no further replacements will be provided for the same issue or item.
           </p>
 
-          <h2 className="text-base font-bold text-slate-900 dark:text-white mt-6">7. Contact Us</h2>
+          <h2 className="text-base font-bold text-slate-900 dark:text-white mt-6">7. Failed Online Transactions & Double Debits</h2>
           <p>
-            If you have any questions regarding this policy or need assistance, please reach out to our customer support team at <strong>daykart.services@gmail.com</strong> or phone at <strong>+91 96523 77187</strong>. Our team is here to help resolve any issues as quickly as possible.
+            In the event of a failed online transaction or double debit where money is deducted from your account/card but the order is not created or placed successfully, the amount will be automatically refunded back to your original payment source within <strong>5 to 7 business days</strong>, in accordance with bank policies.
+          </p>
+
+          <h2 className="text-base font-bold text-slate-900 dark:text-white mt-6">8. Contact Us & Grievance Redressal</h2>
+          <p>
+            If you have any questions regarding this policy or need assistance, please reach out to our customer support team at <strong>daykart.services@gmail.com</strong>. Our team is here to help resolve any issues as quickly as possible.
           </p>
 
           <div className="border-t border-slate-100 dark:border-slate-800 pt-6 mt-6 text-xs text-slate-500">
             <p><strong>Legal Entity Name:</strong> ADHILAKSHMI ENTERPRISES</p>
             <p><strong>Udyam Registration No:</strong> UDYAM-AP-17-0054999</p>
+            <p><strong>Contact Email:</strong> daykart.services@gmail.com</p>
             <p><strong>Registered Address:</strong> Peddapuram, Andhra Pradesh, India</p>
           </div>
         </div>

@@ -84,12 +84,11 @@ export default function PrivacyPage() {
             We may update this Privacy Policy. Please review it regularly for changes.
           </p>
 
-          <h2 className="text-base font-bold text-slate-900 dark:text-white mt-6">9. Contact Us</h2>
+          <h2 className="text-base font-bold text-slate-900 dark:text-white mt-6">9. Contact Us & Grievance Redressal</h2>
           <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl text-xs space-y-1 border border-slate-100 dark:border-slate-800/80">
             <p className="font-bold text-slate-800 dark:text-slate-200">DayKart (ADHILAKSHMI ENTERPRISES)</p>
             <p><strong>Udyam Registration No:</strong> UDYAM-AP-17-0054999</p>
-            <p><strong>Email:</strong> daykart.services@gmail.com</p>
-            <p><strong>Phone:</strong> +91 96523 77187</p>
+            <p><strong>Contact Email:</strong> daykart.services@gmail.com</p>
             <p className="text-[10px] text-slate-400 mt-2">© 2025 DayKart. All rights reserved.</p>
           </div>
         </div>
