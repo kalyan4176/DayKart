@@ -64,13 +64,18 @@ export default function Footer() {
               <li><Link href="/about" className="hover:text-cyan-400 transition">About Us</Link></li>
               <li><Link href="/terms" className="hover:text-cyan-400 transition">Terms & Conditions</Link></li>
               <li><Link href="/privacy" className="hover:text-cyan-400 transition">Privacy Policy</Link></li>
+              <li><Link href="/refund" className="hover:text-cyan-400 transition">Cancellation & Refund Policy</Link></li>
+              <li><Link href="/shipping" className="hover:text-cyan-400 transition">Shipping Policy</Link></li>
               <li><Link href="/register?role=seller" className="text-orange-400 hover:text-orange-300 font-semibold transition">Become a Seller</Link></li>
             </ul>
           </div>
         </div>
 
-        <div className="border-t border-slate-800 mt-8 pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-600">
-          <p>&copy; {new Date().getFullYear()} Daykart Marketplace. All rights reserved.</p>
+        <div className="border-t border-slate-800 mt-8 pt-8 flex flex-col md:flex-row items-center justify-between text-xs text-slate-500 gap-4">
+          <p>&copy; {new Date().getFullYear()} Daykart. All rights reserved.</p>
+          <p className="text-center md:text-right text-[10px] text-slate-650 leading-relaxed max-w-lg">
+            This platform is owned and operated by <strong>ADHILAKSHMI ENTERPRISES</strong> (Udyam Registration Number: <strong>UDYAM-AP-17-0054999</strong>).
+          </p>
         </div>
       </div>
     </footer>
