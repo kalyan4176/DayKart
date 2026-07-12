@@ -73,8 +73,8 @@ export default function Footer() {
 
         <div className="border-t border-slate-800 mt-8 pt-8 flex flex-col md:flex-row items-center justify-between text-xs text-slate-500 gap-4">
           <p>&copy; {new Date().getFullYear()} Daykart. All rights reserved.</p>
-          <p className="text-center md:text-right text-[10px] text-slate-650 leading-relaxed max-w-lg">
-            This platform is owned and operated by <strong>ADHILAKSHMI ENTERPRISES</strong> (Udyam Registration Number: <strong>UDYAM-AP-17-0054999</strong>).
+          <p className="text-center md:text-right text-[10px] text-slate-650 leading-relaxed max-w-xl">
+            This platform is owned and operated by <strong>ADHILAKSHMI ENTERPRISES</strong>, registered at <strong>1-38 Pedda Veedhi, Kandrakota</strong> (Udyam Registration Number: <strong>UDYAM-AP-17-0054999</strong>).
           </p>
         </div>
       </div>
