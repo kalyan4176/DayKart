@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSelector } from 'react-redux';
 import { useToast } from '@/components/ToastProvider';
-import { Star, ShoppingCart, Heart, Zap, Sparkles, Award, Minus, Plus, Trash2, CheckCircle2, X as XIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Star, ShoppingCart, Heart, Zap, Sparkles, Award, Minus, Plus, Trash2, CheckCircle2, X as XIcon, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
@@ -49,6 +49,55 @@ export default function ProductDetail() {
   const [mounted, setMounted] = useState(false);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
+
+  // Zoom and Drag states for fullscreen gallery
+  const [zoomScale, setZoomScale] = useState(1);
+  const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  const handleResetZoom = () => {
+    setZoomScale(1);
+    setDragPosition({ x: 0, y: 0 });
+  };
+
+  const handleMouseDown = (e) => {
+    if (zoomScale <= 1) return;
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - dragPosition.x, y: e.clientY - dragPosition.y });
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging || zoomScale <= 1) return;
+    setDragPosition({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleTouchStart = (e) => {
+    if (zoomScale <= 1 || e.touches.length !== 1) return;
+    setIsDragging(true);
+    const touch = e.touches[0];
+    setDragStart({ x: touch.clientX - dragPosition.x, y: touch.clientY - dragPosition.y });
+  };
+
+  const handleTouchMove = (e) => {
+    if (!isDragging || zoomScale <= 1 || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    setDragPosition({
+      x: touch.clientX - dragStart.x,
+      y: touch.clientY - dragStart.y
+    });
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+  };
   const reviews = reviewsRes?.data?.reviews || [];
   const frequentlyBought = boughtTogetherRes?.data?.products || [];
   const similarProducts = similarRes?.data?.products || [];
@@ -81,10 +130,16 @@ export default function ProductDetail() {
         setIsGalleryOpen(false);
       } else if (e.key === 'ArrowLeft') {
         const len = product?.images?.length || 0;
-        if (len > 1) setGalleryIndex((prev) => (prev - 1 + len) % len);
+        if (len > 1) {
+          setGalleryIndex((prev) => (prev - 1 + len) % len);
+          handleResetZoom();
+        }
       } else if (e.key === 'ArrowRight') {
         const len = product?.images?.length || 0;
-        if (len > 1) setGalleryIndex((prev) => (prev + 1) % len);
+        if (len > 1) {
+          setGalleryIndex((prev) => (prev + 1) % len);
+          handleResetZoom();
+        }
       }
     };
 
@@ -97,6 +152,7 @@ export default function ProductDetail() {
     const len = product?.images?.length || 0;
     if (len > 1) {
       setGalleryIndex((prev) => (prev - 1 + len) % len);
+      handleResetZoom();
     }
   };
 
@@ -105,6 +161,7 @@ export default function ProductDetail() {
     const len = product?.images?.length || 0;
     if (len > 1) {
       setGalleryIndex((prev) => (prev + 1) % len);
+      handleResetZoom();
     }
   };
 
@@ -556,13 +613,59 @@ export default function ProductDetail() {
             <div className="text-xs sm:text-sm font-bold tracking-tight">
               {product.title} <span className="text-slate-400 font-normal ml-2">({galleryIndex + 1} of {product.images?.length || 1})</span>
             </div>
-            <button 
-              onClick={() => setIsGalleryOpen(false)}
-              className="p-2 bg-slate-850 hover:bg-slate-800 text-slate-300 hover:text-white rounded-full transition active:scale-90"
-              title="Close Fullscreen"
-            >
-              <XIcon className="w-6 h-6" />
-            </button>
+            
+            {/* Zoom Controls & Close */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center bg-slate-900/80 rounded-full border border-slate-800 p-0.5 shadow-md">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setZoomScale((prev) => Math.max(1, prev - 0.5));
+                    if (zoomScale <= 1.5) setDragPosition({ x: 0, y: 0 });
+                  }}
+                  disabled={zoomScale <= 1}
+                  className="p-1.5 hover:bg-slate-800 text-slate-350 hover:text-white rounded-full transition disabled:opacity-30 disabled:hover:bg-transparent"
+                  title="Zoom Out"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <span className="text-xxs font-black px-1.5 select-none min-w-[28px] text-center text-slate-350">{Math.round(zoomScale * 100)}%</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setZoomScale((prev) => Math.min(4, prev + 0.5));
+                  }}
+                  disabled={zoomScale >= 4}
+                  className="p-1.5 hover:bg-slate-800 text-slate-350 hover:text-white rounded-full transition disabled:opacity-30 disabled:hover:bg-transparent"
+                  title="Zoom In"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+                {zoomScale > 1 && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleResetZoom();
+                    }}
+                    className="p-1.5 hover:bg-slate-800 text-secondary hover:text-cyan-400 rounded-full transition"
+                    title="Reset Zoom"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              <button 
+                onClick={() => setIsGalleryOpen(false)}
+                className="p-2 bg-slate-850 hover:bg-slate-800 text-slate-300 hover:text-white rounded-full transition active:scale-90"
+                title="Close Fullscreen"
+              >
+                <XIcon className="w-6 h-6" />
+              </button>
+            </div>
           </div>
 
           {/* Main Stage */}
@@ -571,19 +674,37 @@ export default function ProductDetail() {
             {product.images?.length > 1 && (
               <button
                 onClick={handlePrevGalleryImage}
-                className="p-3 sm:p-4 bg-slate-900/60 hover:bg-slate-800/80 text-white rounded-full transition border border-slate-800/50 hover:border-slate-700/85 active:scale-90 flex items-center justify-center cursor-pointer shadow-md select-none mr-2 sm:mr-4"
+                className="p-3 sm:p-4 bg-slate-900/60 hover:bg-slate-800/80 text-white rounded-full transition border border-slate-800/50 hover:border-slate-700/85 active:scale-90 flex items-center justify-center cursor-pointer shadow-md select-none mr-2 sm:mr-4 z-10"
               >
                 <ChevronLeft className="w-6 h-6 sm:w-8 sm:h-8" />
               </button>
             )}
 
             {/* Image display */}
-            <div className="flex-1 flex items-center justify-center p-2 relative h-full">
+            <div className="flex-1 flex items-center justify-center p-2 relative h-full overflow-hidden">
               <img
                 src={getOptimizedImageUrl(product.images?.[galleryIndex] || product.images?.[0], 1200)}
                 alt={product.title}
-                onClick={(e) => e.stopPropagation()}
-                className="max-w-full max-h-[60vh] sm:max-h-[75vh] object-contain rounded-xl shadow-2xl transition-all duration-300 transform scale-100"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (zoomScale === 1) {
+                    setZoomScale(2);
+                  } else {
+                    handleResetZoom();
+                  }
+                }}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                className="max-w-full max-h-[60vh] sm:max-h-[75vh] object-contain rounded-xl shadow-2xl transition-all duration-150 transform select-none"
+                style={{
+                  transform: `scale(${zoomScale}) translate(${dragPosition.x / zoomScale}px, ${dragPosition.y / zoomScale}px)`,
+                  cursor: zoomScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in',
+                }}
               />
             </div>
 
@@ -591,7 +712,7 @@ export default function ProductDetail() {
             {product.images?.length > 1 && (
               <button
                 onClick={handleNextGalleryImage}
-                className="p-3 sm:p-4 bg-slate-900/60 hover:bg-slate-800/80 text-white rounded-full transition border border-slate-800/50 hover:border-slate-700/85 active:scale-90 flex items-center justify-center cursor-pointer shadow-md select-none ml-2 sm:ml-4"
+                className="p-3 sm:p-4 bg-slate-900/60 hover:bg-slate-800/80 text-white rounded-full transition border border-slate-800/50 hover:border-slate-700/85 active:scale-90 flex items-center justify-center cursor-pointer shadow-md select-none ml-2 sm:ml-4 z-10"
               >
                 <ChevronRight className="w-6 h-6 sm:w-8 sm:h-8" />
               </button>
