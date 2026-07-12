@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSelector } from 'react-redux';
 import { useToast } from '@/components/ToastProvider';
-import { Star, ShoppingCart, Heart, Zap, Sparkles, Award, Minus, Plus, Trash2, CheckCircle2, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Star, ShoppingCart, Heart, Zap, Sparkles, Award, Minus, Plus, Trash2, CheckCircle2, X as XIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
@@ -560,7 +560,7 @@ export default function ProductDetail() {
               className="p-2 bg-slate-850 hover:bg-slate-800 text-slate-300 hover:text-white rounded-full transition active:scale-90"
               title="Close Fullscreen"
             >
-              <X className="w-6 h-6" />
+              <XIcon className="w-6 h-6" />
             </button>
           </div>
 

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSelector, useDispatch } from 'react-redux';
 import { useForm } from 'react-hook-form';
-import { LayoutDashboard, ShoppingBag, PlusCircle, Upload, CheckCircle2, AlertTriangle, FileSpreadsheet, Store, Clock, User, Mail, Phone, ShieldCheck, UploadCloud, X, Image as ImageIcon, Trash2, RefreshCw, ClipboardList, XCircle, Wallet, ChevronDown, Truck } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, PlusCircle, Upload, CheckCircle2, AlertTriangle, FileSpreadsheet, Store, Clock, User, Mail, Phone, ShieldCheck, UploadCloud, X as XIcon, Image as ImageIcon, Trash2, RefreshCw, ClipboardList, XCircle, Wallet, ChevronDown, Truck, Pencil } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ConfirmationModal from '@/components/ConfirmationModal';
@@ -89,6 +89,21 @@ function SellerDashboardContent() {
   const [deleteProduct] = useDeleteProductMutation();
   const [editingStock, setEditingStock] = useState({});
 
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editSku, setEditSku] = useState('');
+  const [editPrice, setEditPrice] = useState('');
+  const [editCompareAtPrice, setEditCompareAtPrice] = useState('');
+  const [editGstRate, setEditGstRate] = useState(18);
+  const [editCategory, setEditCategory] = useState('');
+  const [editBrand, setEditBrand] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editImages, setEditImages] = useState([]);
+  const [editQuantity, setEditQuantity] = useState(0);
+  const [editManualImageUrl, setEditManualImageUrl] = useState('');
+  const [editSuccessMsg, setEditSuccessMsg] = useState('');
+  const [editErrorMsg, setEditErrorMsg] = useState('');
+
   const { data: sellerProductsRes, refetch: refetchSellerProducts } = useGetProductsQuery(
     { seller: sellerProfile?._id, status: 'all', limit: 100 },
     { skip: !sellerProfile || activeTab !== 'manage-listings' }
@@ -144,6 +159,102 @@ function SellerDashboardContent() {
           refetchSellerProducts();
         } catch (err) {
           showToast(err.data?.message || 'Failed to update stock.', 'error');
+        }
+      }
+    });
+  };
+
+  const handleStartEdit = (product) => {
+    setEditingProduct(product);
+    setEditTitle(product.title || '');
+    setEditSku(product.sku || '');
+    setEditPrice(product.price || '');
+    setEditCompareAtPrice(product.compareAtPrice || '');
+    setEditGstRate(product.gstRate || 18);
+    setEditCategory(product.category?._id || product.category || '');
+    setEditBrand(product.brand?._id || product.brand || '');
+    setEditDescription(product.description || '');
+    setEditImages(product.images || []);
+    setEditQuantity(product.inventory?.quantity || 0);
+    setEditManualImageUrl('');
+    setEditSuccessMsg('');
+    setEditErrorMsg('');
+  };
+
+  const handleEditImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('File size exceeds the 5MB limit.', 'error');
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const res = await uploadProductImage(formData).unwrap();
+      const url = res.data?.imageUrl || res.url;
+      if (url) {
+        setEditImages((prev) => [...prev, url]);
+        showToast('Image uploaded successfully!', 'success');
+      }
+    } catch (err) {
+      showToast(err.data?.message || 'Failed to upload image.', 'error');
+    }
+  };
+
+  const handleEditAddManualImage = () => {
+    if (!editManualImageUrl.trim()) return;
+    setEditImages((prev) => [...prev, editManualImageUrl.trim()]);
+    setEditManualImageUrl('');
+    showToast('Manual image URL added to list!', 'success');
+  };
+
+  const handleSaveChanges = async (e) => {
+    e.preventDefault();
+    if (!editTitle || !editSku || !editCategory || !editPrice || !editDescription) {
+      setEditErrorMsg('Please fill in all required fields.');
+      return;
+    }
+
+    triggerConfirmation({
+      title: 'Save Product Changes?',
+      message: `Are you sure you want to update the product "${editTitle}"? It will await administrator approval again before the changes go live.`,
+      type: 'info',
+      confirmText: 'Save Changes',
+      onConfirm: async () => {
+        try {
+          setEditSuccessMsg('');
+          setEditErrorMsg('');
+
+          const payload = {
+            id: editingProduct._id,
+            title: editTitle,
+            sku: editSku,
+            price: Number(editPrice),
+            compareAtPrice: editCompareAtPrice ? Number(editCompareAtPrice) : null,
+            gstRate: Number(editGstRate),
+            category: editCategory,
+            brand: editBrand || undefined,
+            description: editDescription,
+            images: editImages.length > 0 ? editImages : ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=800'],
+            inventory: {
+              quantity: Number(editQuantity),
+              lowStockThreshold: 5,
+            },
+          };
+
+          await updateProduct(payload).unwrap();
+          setEditSuccessMsg('Product details updated successfully! Awaiting administrator approval.');
+          showToast('Product updated successfully!', 'success');
+          refetchSellerProducts();
+          setTimeout(() => {
+            setEditingProduct(null);
+          }, 1500);
+        } catch (err) {
+          setEditErrorMsg(err.data?.message || 'Failed to update product details.');
         }
       }
     });
@@ -1156,13 +1267,22 @@ function SellerDashboardContent() {
                                 </div>
                               </td>
                               <td className="py-4 px-2 text-right">
-                                <button
-                                  onClick={() => handleDeleteProduct(prod._id)}
-                                  className="bg-rose-500 text-white p-2 rounded-xl hover:bg-rose-600 transition inline-flex items-center"
-                                  title="Delete Listing"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                <div className="flex justify-end gap-2">
+                                  <button
+                                    onClick={() => handleStartEdit(prod)}
+                                    className="bg-cyan-500 text-white p-2 rounded-xl hover:bg-cyan-600 transition inline-flex items-center"
+                                    title="Edit Product Details"
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteProduct(prod._id)}
+                                    className="bg-rose-500 text-white p-2 rounded-xl hover:bg-rose-600 transition inline-flex items-center"
+                                    title="Delete Listing"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -1349,7 +1469,7 @@ function SellerDashboardContent() {
                                   onClick={() => setProductImages(prev => prev.filter((_, i) => i !== idx))}
                                   className="absolute top-0.5 right-0.5 bg-red-500 hover:bg-red-600 text-white rounded-full p-0.5 transition shadow-xs z-20"
                                 >
-                                  <X className="w-3.5 h-3.5" />
+                                  <XIcon className="w-3.5 h-3.5" />
                                 </button>
                               </div>
                             ))}
@@ -1852,6 +1972,252 @@ function SellerDashboardContent() {
         confirmText="Reject Order"
         type="danger"
       />
+
+      {/* Edit Product Modal */}
+      {editingProduct && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto animate-fade-in select-none">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-3xl rounded-3xl shadow-xl overflow-hidden my-8 max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <h3 className="font-extrabold text-lg text-slate-850 dark:text-slate-200 flex items-center gap-2">
+                <Pencil className="w-5 h-5 text-secondary" /> Edit Product Details
+              </h3>
+              <button 
+                onClick={() => setEditingProduct(null)} 
+                className="p-1.5 hover:bg-slate-100 bg-slate-50 dark:bg-slate-800/80 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full transition"
+              >
+                <XIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Moderation Warning Banner */}
+            <div className="bg-amber-50/70 dark:bg-amber-955/15 border-b border-amber-100 dark:border-amber-900/30 px-6 py-3.5 flex gap-2.5 text-xs text-amber-600 dark:text-amber-400 font-medium">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>
+                <strong>Important:</strong> Modifying product details resets its status to <strong>pending</strong>. It must be approved by the administrator before appearing live on the marketplace.
+              </span>
+            </div>
+
+            {/* Body */}
+            <form onSubmit={handleSaveChanges} className="flex-1 overflow-y-auto p-6 space-y-6">
+              {editSuccessMsg && (
+                <div className="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/50 rounded-2xl flex items-center gap-2.5 text-sm text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                  <span>{editSuccessMsg}</span>
+                </div>
+              )}
+
+              {editErrorMsg && (
+                <div className="p-4 bg-red-50 dark:bg-red-955/20 border border-red-200 dark:border-red-900/50 rounded-2xl flex items-center gap-2.5 text-sm text-red-600 dark:text-red-400">
+                  <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                  <span>{editErrorMsg}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Product Title</label>
+                  <input
+                    type="text"
+                    required
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Unique SKU</label>
+                  <input
+                    type="text"
+                    required
+                    value={editSku}
+                    onChange={(e) => setEditSku(e.target.value)}
+                    className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Base Price (₹)</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    value={editPrice}
+                    onChange={(e) => setEditPrice(e.target.value)}
+                    className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Compare-at Price (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Original price before discount"
+                    value={editCompareAtPrice}
+                    onChange={(e) => setEditCompareAtPrice(e.target.value)}
+                    className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">GST Rate (%)</label>
+                  <select
+                    value={editGstRate}
+                    onChange={(e) => setEditGstRate(Number(e.target.value))}
+                    className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                  >
+                    <option value={0}>0%</option>
+                    <option value={5}>5%</option>
+                    <option value={12}>12%</option>
+                    <option value={18}>18%</option>
+                    <option value={28}>28%</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Stock Quantity</label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    value={editQuantity}
+                    onChange={(e) => setEditQuantity(e.target.value)}
+                    className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Category</label>
+                  <select
+                    required
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value)}
+                    className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                  >
+                    <option value="">Select Category</option>
+                    {categories.map(cat => (
+                      <option key={cat._id} value={cat._id}>{cat.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Brand</label>
+                  <select
+                    value={editBrand}
+                    onChange={(e) => setEditBrand(e.target.value)}
+                    className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                  >
+                    <option value="">Select Brand</option>
+                    {brands.map(br => (
+                      <option key={br._id} value={br._id}>{br.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Product Images</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* File Upload */}
+                    <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-secondary dark:hover:border-secondary rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer transition relative group bg-slate-50 dark:bg-slate-900/50">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleEditImageUpload}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                        disabled={uploadingImage}
+                      />
+                      <UploadCloud className={`w-8 h-8 ${uploadingImage ? 'text-secondary animate-bounce' : 'text-slate-400 group-hover:text-secondary'} transition mb-2`} />
+                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                        {uploadingImage ? 'Uploading image...' : 'Choose image or drag here'}
+                      </span>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">PNG, JPG, JPEG up to 5MB</span>
+                    </div>
+
+                    {/* Manual URL input */}
+                    <div className="flex flex-col justify-between p-2">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Add Image URL Manually</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="Paste image URL here..."
+                            value={editManualImageUrl}
+                            onChange={(e) => setEditManualImageUrl(e.target.value)}
+                            className="flex-1 bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3 py-2 rounded-lg text-[11px] outline-none transition dark:text-slate-200"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleEditAddManualImage}
+                            className="bg-secondary hover:bg-cyan-600 text-white font-bold px-3 py-2 rounded-lg text-[11px] transition shadow-xs"
+                          >
+                            Add
+                          </button>
+                        </div>
+                      </div>
+                      <div className="text-xxs text-slate-400 dark:text-slate-500 font-semibold mt-2">
+                        Configure the images in your listing catalog.
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Image gallery display */}
+                  {editImages.length > 0 && (
+                    <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-200 dark:border-slate-850/80">
+                      <span className="block text-[10px] font-bold text-slate-400 uppercase mb-2">Image Gallery ({editImages.length})</span>
+                      <div className="flex flex-wrap gap-3">
+                        {editImages.map((imgUrl, idx) => (
+                          <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-950 flex-shrink-0 group">
+                            <img src={imgUrl} alt="" className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => setEditImages(prev => prev.filter((_, i) => i !== idx))}
+                              className="absolute top-0.5 right-0.5 bg-red-500 hover:bg-red-600 text-white rounded-full p-0.5 transition shadow-xs z-20"
+                            >
+                              <XIcon className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Description</label>
+                  <textarea
+                    required
+                    rows={4}
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-secondary px-3.5 py-2.5 rounded-xl text-xs outline-none transition dark:text-slate-200"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingProduct(null)}
+                  className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-355 font-bold rounded-xl text-xs transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-secondary hover:bg-cyan-600 text-white font-bold rounded-xl text-xs transition shadow-md"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <Footer />
     </div>
   );
