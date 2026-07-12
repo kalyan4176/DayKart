@@ -29,12 +29,32 @@ export default function ProductDetail() {
 
   const { isAuthenticated } = useSelector(state => state.auth);
   const { showToast } = useToast();
+
+  // API Queries
+  const { data: productRes, isLoading } = useGetProductByIdQuery(productId);
+  const { data: cartRes } = useGetCartQuery(undefined, { skip: !isAuthenticated });
+  const { data: boughtTogetherRes } = useGetFrequentlyBoughtQuery(productId);
+  const { data: similarRes } = useGetSimilarProductsQuery(productId);
+  const { data: allProductsRes } = useGetProductsQuery({ status: 'approved', limit: 12 });
+  const { data: reviewsRes } = useGetProductReviewsQuery(productId);
+
+  const [updateCart, { isLoading: cartUpdating }] = useUpdateCartMutation();
+  const [trackView] = useTrackProductViewMutation();
+
+  const product = productRes?.data?.product;
+
   const [selectedVariant, setSelectedVariant] = useState(null);
   const [selectedAttributes, setSelectedAttributes] = useState({});
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [mounted, setMounted] = useState(false);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
+  const reviews = reviewsRes?.data?.reviews || [];
+  const frequentlyBought = boughtTogetherRes?.data?.products || [];
+  const similarProducts = similarRes?.data?.products || [];
+  const allProducts = allProductsRes?.data?.products || [];
+  const fallbackRelated = allProducts.filter(p => p._id !== productId);
+  const finalSimilarProducts = similarProducts.length > 0 ? similarProducts : fallbackRelated.slice(0, 6);
 
   useEffect(() => {
     setMounted(true);
@@ -92,25 +112,6 @@ export default function ProductDetail() {
   useEffect(() => {
     setActiveImageIndex(0);
   }, [productId]);
-
-  // API Queries
-  const { data: productRes, isLoading } = useGetProductByIdQuery(productId);
-  const { data: cartRes } = useGetCartQuery(undefined, { skip: !isAuthenticated });
-  const { data: boughtTogetherRes } = useGetFrequentlyBoughtQuery(productId);
-  const { data: similarRes } = useGetSimilarProductsQuery(productId);
-  const { data: allProductsRes } = useGetProductsQuery({ status: 'approved', limit: 12 });
-  const { data: reviewsRes } = useGetProductReviewsQuery(productId);
-
-  const [updateCart, { isLoading: cartUpdating }] = useUpdateCartMutation();
-  const [trackView] = useTrackProductViewMutation();
-
-  const product = productRes?.data?.product;
-  const reviews = reviewsRes?.data?.reviews || [];
-  const frequentlyBought = boughtTogetherRes?.data?.products || [];
-  const similarProducts = similarRes?.data?.products || [];
-  const allProducts = allProductsRes?.data?.products || [];
-  const fallbackRelated = allProducts.filter(p => p._id !== productId);
-  const finalSimilarProducts = similarProducts.length > 0 ? similarProducts : fallbackRelated.slice(0, 6);
 
   // Track product view on load
   useEffect(() => {
