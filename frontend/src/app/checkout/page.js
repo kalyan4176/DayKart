@@ -72,6 +72,13 @@ function CheckoutPageContent() {
   const [selectedGateway, setSelectedGateway] = useState('cod');
   const [orderSuccess, setOrderSuccess] = useState(null);
   const [fetchingLocation, setFetchingLocation] = useState(false);
+  const [preferredDeliveryDate, setPreferredDeliveryDate] = useState('');
+
+  const getTomorrowDateString = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  };
 
   const handleGetLocationAddress = () => {
     if (!navigator.geolocation) {
@@ -270,11 +277,17 @@ function CheckoutPageContent() {
       return;
     }
 
+    if (!preferredDeliveryDate) {
+      showToast('Please select a preferred delivery date before placing your order.', 'error');
+      return;
+    }
+
     try {
       const payload = {
         addressId: selectedAddress,
         couponCode: discountInfo ? discountInfo.code : undefined,
         gateway: selectedGateway,
+        preferredDeliveryDate,
       };
 
       if (buyNowItem) {
@@ -462,10 +475,30 @@ function CheckoutPageContent() {
               )}
             </div>
 
+            {/* Preferred Delivery Date */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
+              <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 flex items-center gap-2 mb-4">
+                <span className="w-5 h-5 text-secondary flex items-center justify-center font-bold text-base">📅</span> 2. Preferred Delivery Date
+              </h3>
+              <p className="text-xs text-slate-500 mb-3">
+                Please select your preferred date for receiving this delivery (available starting tomorrow).
+              </p>
+              <div className="relative max-w-sm">
+                <input
+                  type="date"
+                  required
+                  value={preferredDeliveryDate}
+                  min={getTomorrowDateString()}
+                  onChange={(e) => setPreferredDeliveryDate(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-800/40 border border-slate-250 dark:border-slate-700/80 rounded-2xl px-4 py-3 text-xs text-slate-800 dark:text-slate-250 focus:outline-none focus:ring-1 focus:ring-secondary focus:border-secondary dark:focus:ring-secondary dark:focus:border-secondary transition-all"
+                />
+              </div>
+            </div>
+
             {/* Payment Method Selector */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
               <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-200 flex items-center gap-2 mb-4">
-                <CreditCard className="w-5 h-5 text-secondary" /> 2. Payment Gateway Options
+                <CreditCard className="w-5 h-5 text-secondary" /> 3. Payment Gateway Options
               </h3>
 
               <div className="space-y-3">

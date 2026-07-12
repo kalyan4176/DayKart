@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSelector } from 'react-redux';
 import { useToast } from '@/components/ToastProvider';
-import { Star, ShoppingCart, Heart, Zap, Sparkles, Award, Minus, Plus, Trash2, CheckCircle2 } from 'lucide-react';
+import { Star, ShoppingCart, Heart, Zap, Sparkles, Award, Minus, Plus, Trash2, CheckCircle2, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
@@ -33,10 +33,60 @@ export default function ProductDetail() {
   const [selectedAttributes, setSelectedAttributes] = useState({});
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [mounted, setMounted] = useState(false);
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Block/unblock scroll when fullscreen gallery is open
+  useEffect(() => {
+    if (isGalleryOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isGalleryOpen]);
+
+  // Keyboard navigation for gallery modal
+  useEffect(() => {
+    if (!isGalleryOpen) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setIsGalleryOpen(false);
+      } else if (e.key === 'ArrowLeft') {
+        const len = product?.images?.length || 0;
+        if (len > 1) setGalleryIndex((prev) => (prev - 1 + len) % len);
+      } else if (e.key === 'ArrowRight') {
+        const len = product?.images?.length || 0;
+        if (len > 1) setGalleryIndex((prev) => (prev + 1) % len);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isGalleryOpen, product]);
+
+  const handlePrevGalleryImage = (e) => {
+    e.stopPropagation();
+    const len = product?.images?.length || 0;
+    if (len > 1) {
+      setGalleryIndex((prev) => (prev - 1 + len) % len);
+    }
+  };
+
+  const handleNextGalleryImage = (e) => {
+    e.stopPropagation();
+    const len = product?.images?.length || 0;
+    if (len > 1) {
+      setGalleryIndex((prev) => (prev + 1) % len);
+    }
+  };
 
   // Reset active image index when product changes
   useEffect(() => {
@@ -206,14 +256,23 @@ export default function ProductDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-12 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-8 lg:p-10 rounded-3xl shadow-sm">
           {/* Left: Product Images */}
           <div className="space-y-4">
-            <div className="aspect-square bg-slate-50 dark:bg-slate-950 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-inner flex items-center justify-center relative">
+            <div 
+              onClick={() => {
+                setGalleryIndex(activeImageIndex);
+                setIsGalleryOpen(true);
+              }}
+              className="aspect-square bg-slate-50 dark:bg-slate-955 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-inner flex items-center justify-center relative cursor-zoom-in group"
+            >
               <img
                 src={getOptimizedImageUrl(product.images?.[activeImageIndex] || product.images?.[0] || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=600', 800)}
                 alt={product.title}
-                className="w-full h-full object-cover transition-all duration-350 ease-out hover:scale-102"
+                className="w-full h-full object-cover transition-all duration-355 ease-out group-hover:scale-102"
               />
               <button
-                onClick={handleToggleWishlist}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleWishlist();
+                }}
                 className={`absolute top-4 right-4 z-10 p-3 rounded-full border shadow-md transition-all duration-200 hover:scale-110 active:scale-90 flex items-center justify-center ${
                   isInWishlist
                     ? 'bg-white/90 border-red-200 text-red-500'
@@ -223,6 +282,31 @@ export default function ProductDetail() {
               >
                 <Heart className={`w-5 h-5 ${isInWishlist ? 'fill-red-500' : ''}`} />
               </button>
+
+              {product.images?.length > 1 && (
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const len = product.images.length;
+                      setActiveImageIndex((prev) => (prev - 1 + len) % len);
+                    }}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-2 rounded-full border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-900 transition shadow-sm opacity-0 group-hover:opacity-100 active:scale-90 flex items-center justify-center"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const len = product.images.length;
+                      setActiveImageIndex((prev) => (prev + 1) % len);
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-2 rounded-full border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-900 transition shadow-sm opacity-0 group-hover:opacity-100 active:scale-90 flex items-center justify-center"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </>
+              )}
             </div>
             {product.images?.length > 1 && (
               <div className="grid grid-cols-4 gap-3">
@@ -459,6 +543,85 @@ export default function ProductDetail() {
       </main>
 
       <Footer />
+
+      {/* Fullscreen Image Gallery Modal (Flipkart-style) */}
+      {isGalleryOpen && product && (
+        <div 
+          onClick={() => setIsGalleryOpen(false)}
+          className="fixed inset-0 bg-black/95 z-[9999] flex flex-col justify-between p-4 sm:p-6 animate-fade-in select-none"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between w-full text-white">
+            <div className="text-xs sm:text-sm font-bold tracking-tight">
+              {product.title} <span className="text-slate-400 font-normal ml-2">({galleryIndex + 1} of {product.images?.length || 1})</span>
+            </div>
+            <button 
+              onClick={() => setIsGalleryOpen(false)}
+              className="p-2 bg-slate-850 hover:bg-slate-800 text-slate-300 hover:text-white rounded-full transition active:scale-90"
+              title="Close Fullscreen"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          {/* Main Stage */}
+          <div className="flex-1 flex items-center justify-between max-w-7xl mx-auto w-full relative">
+            {/* Left Control */}
+            {product.images?.length > 1 && (
+              <button
+                onClick={handlePrevGalleryImage}
+                className="p-3 sm:p-4 bg-slate-900/60 hover:bg-slate-800/80 text-white rounded-full transition border border-slate-800/50 hover:border-slate-700/85 active:scale-90 flex items-center justify-center cursor-pointer shadow-md select-none mr-2 sm:mr-4"
+              >
+                <ChevronLeft className="w-6 h-6 sm:w-8 sm:h-8" />
+              </button>
+            )}
+
+            {/* Image display */}
+            <div className="flex-1 flex items-center justify-center p-2 relative h-full">
+              <img
+                src={getOptimizedImageUrl(product.images?.[galleryIndex] || product.images?.[0], 1200)}
+                alt={product.title}
+                onClick={(e) => e.stopPropagation()}
+                className="max-w-full max-h-[60vh] sm:max-h-[75vh] object-contain rounded-xl shadow-2xl transition-all duration-300 transform scale-100"
+              />
+            </div>
+
+            {/* Right Control */}
+            {product.images?.length > 1 && (
+              <button
+                onClick={handleNextGalleryImage}
+                className="p-3 sm:p-4 bg-slate-900/60 hover:bg-slate-800/80 text-white rounded-full transition border border-slate-800/50 hover:border-slate-700/85 active:scale-90 flex items-center justify-center cursor-pointer shadow-md select-none ml-2 sm:ml-4"
+              >
+                <ChevronRight className="w-6 h-6 sm:w-8 sm:h-8" />
+              </button>
+            )}
+          </div>
+
+          {/* Thumbnails Carousel */}
+          {product.images?.length > 1 && (
+            <div className="w-full flex justify-center py-4 bg-black/40 backdrop-blur-md border-t border-slate-900/50">
+              <div 
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-2 overflow-x-auto max-w-full px-4 scrollbar-thin py-1"
+              >
+                {product.images.map((img, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setGalleryIndex(idx)}
+                    className={`relative w-14 h-14 sm:w-18 sm:h-18 rounded-lg overflow-hidden border transition-all duration-200 flex-shrink-0 ${
+                      galleryIndex === idx
+                        ? 'border-secondary ring-2 ring-secondary/45 scale-105 opacity-100'
+                        : 'border-slate-850 hover:border-slate-700 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <img src={getOptimizedImageUrl(img, 150)} alt="Preview thumbnail" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

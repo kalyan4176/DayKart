@@ -58,6 +58,7 @@ const orderSchema = new mongoose.Schema({
   },
   deliveryPartner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   deliveryOtp: { type: String, default: null },
+  preferredDeliveryDate: { type: Date },
 }, {
   timestamps: true,
 });

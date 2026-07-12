@@ -7,15 +7,30 @@ import User from '../models/User.js';
 import ShippingRule from '../models/ShippingRule.js';
 import Seller from '../models/Seller.js';
 import SystemSetting from '../models/SystemSetting.js';
+import redisClient from '../config/redis.js';
 import { logAuditEvent } from '../services/auditService.js';
 import { BadRequestError, NotFoundError, ForbiddenError } from '../utils/customErrors.js';
 import { sendInAppNotification } from '../utils/notificationHelper.js';
 import { generateDeterministicOtp } from '../utils/otpHelper.js';
 
+const invalidateProductCache = async (productId) => {
+  try {
+    if (redisClient.isOpen) {
+      await redisClient.del(`product:detail:${productId}`);
+    }
+  } catch (err) {
+    console.error(`Failed to invalidate Redis cache for product ${productId}:`, err.message);
+  }
+};
+
 
 export const checkout = async (req, res, next) => {
   try {
-    const { addressId, couponCode, gateway } = req.body;
+    const { addressId, couponCode, gateway, preferredDeliveryDate } = req.body;
+
+    if (!preferredDeliveryDate) {
+      return next(new BadRequestError('Preferred delivery date is required.'));
+    }
 
     // 1. Get customer address
     const address = req.user.addresses.find(addr => addr._id.toString() === addressId);
@@ -207,6 +222,7 @@ export const checkout = async (req, res, next) => {
         product.inventory.quantity -= item.quantity;
       }
       await product.save();
+      await invalidateProductCache(product._id);
     }
 
     // 8. Create Order
@@ -229,6 +245,7 @@ export const checkout = async (req, res, next) => {
         status: gateway === 'cod' ? 'placed' : 'pending',
         message: gateway === 'cod' ? 'Order placed with Cash on Delivery' : 'Order initialized. Awaiting payment.',
       }],
+      preferredDeliveryDate: new Date(preferredDeliveryDate),
     });
 
     await order.save();
@@ -521,6 +538,7 @@ export const cancelOrder = async (req, res, next) => {
           product.inventory.quantity += item.quantity;
         }
         await product.save();
+        await invalidateProductCache(product._id);
       }
     }
 
@@ -705,6 +723,7 @@ export const updateOrderStatus = async (req, res, next) => {
                 }
               }
               await product.save();
+              await invalidateProductCache(product._id);
             }
           }
 
@@ -788,6 +807,7 @@ export const updateOrderStatus = async (req, res, next) => {
             product.inventory.quantity += item.quantity;
           }
           await product.save();
+          await invalidateProductCache(product._id);
         }
       }
     }
@@ -935,6 +955,7 @@ export const returnOrder = async (req, res, next) => {
           product.inventory.quantity += item.quantity;
         }
         await product.save();
+        await invalidateProductCache(product._id);
       }
     }
 
@@ -1153,6 +1174,23 @@ export const phonepeRedirect = async (req, res) => {
           message: 'PhonePe payment failed. Order cancelled.'
         });
         await order.save();
+
+        // Restore product stock and invalidate cache
+        for (const item of order.items) {
+          const product = await Product.findById(item.product);
+          if (product) {
+            if (item.variantSku) {
+              const variantIndex = product.variants.findIndex(v => v.sku === item.variantSku);
+              if (variantIndex > -1) {
+                product.variants[variantIndex].inventory += item.quantity;
+              }
+            } else {
+              product.inventory.quantity += item.quantity;
+            }
+            await product.save();
+            await invalidateProductCache(product._id);
+          }
+        }
       }
 
       return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/checkout?status=failed&error=payment_failed`);
@@ -1242,6 +1280,23 @@ export const phonepeCallback = async (req, res) => {
           message: 'PhonePe payment failed callback.'
         });
         await order.save();
+
+        // Restore product stock and invalidate cache
+        for (const item of order.items) {
+          const product = await Product.findById(item.product);
+          if (product) {
+            if (item.variantSku) {
+              const variantIndex = product.variants.findIndex(v => v.sku === item.variantSku);
+              if (variantIndex > -1) {
+                product.variants[variantIndex].inventory += item.quantity;
+              }
+            } else {
+              product.inventory.quantity += item.quantity;
+            }
+            await product.save();
+            await invalidateProductCache(product._id);
+          }
+        }
       }
     }
 
