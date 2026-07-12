@@ -267,7 +267,7 @@ export default function ProductDetail() {
               <img
                 src={getOptimizedImageUrl(product.images?.[activeImageIndex] || product.images?.[0] || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=600', 800)}
                 alt={product.title}
-                className="w-full h-full object-cover transition-all duration-355 ease-out group-hover:scale-102"
+                className="w-full h-full object-contain p-4 transition-all duration-355 ease-out group-hover:scale-102"
               />
               <button
                 onClick={(e) => {
@@ -321,7 +321,7 @@ export default function ProductDetail() {
                         : 'border-slate-200 dark:border-slate-800 hover:border-slate-350 dark:hover:border-slate-700 opacity-70 hover:opacity-100'
                     }`}
                   >
-                    <img src={getOptimizedImageUrl(img, 150)} alt="Preview" className="w-full h-full object-cover" />
+                    <img src={getOptimizedImageUrl(img, 150)} alt="Preview" className="w-full h-full object-contain p-1.5" />
                   </button>
                 ))}
               </div>
@@ -615,7 +615,7 @@ export default function ProductDetail() {
                         : 'border-slate-850 hover:border-slate-700 opacity-60 hover:opacity-100'
                     }`}
                   >
-                    <img src={getOptimizedImageUrl(img, 150)} alt="Preview thumbnail" className="w-full h-full object-cover" />
+                    <img src={getOptimizedImageUrl(img, 150)} alt="Preview thumbnail" className="w-full h-full object-contain p-1" />
                   </button>
                 ))}
               </div>

@@ -120,7 +120,7 @@ export default function ProductCard({ product, wishlistMode = false }) {
           <img
             src={getOptimizedImageUrl(product.images[0], 400)}
             alt={product.title}
-            className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500"
+            className="w-full h-full object-contain p-2.5 group-hover:scale-108 transition-transform duration-500"
             loading="lazy"
           />
         </Link>
