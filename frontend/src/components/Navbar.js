@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSelector, useDispatch } from 'react-redux';
-import { ShoppingCart, Heart, User, Search, LogOut, LayoutDashboard, Sparkles, Menu, X, ChevronRight, ShoppingBag } from 'lucide-react';
+import { ShoppingCart, Heart, User, Search, LogOut, LayoutDashboard, Sparkles, Menu, X as XIcon, ChevronRight, ShoppingBag } from 'lucide-react';
 import { logoutUser } from '@/store/authSlice';
 import { useGetCartQuery, useLogoutMutation } from '@/store/api';
 import NotificationBell from './NotificationBell';
@@ -248,7 +248,7 @@ export default function Navbar() {
                 onClick={() => setMobileMenuOpen(false)}
                 className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-full"
               >
-                <X className="w-5 h-5" />
+                <XIcon className="w-5 h-5" />
               </button>
             </div>
 

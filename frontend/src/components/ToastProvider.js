@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Info, X as XIcon } from 'lucide-react';
 
 const ToastContext = createContext(null);
 
@@ -74,7 +74,7 @@ export default function ToastProvider({ children }) {
             onClick={handleClose}
             className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors flex-shrink-0 cursor-pointer"
           >
-            <X className="w-3.5 h-3.5" />
+            <XIcon className="w-3.5 h-3.5" />
           </button>
         </div>,
         document.body

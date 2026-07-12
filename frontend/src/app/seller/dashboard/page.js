@@ -1086,6 +1086,11 @@ function SellerDashboardContent() {
                                     ? `${order.shippingAddress.street}, ${order.shippingAddress.city}, ${order.shippingAddress.state}, ${order.shippingAddress.country} - ${order.shippingAddress.postalCode}`
                                     : 'No address provided.'}
                                 </p>
+                                {order.preferredDeliveryDate && (
+                                  <p className="mt-1 text-secondary font-bold text-[10px]">
+                                    📅 Requested Delivery: <span className="font-semibold text-slate-600 dark:text-slate-355">{new Date(order.preferredDeliveryDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                                  </p>
+                                )}
                               </div>
                             </div>
 

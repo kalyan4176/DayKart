@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, AlertTriangle, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, X as XIcon } from 'lucide-react';
 
 export default function ReasonPromptModal({
   isOpen,
@@ -66,7 +66,7 @@ export default function ReasonPromptModal({
           onClick={onClose}
           className="absolute right-4 top-4 text-slate-400 hover:text-slate-655 dark:hover:text-slate-200 p-1.5 rounded-xl transition"
         >
-          <X className="w-4 h-4" />
+          <XIcon className="w-4 h-4" />
         </button>
 
         {/* Header Block */}

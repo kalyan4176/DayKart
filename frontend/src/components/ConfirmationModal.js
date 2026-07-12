@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, CheckCircle2, Info, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Info, X as XIcon } from 'lucide-react';
 
 export default function ConfirmationModal({
   isOpen,
@@ -54,7 +54,7 @@ export default function ConfirmationModal({
           onClick={onClose}
           className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-xl transition"
         >
-          <X className="w-4 h-4" />
+          <XIcon className="w-4 h-4" />
         </button>
 
         {/* Content */}

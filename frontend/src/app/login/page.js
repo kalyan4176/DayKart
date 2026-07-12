@@ -7,7 +7,7 @@ import { useDispatch } from 'react-redux';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Mail, Lock, AlertTriangle, ArrowRight, ShieldCheck, Eye, EyeOff, UserPlus, X, LogIn } from 'lucide-react';
+import { Mail, Lock, AlertTriangle, ArrowRight, ShieldCheck, Eye, EyeOff, UserPlus, X as XIcon, LogIn } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useToast } from '@/components/ToastProvider';
@@ -321,7 +321,7 @@ export default function Login() {
                 onClick={() => setShowGoogleModal(false)}
                 className="absolute top-4 right-4 text-slate-400 hover:text-slate-650 dark:hover:text-slate-200 transition"
               >
-                <X className="w-5 h-5" />
+                <XIcon className="w-5 h-5" />
               </button>
 
               <div className="flex flex-col items-center text-center mt-3 mb-6">
@@ -452,7 +452,7 @@ export default function Login() {
                 onClick={() => setShowForgotPassword(false)}
                 className="absolute right-4 top-4 text-slate-400 hover:text-slate-650 dark:hover:text-slate-200 transition"
               >
-                <X className="w-5 h-5" />
+                <XIcon className="w-5 h-5" />
               </button>
 
               <div className="text-center mb-6">

@@ -349,6 +349,12 @@ export default function OrderDetailsPage({ params }) {
                 <p className="text-slate-500 dark:text-slate-400">
                   {order.shippingAddress?.country} - {order.shippingAddress?.postalCode}
                 </p>
+                {order.preferredDeliveryDate && (
+                  <div className="mt-2.5 pt-2.5 border-t border-slate-200/50 dark:border-slate-800/50 flex items-center gap-1">
+                    <span className="font-extrabold text-secondary">📅 Requested Delivery:</span>
+                    <span className="text-slate-600 dark:text-slate-350">{new Date(order.preferredDeliveryDate).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                  </div>
+                )}
               </div>
             </div>
 

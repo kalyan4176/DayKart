@@ -4785,6 +4785,11 @@ export default function AdminDashboard() {
                                   <td className="py-3 px-4">
                                     <div className="font-bold text-slate-800 dark:text-slate-200">{order.shippingAddress?.name || 'N/A'}</div>
                                     <div className="text-[9px] text-slate-450">{order.shippingAddress?.city} ({order.shippingAddress?.postalCode})</div>
+                                    {order.preferredDeliveryDate && (
+                                      <div className="text-[8px] text-secondary font-extrabold mt-0.5">
+                                        📅 {new Date(order.preferredDeliveryDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                      </div>
+                                    )}
                                   </td>
                                   <td className="py-3 px-4 max-w-[150px] truncate font-bold text-slate-700 dark:text-slate-300">
                                     {order.items?.[0]?.product?.name || 'Package'}
