@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSelector, useDispatch } from 'react-redux';
 import { useForm } from 'react-hook-form';
-import { LayoutDashboard, ShoppingBag, PlusCircle, Upload, CheckCircle2, AlertTriangle, FileSpreadsheet, Store, Clock, User, Mail, Phone, ShieldCheck, UploadCloud, X as XIcon, Image as ImageIcon, Trash2, RefreshCw, ClipboardList, XCircle, Wallet, ChevronDown, Truck, Pencil } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, PlusCircle, Upload, CheckCircle2, AlertTriangle, FileSpreadsheet, Store, Clock, User, Mail, Phone, ShieldCheck, UploadCloud, X as XIcon, Image as ImageIcon, Trash2, RefreshCw, ClipboardList, XCircle, Wallet, ChevronDown, Truck, Pencil, ChevronLeft, ChevronRight, Star } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ConfirmationModal from '@/components/ConfirmationModal';
@@ -210,6 +210,32 @@ function SellerDashboardContent() {
     setEditImages((prev) => [...prev, editManualImageUrl.trim()]);
     setEditManualImageUrl('');
     showToast('Manual image URL added to list!', 'success');
+  };
+
+  const handleMoveImage = (idx, direction, isEdit = false) => {
+    const setImages = isEdit ? setEditImages : setProductImages;
+    setImages(prev => {
+      const nextImages = [...prev];
+      const targetIdx = direction === 'left' ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= nextImages.length) return prev;
+      const temp = nextImages[idx];
+      nextImages[idx] = nextImages[targetIdx];
+      nextImages[targetIdx] = temp;
+      return nextImages;
+    });
+    showToast(`Image moved ${direction}!`, 'info');
+  };
+
+  const handleSetPrimaryImage = (idx, isEdit = false) => {
+    const setImages = isEdit ? setEditImages : setProductImages;
+    setImages(prev => {
+      if (idx === 0) return prev;
+      const nextImages = [...prev];
+      const primaryImage = nextImages.splice(idx, 1)[0];
+      nextImages.unshift(primaryImage);
+      return nextImages;
+    });
+    showToast('Selected image set as primary catalog cover!', 'success');
   };
 
   const handleSaveChanges = async (e) => {
@@ -1464,18 +1490,63 @@ function SellerDashboardContent() {
                       {/* Grid of added images */}
                       {productImages.length > 0 && (
                         <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-200 dark:border-slate-850/80">
-                          <span className="block text-[10px] font-bold text-slate-400 uppercase mb-2">Image Gallery ({productImages.length})</span>
-                          <div className="flex flex-wrap gap-3">
+                          <div className="flex items-center justify-between mb-2.5">
+                            <span className="block text-[10px] font-extrabold text-slate-455 uppercase tracking-wider">Image Gallery ({productImages.length})</span>
+                            <span className="text-[9px] text-slate-400 dark:text-slate-500 font-semibold hidden sm:inline">The first image (#1) is shown on catalog cards.</span>
+                          </div>
+                          <div className="flex flex-wrap gap-3.5">
                             {productImages.map((imgUrl, idx) => (
-                              <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-950 flex-shrink-0 group">
-                                <img src={imgUrl} alt="" className="w-full h-full object-cover" />
+                              <div key={idx} className="relative w-24 h-24 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-805 shadow-sm bg-white dark:bg-slate-950 flex-shrink-0 group">
+                                <img src={imgUrl} alt="" className="w-full h-full object-cover select-none" />
+                                
+                                {/* Top-Left: Primary Star Badge / Action */}
+                                {idx === 0 ? (
+                                  <div className="absolute top-1 left-1 bg-emerald-500 text-white p-1 rounded-lg shadow-xs z-10 flex items-center gap-0.5 text-[8px] font-extrabold select-none uppercase tracking-wider scale-95 origin-top-left">
+                                    <Star className="w-2.5 h-2.5 fill-white" /> Cover
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSetPrimaryImage(idx, false)}
+                                    className="absolute top-1 left-1 bg-slate-900/70 hover:bg-secondary text-white p-1 rounded-lg transition shadow-xs z-10 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                    title="Set as Card Image"
+                                  >
+                                    <Star className="w-2.5 h-2.5" />
+                                  </button>
+                                )}
+
+                                {/* Top-Right: Delete Button */}
                                 <button
                                   type="button"
                                   onClick={() => setProductImages(prev => prev.filter((_, i) => i !== idx))}
-                                  className="absolute top-0.5 right-0.5 bg-red-500 hover:bg-red-600 text-white rounded-full p-0.5 transition shadow-xs z-20"
+                                  className="absolute top-1 right-1 bg-rose-500 hover:bg-rose-600 text-white rounded-lg p-1 transition shadow-xs z-10 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                  title="Delete Image"
                                 >
-                                  <XIcon className="w-3.5 h-3.5" />
+                                  <XIcon className="w-2.5 h-2.5" />
                                 </button>
+
+                                {/* Bottom Overlay: Reordering Controls */}
+                                <div className="absolute bottom-0 inset-x-0 bg-slate-950/70 backdrop-blur-xxs flex items-center justify-between px-1.5 py-0.5 border-t border-white/10 z-10">
+                                  <button
+                                    type="button"
+                                    disabled={idx === 0}
+                                    onClick={() => handleMoveImage(idx, 'left', false)}
+                                    className="p-0.5 hover:bg-white/10 text-white rounded-md transition disabled:opacity-30 disabled:hover:bg-transparent"
+                                    title="Move Left"
+                                  >
+                                    <ChevronLeft className="w-3.5 h-3.5" />
+                                  </button>
+                                  <span className="text-[8px] font-black text-white/90 select-none">#{idx + 1}</span>
+                                  <button
+                                    type="button"
+                                    disabled={idx === productImages.length - 1}
+                                    onClick={() => handleMoveImage(idx, 'right', false)}
+                                    className="p-0.5 hover:bg-white/10 text-white rounded-md transition disabled:opacity-30 disabled:hover:bg-transparent"
+                                    title="Move Right"
+                                  >
+                                    <ChevronRight className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -2171,18 +2242,63 @@ function SellerDashboardContent() {
                   {/* Image gallery display */}
                   {editImages.length > 0 && (
                     <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-200 dark:border-slate-850/80">
-                      <span className="block text-[10px] font-bold text-slate-400 uppercase mb-2">Image Gallery ({editImages.length})</span>
-                      <div className="flex flex-wrap gap-3">
+                      <div className="flex items-center justify-between mb-2.5">
+                        <span className="block text-[10px] font-extrabold text-slate-455 uppercase tracking-wider">Image Gallery ({editImages.length})</span>
+                        <span className="text-[9px] text-slate-400 dark:text-slate-500 font-semibold hidden sm:inline">The first image (#1) is shown on catalog cards.</span>
+                      </div>
+                      <div className="flex flex-wrap gap-3.5">
                         {editImages.map((imgUrl, idx) => (
-                          <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-xs bg-white dark:bg-slate-950 flex-shrink-0 group">
-                            <img src={imgUrl} alt="" className="w-full h-full object-cover" />
+                          <div key={idx} className="relative w-24 h-24 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-805 shadow-sm bg-white dark:bg-slate-950 flex-shrink-0 group">
+                            <img src={imgUrl} alt="" className="w-full h-full object-cover select-none" />
+                            
+                            {/* Top-Left: Primary Star Badge / Action */}
+                            {idx === 0 ? (
+                              <div className="absolute top-1 left-1 bg-emerald-500 text-white p-1 rounded-lg shadow-xs z-10 flex items-center gap-0.5 text-[8px] font-extrabold select-none uppercase tracking-wider scale-95 origin-top-left">
+                                <Star className="w-2.5 h-2.5 fill-white" /> Cover
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleSetPrimaryImage(idx, true)}
+                                className="absolute top-1 left-1 bg-slate-900/70 hover:bg-secondary text-white p-1 rounded-lg transition shadow-xs z-10 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                title="Set as Card Image"
+                              >
+                                <Star className="w-2.5 h-2.5" />
+                              </button>
+                            )}
+
+                            {/* Top-Right: Delete Button */}
                             <button
                               type="button"
                               onClick={() => setEditImages(prev => prev.filter((_, i) => i !== idx))}
-                              className="absolute top-0.5 right-0.5 bg-red-500 hover:bg-red-600 text-white rounded-full p-0.5 transition shadow-xs z-20"
+                              className="absolute top-1 right-1 bg-rose-500 hover:bg-rose-600 text-white rounded-lg p-1 transition shadow-xs z-10 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                              title="Delete Image"
                             >
-                              <XIcon className="w-3.5 h-3.5" />
+                              <XIcon className="w-2.5 h-2.5" />
                             </button>
+
+                            {/* Bottom Overlay: Reordering Controls */}
+                            <div className="absolute bottom-0 inset-x-0 bg-slate-955/70 backdrop-blur-xxs flex items-center justify-between px-1.5 py-0.5 border-t border-white/10 z-10">
+                              <button
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={() => handleMoveImage(idx, 'left', true)}
+                                className="p-0.5 hover:bg-white/10 text-white rounded-md transition disabled:opacity-30 disabled:hover:bg-transparent"
+                                title="Move Left"
+                              >
+                                <ChevronLeft className="w-3.5 h-3.5" />
+                              </button>
+                              <span className="text-[8px] font-black text-white/90 select-none">#{idx + 1}</span>
+                              <button
+                                type="button"
+                                disabled={idx === editImages.length - 1}
+                                onClick={() => handleMoveImage(idx, 'right', true)}
+                                className="p-0.5 hover:bg-white/10 text-white rounded-md transition disabled:opacity-30 disabled:hover:bg-transparent"
+                                title="Move Right"
+                              >
+                                <ChevronRight className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>

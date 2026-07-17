@@ -6,6 +6,24 @@ import { useToast } from '@/components/ToastProvider';
 import { api } from '@/store/api';
 import { setCredentials, logoutUser } from '@/store/authSlice';
 
+const isTokenExpired = (token) => {
+  if (!token) return true;
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      window.atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const { exp } = JSON.parse(jsonPayload);
+    return Date.now() >= exp * 1000 - 10000; // 10-second buffer
+  } catch {
+    return true;
+  }
+};
+
 export default function NotificationListener() {
   const { isAuthenticated, token } = useSelector((state) => state.auth);
   const { showToast } = useToast();
@@ -48,9 +66,21 @@ export default function NotificationListener() {
       return null;
     };
 
-    const connectSSE = () => {
+    const connectSSE = async () => {
+      let currentToken = token;
+      if (isTokenExpired(currentToken)) {
+        console.log('Token is expired, refreshing before SSE connection...');
+        const newToken = await refreshAccessToken();
+        if (!newToken) {
+          console.warn('Token refresh failed. Logging out user.');
+          dispatch(logoutUser());
+          return;
+        }
+        currentToken = newToken;
+      }
+
       try {
-        eventSource = new EventSource(`${apiUrl}/notifications/stream?token=${token}`, {
+        eventSource = new EventSource(`${apiUrl}/notifications/stream?token=${currentToken}`, {
           withCredentials: true,
         });
 
