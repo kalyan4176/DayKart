@@ -20,13 +20,21 @@ const baseQueryWithReauth = async (args, apiInstance, extraOptions) => {
     const url = typeof args === 'string' ? args : args.url;
     if (url !== '/auth/refresh-token') {
       // Attempt silent re-authentication via refresh token
-      const refreshResult = await baseQuery({ url: '/auth/refresh-token', method: 'POST' }, apiInstance, extraOptions);
+      const state = apiInstance.getState();
+      const refreshToken = state.auth.refreshToken || (typeof window !== 'undefined' ? localStorage.getItem('refreshToken') : null);
+      
+      const refreshResult = await baseQuery({ 
+        url: '/auth/refresh-token', 
+        method: 'POST',
+        body: { refreshToken }
+      }, apiInstance, extraOptions);
       
       if (refreshResult.data) {
         // Save new credentials
         apiInstance.dispatch(setCredentials({
           user: refreshResult.data.data.user,
           accessToken: refreshResult.data.accessToken,
+          refreshToken: refreshResult.data.refreshToken || refreshToken,
         }));
         // Retry original query
         result = await baseQuery(args, apiInstance, extraOptions);

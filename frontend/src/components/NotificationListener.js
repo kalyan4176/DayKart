@@ -22,11 +22,13 @@ export default function NotificationListener() {
 
     const refreshAccessToken = async () => {
       try {
+        const savedRefreshToken = typeof window !== 'undefined' ? localStorage.getItem('refreshToken') : null;
         const response = await fetch(`${apiUrl}/auth/refresh-token`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
+          body: JSON.stringify({ refreshToken: savedRefreshToken }),
           credentials: 'include',
         });
         if (response.ok) {
@@ -35,6 +37,7 @@ export default function NotificationListener() {
             dispatch(setCredentials({
               user: resData.data?.user,
               accessToken: resData.accessToken,
+              refreshToken: resData.refreshToken || savedRefreshToken,
             }));
             return resData.accessToken;
           }

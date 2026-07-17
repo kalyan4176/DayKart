@@ -123,6 +123,7 @@ export default function Login() {
       dispatch(setCredentials({
         user: res.data.user,
         accessToken: res.accessToken,
+        refreshToken: res.refreshToken,
       }));
       showToast(`Welcome! Logged in as ${res.data.user.name || 'User'}`, 'success');
       setShowGoogleModal(false);
@@ -184,6 +185,7 @@ export default function Login() {
       dispatch(setCredentials({
         user: res.data.user,
         accessToken: res.accessToken,
+        refreshToken: res.refreshToken,
       }));
       showToast(`Welcome back, ${res.data.user.name || 'User'}!`, 'success');
       if (res.data?.user?.role === 'admin') router.push('/admin/dashboard');

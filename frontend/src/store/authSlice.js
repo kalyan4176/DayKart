@@ -22,6 +22,7 @@ const getLocalStorageString = (key) => {
 const initialState = {
   user: getLocalStorageItem('user'),
   token: getLocalStorageString('token'),
+  refreshToken: getLocalStorageString('refreshToken'),
   isAuthenticated: !!getLocalStorageString('token'),
   darkMode: false,
 };
@@ -31,13 +32,19 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     setCredentials: (state, action) => {
-      const { user, accessToken } = action.payload;
+      const { user, accessToken, refreshToken } = action.payload;
       state.user = user;
       state.token = accessToken;
+      if (refreshToken) {
+        state.refreshToken = refreshToken;
+      }
       state.isAuthenticated = true;
       if (typeof window !== 'undefined') {
         localStorage.setItem('user', JSON.stringify(user));
         localStorage.setItem('token', accessToken);
+        if (refreshToken) {
+          localStorage.setItem('refreshToken', refreshToken);
+        }
       }
     },
     updateUser: (state, action) => {
@@ -49,10 +56,12 @@ const authSlice = createSlice({
     logoutUser: (state) => {
       state.user = null;
       state.token = null;
+      state.refreshToken = null;
       state.isAuthenticated = false;
       if (typeof window !== 'undefined') {
         localStorage.removeItem('user');
         localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
       }
     },
     toggleDarkMode: (state) => {

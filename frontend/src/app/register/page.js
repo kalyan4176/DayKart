@@ -75,6 +75,7 @@ export default function Register() {
       dispatch(setCredentials({
         user: res.data.user,
         accessToken: res.accessToken,
+        refreshToken: res.refreshToken,
       }));
       showToast(`Welcome! Logged in with Google as ${res.data.user.name || 'User'}`, 'success');
       setShowGoogleModal(false);
@@ -169,6 +170,7 @@ export default function Register() {
       dispatch(setCredentials({
         user: res.data.user,
         accessToken: res.accessToken,
+        refreshToken: res.refreshToken,
       }));
       if (res.data?.user?.deliveryStatus === 'pending') {
         showToast('Account verified! Your Delivery Partner application is pending admin review. Browsing as a customer.', 'info');
