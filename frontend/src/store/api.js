@@ -17,8 +17,8 @@ const baseQueryWithReauth = async (args, apiInstance, extraOptions) => {
   let result = await baseQuery(args, apiInstance, extraOptions);
   
   if (result.error && result.error.status === 401) {
-    const url = typeof args === 'string' ? args : args.url;
-    if (url !== '/auth/refresh-token') {
+    const bypassUrls = ['/auth/login', '/auth/google-login', '/auth/register', '/auth/verify-otp', '/auth/refresh-token'];
+    if (!bypassUrls.includes(url)) {
       // Attempt silent re-authentication via refresh token
       const state = apiInstance.getState();
       const refreshToken = state.auth.refreshToken || (typeof window !== 'undefined' ? localStorage.getItem('refreshToken') : null);
