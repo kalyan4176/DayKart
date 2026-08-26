@@ -32,6 +32,22 @@ export const checkout = async (req, res, next) => {
       return next(new BadRequestError('Preferred delivery date is required.'));
     }
 
+    const deliveryDateObj = new Date(preferredDeliveryDate);
+    deliveryDateObj.setHours(0, 0, 0, 0);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const minDate = new Date(today);
+    minDate.setDate(today.getDate() + 1); // tomorrow
+
+    const maxDate = new Date(today);
+    maxDate.setDate(today.getDate() + 11); // 10 days + 1 day timezone buffer
+
+    if (deliveryDateObj < today || deliveryDateObj > maxDate) {
+      return next(new BadRequestError('Preferred delivery date must be between tomorrow and the next 10 days.'));
+    }
+
     // 1. Get customer address
     const address = req.user.addresses.find(addr => addr._id.toString() === addressId);
     if (!address) {

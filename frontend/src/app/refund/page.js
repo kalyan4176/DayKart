@@ -24,7 +24,7 @@ export default function RefundPage() {
                 Cancellations will only be considered if the request is made <strong>1 days</strong> of placing the order. However, cancellation requests may not be entertained if the orders have been communicated to such sellers / merchant(s) listed on the Platform and they have initiated the process of shipping them, or the product is out for delivery. In such an event, you may choose to reject the product at the doorstep.
               </li>
               <li>
-                <strong>ADHILAKSHMI ENTERPRISES</strong> does not accept cancellation requests for perishable items like flowers, eatables, etc. However, the refund / replacement can be made if the user establishes that the quality of the product delivered is not good.
+                <strong>+91 96523 77187</strong> does not accept cancellation requests for perishable items like flowers, eatables, etc. However, the refund / replacement can be made if the user establishes that the quality of the product delivered is not good.
               </li>
               <li>
                 In case of receipt of damaged or defective items, please report to our customer service team. The request would be entertained once the seller/ merchant listed on the Platform, has checked and determined the same at its own end. This should be reported within <strong>1 days</strong> of receipt of products. In case you feel that the product received is not as shown on the site or as per your expectations, you must bring it to the notice of our customer service within <strong>1 days</strong> of receiving the product. The customer service team after looking into your complaint will take an appropriate decision.
@@ -33,7 +33,7 @@ export default function RefundPage() {
                 In case of complaints regarding the products that come with a warranty from the manufacturers, please refer the issue to them.
               </li>
               <li>
-                In case of any refunds approved by <strong>ADHILAKSHMI ENTERPRISES</strong>, it will take <strong>2 days</strong> for the refund to be processed to you.
+                In case of any refunds approved by <strong>+91 96523 77187</strong>, it will take <strong>2 days</strong> for the refund to be processed to you.
               </li>
               <li>
                 <strong>Failed Online Transactions & Double Debits:</strong> In the event of a failed online transaction or double debit where money is deducted from your account/card but the order is not created or placed successfully, the amount will be automatically refunded back to your original payment source within <strong>5 to 7 business days</strong>, in accordance with bank policies.
@@ -60,8 +60,7 @@ export default function RefundPage() {
 
           {/* Contact Details */}
           <div className="border-t border-slate-100 dark:border-slate-800 pt-6 mt-6 text-xs text-slate-500">
-            <p><strong>Legal Entity Name:</strong> ADHILAKSHMI ENTERPRISES</p>
-            <p><strong>Udyam Registration No:</strong> UDYAM-AP-17-0054999</p>
+            <p><strong>Legal Entity Name:</strong> +91 96523 77187</p>
             <p><strong>Registered Address:</strong> 1-38 Pedda Veedhi, Kandrakota, Peddapuram, Andhra Pradesh, India</p>
             <p><strong>Contact Email:</strong> daykart.services@gmail.com</p>
           </div>

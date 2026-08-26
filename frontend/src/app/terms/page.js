@@ -22,7 +22,7 @@ export default function TermsPage() {
           </p>
 
           <p>
-            3. The Platform is owned by <strong>ADHILAKSHMI ENTERPRISES</strong>, a company incorporated under the Companies Act, 1956 with its registered office at <strong>1-38 Pedda Veedhi, Kandrakota</strong> (hereinafter referred to as &apos;Platform Owner&apos;, &apos;we&apos;, &apos;us&apos;, &apos;our&apos;).
+            3. The Platform is owned by <strong>+91 96523 77187</strong>, a company incorporated under the Companies Act, 1956 with its registered office at <strong>1-38 Pedda Veedhi, Kandrakota</strong> (hereinafter referred to as &apos;Platform Owner&apos;, &apos;we&apos;, &apos;us&apos;, &apos;our&apos;).
           </p>
 
           <p>
@@ -87,7 +87,7 @@ export default function TermsPage() {
           </ul>
 
           <div className="border-t border-slate-100 dark:border-slate-800 pt-6 mt-6 text-xs text-slate-500">
-            <p><strong>Legal Entity Name:</strong> ADHILAKSHMI ENTERPRISES</p>
+            <p><strong>Legal Entity Name:</strong> +91 96523 77187</p>
             <p><strong>Registered Address:</strong> 1-38 Pedda Veedhi, Kandrakota, Peddapuram, Andhra Pradesh, India</p>
             <p><strong>Contact Email:</strong> daykart.services@gmail.com</p>
           </div>

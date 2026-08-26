@@ -26,8 +26,7 @@ export default function ShippingPage() {
           </p>
 
           <div className="border-t border-slate-100 dark:border-slate-800 pt-6 mt-6 text-xs text-slate-500">
-            <p><strong>Legal Entity Name:</strong> ADHILAKSHMI ENTERPRISES</p>
-            <p><strong>Udyam Registration No:</strong> UDYAM-AP-17-0054999</p>
+            <p><strong>Legal Entity Name:</strong> +91 96523 77187</p>
             <p><strong>Registered Address:</strong> 1-38 Pedda Veedhi, Kandrakota, Peddapuram, Andhra Pradesh, India</p>
             <p><strong>Contact Email:</strong> daykart.services@gmail.com</p>
           </div>

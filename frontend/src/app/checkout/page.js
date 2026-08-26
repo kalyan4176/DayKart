@@ -80,6 +80,12 @@ function CheckoutPageContent() {
     return tomorrow.toISOString().split('T')[0];
   };
 
+  const getMaxDeliveryDateString = () => {
+    const maxDate = new Date();
+    maxDate.setDate(maxDate.getDate() + 10);
+    return maxDate.toISOString().split('T')[0];
+  };
+
   const handleGetLocationAddress = () => {
     if (!navigator.geolocation) {
       showToast('Geolocation is not supported by your browser.', 'error');
@@ -489,6 +495,7 @@ function CheckoutPageContent() {
                   required
                   value={preferredDeliveryDate}
                   min={getTomorrowDateString()}
+                  max={getMaxDeliveryDateString()}
                   onChange={(e) => setPreferredDeliveryDate(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-slate-800/40 border border-slate-250 dark:border-slate-700/80 rounded-2xl px-4 py-3 text-xs text-slate-800 dark:text-slate-250 focus:outline-none focus:ring-1 focus:ring-secondary focus:border-secondary dark:focus:ring-secondary dark:focus:border-secondary transition-all"
                 />
