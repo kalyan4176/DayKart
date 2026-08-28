@@ -7,7 +7,7 @@ import { MapPin, CreditCard, ShieldCheck, ShoppingBag, PlusCircle, CheckCircle2,
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useToast } from '@/components/ToastProvider';
-import { useGetCartQuery, useCheckoutMutation, useValidateCouponMutation, useAddAddressMutation, useGetShippingRulesQuery, useGetCodChargeQuery, useGetCartLimitsQuery, useVerifyRazorpayPaymentMutation } from '@/store/api';
+import { useGetCartQuery, useCheckoutMutation, useValidateCouponMutation, useAddAddressMutation, useGetShippingRulesQuery, useGetCodChargeQuery, useGetCartLimitsQuery, useVerifyRazorpayPaymentMutation, useCancelOrderMutation } from '@/store/api';
 import { updateUser } from '@/store/authSlice';
 import { getOptimizedImageUrl } from '@/utils/image';
 
@@ -67,6 +67,7 @@ function CheckoutPageContent() {
   const { data: cartRes, isLoading } = useGetCartQuery(undefined, { skip: !isAuthenticated || !mounted });
   const [checkoutApi, { isLoading: orderPlacing }] = useCheckoutMutation();
   const [verifyRazorpayPayment, { isLoading: verifyingPayment }] = useVerifyRazorpayPaymentMutation();
+  const [cancelOrder] = useCancelOrderMutation();
   const [validateCoupon, { isLoading: couponValidating }] = useValidateCouponMutation();
   const [addAddressApi, { isLoading: addressAdding }] = useAddAddressMutation();
   const { data: shippingRulesRes } = useGetShippingRulesQuery(undefined, { skip: !isAuthenticated || !mounted });
@@ -363,9 +364,18 @@ function CheckoutPageContent() {
             color: '#06b6d4'
           },
           modal: {
-            ondismiss: function() {
-              showToast('Payment window closed. You can retry payment from the orders page.', 'warning');
-              router.push('/orders');
+            ondismiss: async function() {
+              try {
+                showToast('Payment window closed. Cancelling order...', 'warning');
+                await cancelOrder({
+                  id: res.data.orderId,
+                  reason: 'Customer closed the payment window during checkout.'
+                }).unwrap();
+              } catch (err) {
+                console.error('Failed to cancel order on modal close:', err);
+              } finally {
+                router.push('/orders');
+              }
             }
           }
         };

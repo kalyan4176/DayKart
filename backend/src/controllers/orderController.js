@@ -1136,7 +1136,10 @@ export const verifyRazorpayPayment = async (req, res, next) => {
       .update(razorpay_order_id + '|' + razorpay_payment_id)
       .digest('hex');
 
-    if (generated_signature !== razorpay_signature) {
+    // Security Fix 1: Timing-safe comparison to prevent timing attacks
+    const genBuf = Buffer.from(generated_signature, 'utf-8');
+    const sigBuf = Buffer.from(razorpay_signature, 'utf-8');
+    if (genBuf.length !== sigBuf.length || !crypto.timingSafeEqual(genBuf, sigBuf)) {
       return next(new BadRequestError('Payment verification failed. Invalid signature.'));
     }
 
@@ -1145,6 +1148,25 @@ export const verifyRazorpayPayment = async (req, res, next) => {
 
     const payment = await Payment.findOne({ order: order._id });
     if (!payment) return next(new NotFoundError('Payment record not found.'));
+
+    // Security Fix 2: Prevent Cross-Order signature reuse (ensure razorpay_order_id matches initialized gatewayOrderId)
+    if (payment.gatewayOrderId !== razorpay_order_id) {
+      return next(new BadRequestError('Payment verification failed. Mismatched order reference.'));
+    }
+
+    // Security Fix 3: Prevent duplicate verification (re-entry/replay attack)
+    if (payment.status === 'success') {
+      return next(new BadRequestError('Payment has already been successfully verified.'));
+    }
+
+    // Security Fix 4: Prevent transaction ID reuse across different orders
+    const duplicatePayment = await Payment.findOne({
+      gatewayTransactionId: razorpay_payment_id,
+      _id: { $ne: payment._id }
+    });
+    if (duplicatePayment) {
+      return next(new BadRequestError('Payment verification failed. Transaction ID has already been used.'));
+    }
 
     payment.status = 'success';
     payment.gatewayTransactionId = razorpay_payment_id;

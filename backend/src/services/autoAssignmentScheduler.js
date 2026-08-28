@@ -3,9 +3,16 @@ import SystemSetting from '../models/SystemSetting.js';
 import User from '../models/User.js';
 import Product from '../models/Product.js';
 import Payment from '../models/Payment.js';
+import Cart from '../models/Cart.js';
 import redisClient from '../config/redis.js';
 import { sendInAppNotification } from '../utils/notificationHelper.js';
 import logger from '../config/logger.js';
+import Razorpay from 'razorpay';
+
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_TV904Qy0SFduGD',
+  key_secret: process.env.RAZORPAY_KEY_SECRET || 'bbL0euoX2MXtM3h1ZCzPAIAj',
+});
 
 export const runAutoAssignmentCheck = async () => {
   try {
@@ -54,16 +61,50 @@ export const runAutoAssignmentCheck = async () => {
 
 export const runPaymentTimeoutCheck = async () => {
   try {
-    // Cutoff time of 15 minutes ago
-    const cutoffTime = new Date(Date.now() - 15 * 60 * 1000);
+    // Cutoff time of 2 minutes ago
+    const cutoffTime = new Date(Date.now() - 2 * 60 * 1000);
     const pendingOrders = await Order.find({
       status: 'pending',
       createdAt: { $lte: cutoffTime }
     });
 
     if (pendingOrders.length > 0) {
-      logger.info(`Found ${pendingOrders.length} pending orders that timed out. Starting automatic cancellation...`);
+      logger.info(`Found ${pendingOrders.length} pending orders that timed out. Starting verification & cancellation check...`);
       for (const order of pendingOrders) {
+        const payment = await Payment.findOne({ order: order._id });
+
+        // Double-check with Razorpay if order is online
+        if (payment && payment.gateway === 'razorpay' && payment.gatewayOrderId) {
+          try {
+            const rzpOrder = await razorpay.orders.fetch(payment.gatewayOrderId);
+            if (rzpOrder && rzpOrder.status === 'paid') {
+              // The user paid successfully but the browser session disconnected! Complete the order instead.
+              order.status = 'placed';
+              order.statusTimeline.push({
+                status: 'placed',
+                message: 'Payment verified via background scheduler check. Order placed successfully.'
+              });
+              await order.save();
+
+              payment.status = 'success';
+              await payment.save();
+
+              // Clear customer's cart
+              const cart = await Cart.findOne({ user: order.customer });
+              if (cart) {
+                cart.items = [];
+                await cart.save();
+              }
+
+              logger.info(`Automatically recovered paid order ${order.orderId} from pending state.`);
+              continue; // Skip cancellation
+            }
+          } catch (rzpErr) {
+            logger.error(`Failed to fetch Razorpay order status for order ${order.orderId}:`, rzpErr.message);
+          }
+        }
+
+        // If not paid (money not debited) or not online, cancel the order immediately
         order.status = 'cancelled';
         order.statusTimeline.push({
           status: 'cancelled',
@@ -71,7 +112,6 @@ export const runPaymentTimeoutCheck = async () => {
         });
         await order.save();
 
-        const payment = await Payment.findOne({ order: order._id });
         if (payment) {
           payment.status = 'failed';
           await payment.save();
