@@ -516,7 +516,7 @@ export const cancelOrder = async (req, res, next) => {
     // Try to trigger automatic refund if payment was processed online via Razorpay
     try {
       const payment = await Payment.findOne({ order: order._id });
-      if (payment && payment.gateway === 'razorpay' && payment.gatewayTransactionId && payment.status === 'completed') {
+      if (payment && payment.gateway === 'razorpay' && payment.gatewayTransactionId && (payment.status === 'success' || payment.status === 'completed')) {
         const razorpay = new Razorpay({
           key_id: process.env.RAZORPAY_KEY_ID || 'dummy',
           key_secret: process.env.RAZORPAY_KEY_SECRET || 'dummy',
@@ -808,9 +808,10 @@ export const updateOrderStatus = async (req, res, next) => {
     }
 
     if (paymentStatus && order.payment) {
-      if (order.payment.paymentMethod === 'cod') {
-        order.payment.paymentStatus = paymentStatus;
-        await order.payment.save();
+      const payment = await Payment.findById(order.payment);
+      if (payment && payment.gateway === 'cod') {
+        payment.status = (paymentStatus === 'completed' || paymentStatus === 'success') ? 'success' : paymentStatus;
+        await payment.save();
       }
     }
 
@@ -1070,8 +1071,8 @@ export const verifyDeliveryOtp = async (req, res, next) => {
     });
 
     if (order.payment) {
-      if (order.payment.paymentMethod === 'cod') {
-        order.payment.paymentStatus = 'completed';
+      if (order.payment.gateway === 'cod') {
+        order.payment.status = 'success';
         await order.payment.save();
       }
     }
@@ -1145,8 +1146,7 @@ export const verifyRazorpayPayment = async (req, res, next) => {
     const payment = await Payment.findOne({ order: order._id });
     if (!payment) return next(new NotFoundError('Payment record not found.'));
 
-    payment.paymentStatus = 'completed';
-    payment.status = 'completed';
+    payment.status = 'success';
     payment.gatewayTransactionId = razorpay_payment_id;
     await payment.save();
 

@@ -73,7 +73,6 @@ export const runPaymentTimeoutCheck = async () => {
 
         const payment = await Payment.findOne({ order: order._id });
         if (payment) {
-          payment.paymentStatus = 'failed';
           payment.status = 'failed';
           await payment.save();
         }
