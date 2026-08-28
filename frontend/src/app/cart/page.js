@@ -7,6 +7,7 @@ import { useSelector } from 'react-redux';
 import { ShoppingBag, Trash2, ArrowRight, Ticket, AlertCircle } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import Loader from '@/components/Loader';
 import { useGetCartQuery, useUpdateCartMutation, useValidateCouponMutation, useGetShippingRulesQuery } from '@/store/api';
 import { getOptimizedImageUrl } from '@/utils/image';
 
@@ -145,7 +146,7 @@ export default function CartPage() {
       <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950">
         <Navbar />
         <main className="flex-grow flex items-center justify-center">
-          <div className="text-sm font-semibold text-slate-500 animate-pulse">Loading Shopping Cart...</div>
+          <Loader message="Loading Shopping Cart..." />
         </main>
         <Footer />
       </div>

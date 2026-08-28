@@ -7,6 +7,7 @@ import { useToast } from '@/components/ToastProvider';
 import { Star, ShoppingCart, Heart, Zap, Sparkles, Award, Minus, Plus, Trash2, CheckCircle2, X as XIcon, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import Loader from '@/components/Loader';
 import ProductCard from '@/components/ProductCard';
 import { getOptimizedImageUrl } from '@/utils/image';
 import {
@@ -289,7 +290,7 @@ export default function ProductDetail() {
       <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950">
         <Navbar />
         <main className="flex-grow flex items-center justify-center">
-          <div className="text-sm font-semibold text-slate-500 animate-pulse">Loading Product Details...</div>
+          <Loader message="Loading Product Details..." />
         </main>
         <Footer />
       </div>
