@@ -498,6 +498,14 @@ export const cancelOrder = async (req, res, next) => {
       return next(new ForbiddenError('Access denied.'));
     }
 
+    if (order.status === 'cancelled') {
+      return res.status(200).json({
+        status: 'success',
+        message: 'Order is already cancelled.',
+        data: { order }
+      });
+    }
+
     if (order.status !== 'pending' && order.status !== 'placed') {
       return next(new BadRequestError(`Orders cannot be cancelled once they are ${order.status}.`));
     }
