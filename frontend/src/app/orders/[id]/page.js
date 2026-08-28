@@ -8,7 +8,7 @@ import { ArrowLeft, XCircle, Clock, CheckCircle2, ChevronRight, Package, Truck, 
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useToast } from '@/components/ToastProvider';
-import { useGetOrderByIdQuery, useCancelOrderMutation, useReturnOrderMutation, useCreateReviewMutation } from '@/store/api';
+import { useGetOrderByIdQuery, useCancelOrderMutation, useReturnOrderMutation, useCreateReviewMutation, useVerifyRazorpayPaymentMutation } from '@/store/api';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import ReasonPromptModal from '@/components/ReasonPromptModal';
 import { generateDeterministicOtp } from '@/utils/otpHelper';
@@ -36,6 +36,69 @@ export default function OrderDetailsPage({ params }) {
   });
   const [cancelOrder, { isLoading: isCancelling }] = useCancelOrderMutation();
   const [submitReturn, { isLoading: isSubmittingReturn }] = useReturnOrderMutation();
+  const [verifyRazorpayPayment, { isLoading: isVerifyingPayment }] = useVerifyRazorpayPaymentMutation();
+
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  const handleRetryPayment = async () => {
+    if (!order || !order.payment) return;
+
+    try {
+      const loaded = await loadRazorpayScript();
+      if (!loaded) {
+        showToast('Failed to load Razorpay SDK. Please check your internet connection.', 'error');
+        return;
+      }
+
+      const options = {
+        key: orderRes?.data?.razorpayKeyId,
+        amount: Math.round(order.payment.amount * 100),
+        currency: 'INR',
+        name: 'Daykart',
+        description: 'Payment for Order #' + order.orderId,
+        order_id: order.payment.gatewayOrderId,
+        handler: async function (response) {
+          try {
+            showToast('Verifying payment signature...', 'info');
+            const verifyRes = await verifyRazorpayPayment({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              orderId: order.orderId
+            }).unwrap();
+
+            if (verifyRes.status === 'success') {
+              showToast('Payment successful and verified!', 'success');
+              refetch();
+            }
+          } catch (verifyErr) {
+            showToast(verifyErr.data?.message || 'Payment signature verification failed.', 'error');
+          }
+        },
+        prefill: {
+          name: user?.name || '',
+          email: user?.email || '',
+          contact: user?.phoneNumber || '',
+        },
+        theme: {
+          color: '#06b6d4'
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch (err) {
+      showToast('Could not initialize Razorpay payment. Please contact support.', 'error');
+    }
+  };
 
   const order = orderRes?.data?.order;
 
@@ -182,23 +245,25 @@ export default function OrderDetailsPage({ params }) {
                   style={{
                     width: `${
                       order.status === 'delivered' ? 'calc(100% - 3rem)' :
-                      order.status === 'out_for_delivery' ? 'calc(75% - 2.25rem)' :
-                      order.status === 'shipped' ? 'calc(50% - 1.5rem)' :
-                      order.status === 'processed' ? 'calc(25% - 0.75rem)' : '0%'
+                      order.status === 'out_for_delivery' ? 'calc(80% - 2.4rem)' :
+                      order.status === 'shipped' ? 'calc(60% - 1.8rem)' :
+                      order.status === 'processed' ? 'calc(40% - 1.2rem)' :
+                      order.status === 'placed' ? 'calc(20% - 0.6rem)' : '0%'
                     }`
                   }}
                 ></div>
                 {[
                   { key: 'placed', label: 'Placed', icon: CheckCircle2, activeStatuses: ['pending', 'placed', 'processed', 'shipped', 'out_for_delivery', 'delivered'] },
+                  { key: 'paid', label: order.payment?.gateway === 'cod' ? 'Confirmed' : 'Paid', icon: CreditCard, activeStatuses: ['placed', 'processed', 'shipped', 'out_for_delivery', 'delivered'] },
                   { key: 'processed', label: 'Approved', icon: Package, activeStatuses: ['processed', 'shipped', 'out_for_delivery', 'delivered'] },
                   { key: 'shipped', label: 'Dispatched', icon: Truck, activeStatuses: ['shipped', 'out_for_delivery', 'delivered'] },
-                  { key: 'out_for_delivery', label: 'Out for Delivery', icon: Truck, activeStatuses: ['out_for_delivery', 'delivered'] },
+                  { key: 'out_for_delivery', label: 'Out for Delivery', shortLabel: 'Out', icon: Truck, activeStatuses: ['out_for_delivery', 'delivered'] },
                   { key: 'delivered', label: 'Delivered', icon: CheckCircle2, activeStatuses: ['delivered'] },
                 ].map((step) => {
                   const isActive = step.activeStatuses.includes(order.status);
                   const StepIcon = step.icon;
                   return (
-                    <div key={step.key} className="flex flex-col items-center z-10 relative">
+                    <div key={step.key} className="flex flex-col items-center z-10 relative flex-1 text-center">
                       <div className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
                         isActive 
                           ? 'bg-secondary border-secondary text-white shadow-md shadow-cyan-500/20 scale-105' 
@@ -206,21 +271,15 @@ export default function OrderDetailsPage({ params }) {
                       }`}>
                         <StepIcon className="w-4 h-4" />
                       </div>
-                      <span className={`text-[10px] font-bold mt-2 tracking-wide hidden sm:block ${
+                      <span className={`text-[9px] sm:text-[10px] font-bold mt-2 tracking-wide leading-tight px-0.5 ${
                         isActive ? 'text-secondary font-black' : 'text-slate-450 dark:text-slate-405'
                       }`}>
-                        {step.label}
+                        <span className="sm:hidden">{step.shortLabel || step.label}</span>
+                        <span className="hidden sm:inline">{step.label}</span>
                       </span>
                     </div>
                   );
                 })}
-              </div>
-              <div className="flex justify-between max-w-xl mx-auto px-4 mt-2 sm:hidden text-[9px] font-bold text-slate-400">
-                <span>Placed</span>
-                <span>Approved</span>
-                <span>Dispatched</span>
-                <span>Out</span>
-                <span>Delivered</span>
               </div>
             </div>
           )}
@@ -483,6 +542,15 @@ export default function OrderDetailsPage({ params }) {
         {/* Cancel/Return action button */}
         {order.status !== 'cancelled' && order.status !== 'returned' && (
           <div className="mt-6 flex justify-end gap-3 flex-wrap">
+            {order.status === 'pending' && order.payment?.gateway === 'razorpay' && (
+              <button
+                onClick={handleRetryPayment}
+                disabled={isVerifyingPayment}
+                className="inline-flex items-center gap-1.5 bg-secondary hover:bg-cyan-600 text-white font-bold px-6 py-3 rounded-2xl text-xs shadow-md transition active:scale-98"
+              >
+                <CreditCard className="w-4 h-4" /> {isVerifyingPayment ? 'Verifying...' : 'Pay Now'}
+              </button>
+            )}
             {order.status === 'delivered' ? (
               <button
                 onClick={() => setIsReturnModalOpen(true)}
@@ -505,11 +573,11 @@ export default function OrderDetailsPage({ params }) {
                       : 'bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed'
                   }`}
                 >
-                  <XCircle className="w-4 h-4" /> {isCancelling ? 'Cancelling...' : 'Cancel Active Order'}
+                  <XCircle className="w-4 h-4" /> {isCancelling ? 'Requesting...' : 'Request Cancellation'}
                 </button>
                 {(order.status !== 'pending' && order.status !== 'placed') && (
                   <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block z-50 bg-slate-850 dark:bg-slate-800 text-white dark:text-slate-100 text-[10px] py-1.5 px-3 rounded-xl shadow-lg w-52 text-center pointer-events-none transition-all duration-200">
-                    Cannot cancel after the seller has approved or shipped the order.
+                    Cannot request cancellation after the seller has approved or shipped the order.
                   </div>
                 )}
               </div>
@@ -522,10 +590,10 @@ export default function OrderDetailsPage({ params }) {
         isOpen={isCancelModalOpen}
         onClose={() => setIsCancelModalOpen(false)}
         onConfirm={handleCancelOrder}
-        title="Cancel Active Order"
-        message="Are you sure you want to cancel this order? This action cannot be undone. Please specify your reason for cancellation."
+        title="Request Cancellation"
+        message="Are you sure you want to request cancellation for this order? This action cannot be undone. Please specify your reason for cancellation."
         placeholder="e.g., Ordered wrong size, changed my mind..."
-        confirmText="Cancel Order"
+        confirmText="Request Cancellation"
         type="danger"
       />
 

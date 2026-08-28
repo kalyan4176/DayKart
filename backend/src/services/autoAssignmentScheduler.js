@@ -1,6 +1,9 @@
 import Order from '../models/Order.js';
 import SystemSetting from '../models/SystemSetting.js';
 import User from '../models/User.js';
+import Product from '../models/Product.js';
+import Payment from '../models/Payment.js';
+import redisClient from '../config/redis.js';
 import { sendInAppNotification } from '../utils/notificationHelper.js';
 import logger from '../config/logger.js';
 
@@ -49,11 +52,73 @@ export const runAutoAssignmentCheck = async () => {
   }
 };
 
+export const runPaymentTimeoutCheck = async () => {
+  try {
+    // Cutoff time of 15 minutes ago
+    const cutoffTime = new Date(Date.now() - 15 * 60 * 1000);
+    const pendingOrders = await Order.find({
+      status: 'pending',
+      createdAt: { $lte: cutoffTime }
+    });
+
+    if (pendingOrders.length > 0) {
+      logger.info(`Found ${pendingOrders.length} pending orders that timed out. Starting automatic cancellation...`);
+      for (const order of pendingOrders) {
+        order.status = 'cancelled';
+        order.statusTimeline.push({
+          status: 'cancelled',
+          message: 'Order automatically cancelled due to payment timeout.'
+        });
+        await order.save();
+
+        const payment = await Payment.findOne({ order: order._id });
+        if (payment) {
+          payment.paymentStatus = 'failed';
+          payment.status = 'failed';
+          await payment.save();
+        }
+
+        // Restore stock
+        for (const item of order.items) {
+          const product = await Product.findById(item.product);
+          if (product) {
+            if (item.variantSku) {
+              const variantIndex = product.variants.findIndex(v => v.sku === item.variantSku);
+              if (variantIndex > -1) {
+                product.variants[variantIndex].inventory += item.quantity;
+              }
+            } else {
+              product.inventory.quantity += item.quantity;
+            }
+            await product.save();
+
+            // Invalidate Redis cache
+            try {
+              if (redisClient.isOpen) {
+                await redisClient.del(`product:detail:${product._id}`);
+              }
+            } catch (cacheErr) {
+              logger.error(`Failed to invalidate cache for product ${product._id}:`, cacheErr);
+            }
+          }
+        }
+        logger.info(`Automatically cancelled pending order ${order.orderId} due to payment timeout.`);
+      }
+    }
+  } catch (err) {
+    logger.error('Error in payment timeout check:', err);
+  }
+};
+
 export const startAutoAssignmentScheduler = () => {
   // Run once immediately on startup
   runAutoAssignmentCheck();
+  runPaymentTimeoutCheck();
 
   // Then run every 5 minutes
-  setInterval(runAutoAssignmentCheck, 5 * 60 * 1000);
-  logger.info('Auto-assignment scheduler initialized (runs every 5 minutes).');
+  setInterval(() => {
+    runAutoAssignmentCheck();
+    runPaymentTimeoutCheck();
+  }, 5 * 60 * 1000);
+  logger.info('Auto-assignment and payment timeout scheduler initialized (runs every 5 minutes).');
 };

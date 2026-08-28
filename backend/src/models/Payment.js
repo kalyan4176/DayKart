@@ -14,6 +14,7 @@ const paymentSchema = new mongoose.Schema({
   customer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   gateway: { type: String, enum: ['stripe', 'razorpay', 'paypal', 'phonepe', 'paytm', 'cod'], required: true },
   gatewayTransactionId: { type: String },
+  gatewayOrderId: { type: String },
   amount: { type: Number, required: true },
   currency: { type: String, default: 'INR' },
   status: { type: String, enum: ['pending', 'success', 'failed', 'refunded'], default: 'pending' },

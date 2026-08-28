@@ -13,7 +13,6 @@ import { getOptimizedImageUrl } from '@/utils/image';
 
 const GATEWAYS = [
   { id: 'cod', name: 'Cash on Delivery (COD)', desc: 'Pay with cash upon package delivery.' },
-  { id: 'stripe', name: 'Stripe Credit Card', desc: 'Secure card transaction processing.' },
   { id: 'razorpay', name: 'Razorpay UPI / Wallet', desc: 'Instant UPI, net banking, or wallet.' }
 ];
 
@@ -345,11 +344,14 @@ function CheckoutPageContent() {
               }).unwrap();
 
               if (verifyRes.status === 'success') {
-                setOrderSuccess({ orderId: res.data.orderId });
                 showToast('Payment successful and verified!', 'success');
+              } else {
+                showToast('Payment verification failed.', 'error');
               }
             } catch (verifyErr) {
               showToast(verifyErr.data?.message || 'Payment signature verification failed.', 'error');
+            } finally {
+              router.push('/orders');
             }
           },
           prefill: {
@@ -359,6 +361,12 @@ function CheckoutPageContent() {
           },
           theme: {
             color: '#06b6d4'
+          },
+          modal: {
+            ondismiss: function() {
+              showToast('Payment window closed. You can retry payment from the orders page.', 'warning');
+              router.push('/orders');
+            }
           }
         };
 
@@ -406,12 +414,20 @@ function CheckoutPageContent() {
 
             <p className="text-xs text-slate-400 mt-4">A confirmation email has been dispatched to your mailbox.</p>
 
-            <button
-              onClick={() => router.push('/')}
-              className="mt-8 w-full bg-secondary hover:bg-cyan-600 text-white font-bold py-3.5 rounded-2xl text-xs shadow-md transition"
-            >
-              Continue Shopping
-            </button>
+            <div className="mt-8 space-y-3">
+              <button
+                onClick={() => router.push(`/orders/${orderSuccess.orderId}`)}
+                className="w-full bg-secondary hover:bg-cyan-600 text-white font-bold py-3.5 rounded-2xl text-xs shadow-md transition flex items-center justify-center gap-2"
+              >
+                Track Order
+              </button>
+              <button
+                onClick={() => router.push('/')}
+                className="w-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition"
+              >
+                Continue Shopping
+              </button>
+            </div>
           </div>
         </main>
         <Footer />
