@@ -336,6 +336,9 @@ function CheckoutPageContent() {
           name: 'Daykart',
           description: 'Payment for Order #' + res.data.orderId,
           order_id: res.data.razorpayOrderId,
+          retry: {
+            enabled: false
+          },
           handler: async function (response) {
             try {
               showToast('Verifying payment signature...', 'info');

@@ -7,6 +7,7 @@ import { useSelector } from 'react-redux';
 import { ArrowLeft, XCircle, Clock, CheckCircle2, ChevronRight, Package, Truck, ShieldAlert, CreditCard, MapPin, RefreshCw, AlertCircle, Store } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import Loader from '@/components/Loader';
 import { useToast } from '@/components/ToastProvider';
 import { useGetOrderByIdQuery, useCancelOrderMutation, useReturnOrderMutation, useCreateReviewMutation, useVerifyRazorpayPaymentMutation } from '@/store/api';
 import ConfirmationModal from '@/components/ConfirmationModal';
@@ -65,6 +66,9 @@ export default function OrderDetailsPage({ params }) {
         name: 'Daykart',
         description: 'Payment for Order #' + order.orderId,
         order_id: order.payment.gatewayOrderId,
+        retry: {
+          enabled: false
+        },
         handler: async function (response) {
           try {
             showToast('Verifying payment signature...', 'info');
@@ -148,7 +152,7 @@ export default function OrderDetailsPage({ params }) {
       <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950">
         <Navbar />
         <main className="flex-grow flex items-center justify-center py-12">
-          <div className="text-sm font-semibold text-slate-500 animate-pulse">Loading Order Details...</div>
+          <Loader message="Loading Order Details..." />
         </main>
         <Footer />
       </div>
