@@ -247,6 +247,14 @@ export const api = createApi({
       }),
       invalidatesTags: ['Cart', 'Order'],
     }),
+    verifyRazorpayPayment: builder.mutation({
+      query: (verificationData) => ({
+        url: '/orders/razorpay/verify',
+        method: 'POST',
+        body: verificationData,
+      }),
+      invalidatesTags: ['Cart', 'Order'],
+    }),
     getMyOrders: builder.query({
       query: () => '/orders/my-orders',
       providesTags: ['Order'],
@@ -647,6 +655,7 @@ export const {
   useGetRecentlyViewedQuery,
   useTrackProductViewMutation,
   useCheckoutMutation,
+  useVerifyRazorpayPaymentMutation,
   useGetMyOrdersQuery,
   useGetOrderByIdQuery,
   useCancelOrderMutation,

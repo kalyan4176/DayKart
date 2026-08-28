@@ -12,6 +12,7 @@ import { logAuditEvent } from '../services/auditService.js';
 import { BadRequestError, NotFoundError, ForbiddenError } from '../utils/customErrors.js';
 import { sendInAppNotification } from '../utils/notificationHelper.js';
 import { generateDeterministicOtp } from '../utils/otpHelper.js';
+import Razorpay from 'razorpay';
 
 const invalidateProductCache = async (productId) => {
   try {
@@ -374,74 +375,39 @@ export const checkout = async (req, res, next) => {
       details: { orderId, total },
     });
 
-    if (gateway === 'phonepe') {
-      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-      const host = req.headers['x-forwarded-host'] || req.headers.host;
-      const baseUrl = `${protocol}://${host}`;
-
-      const merchantTransactionId = paymentId;
-      const payload = {
-        merchantId: process.env.PHONEPE_MERCHANT_ID || 'MERCHANTUAT',
-        merchantTransactionId: merchantTransactionId,
-        merchantUserId: req.user._id.toString(),
-        amount: total * 100,
-        redirectUrl: `${baseUrl}/api/v1/orders/phonepe/redirect`,
-        redirectMode: 'POST',
-        callbackUrl: `${baseUrl}/api/v1/orders/phonepe/callback`,
-        mobileNumber: req.user.phone || '9999999999',
-        paymentInstrument: {
-          type: 'PAY_PAGE'
-        }
-      };
-
-      const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
-      const saltKey = process.env.PHONEPE_SALT_KEY || '099eb0cd-02cf-4e2a-8aca-3e6c6aff0399';
-      const saltIndex = process.env.PHONEPE_SALT_INDEX || '1';
-      const stringToHash = base64Payload + '/pg/v1/pay' + saltKey;
+    if (gateway === 'razorpay') {
+      const razorpayKeyId = process.env.RAZORPAY_KEY_ID || 'rzp_test_placeholder';
+      const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET || 'rzp_secret_placeholder';
       
-      const crypto = await import('crypto');
-      const sha256 = crypto.createHash('sha256').update(stringToHash).digest('hex');
-      const xVerifyChecksum = sha256 + '###' + saltIndex;
-
-      const phonepeEnv = process.env.PHONEPE_ENV || 'sandbox';
-      const phonepeHost = phonepeEnv === 'production' 
-        ? 'https://api.phonepe.com/apis/hermes' 
-        : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
+      const razorpay = new Razorpay({
+        key_id: razorpayKeyId,
+        key_secret: razorpayKeySecret,
+      });
 
       try {
-        const response = await fetch(`${phonepeHost}/pg/v1/pay`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-VERIFY': xVerifyChecksum,
-            'accept': 'application/json'
-          },
-          body: JSON.stringify({ request: base64Payload })
+        const rzpOrder = await razorpay.orders.create({
+          amount: Math.round(total * 100), // in paise
+          currency: 'INR',
+          receipt: paymentId,
         });
 
-        const responseData = await response.json();
-
-        if (responseData?.success && responseData?.data?.instrumentResponse?.redirectInfo?.url) {
-          const paymentUrl = responseData.data.instrumentResponse.redirectInfo.url;
-          return res.status(201).json({
-            status: 'success',
-            message: 'PhonePe Payment initialized successfully.',
-            data: {
-              orderId,
-              paymentId,
-              total,
-              gateway,
-              paymentUrl
-            }
-          });
-        } else {
-          throw new Error(responseData?.message || 'PhonePe PG response was unsuccessful.');
-        }
+        return res.status(201).json({
+          status: 'success',
+          message: 'Razorpay order created successfully.',
+          data: {
+            orderId,
+            paymentId,
+            total,
+            gateway,
+            razorpayOrderId: rzpOrder.id,
+            razorpayKeyId: razorpayKeyId,
+          }
+        });
       } catch (pgErr) {
-        console.error('PhonePe PG initialization error:', pgErr.message);
+        console.error('Razorpay PG initialization error:', pgErr.message);
         return res.status(400).json({
           status: 'error',
-          message: 'Failed to initialize PhonePe payment. ' + pgErr.message
+          message: 'Failed to initialize Razorpay payment: ' + pgErr.message
         });
       }
     }
@@ -1105,221 +1071,63 @@ export const verifyDeliveryOtp = async (req, res, next) => {
   }
 };
 
-export const phonepeRedirect = async (req, res) => {
-  const transactionId = req.body?.transactionId || req.query?.transactionId || req.body?.merchantTransactionId || req.query?.merchantTransactionId;
-  
-  if (!transactionId) {
-    return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/checkout?status=failed&error=missing_transaction_id`);
+export const verifyRazorpayPayment = async (req, res, next) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = req.body;
+
+  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !orderId) {
+    return next(new BadRequestError('Missing payment verification parameters.'));
   }
 
   try {
-    const payment = await Payment.findOne({ paymentId: transactionId }).populate('order');
-    if (!payment) {
-      return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/checkout?status=failed&error=payment_not_found`);
-    }
-
-    const order = payment.order;
-    if (!order) {
-      return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/checkout?status=failed&error=order_not_found`);
-    }
-
-    const merchantId = process.env.PHONEPE_MERCHANT_ID || 'MERCHANTUAT';
-    const saltKey = process.env.PHONEPE_SALT_KEY || '099eb0cd-02cf-4e2a-8aca-3e6c6aff0399';
-    const saltIndex = process.env.PHONEPE_SALT_INDEX || '1';
-    
-    const stringToHash = `/pg/v1/status/${merchantId}/${transactionId}${saltKey}`;
     const crypto = await import('crypto');
-    const sha256 = crypto.createHash('sha256').update(stringToHash).digest('hex');
-    const xVerifyChecksum = sha256 + '###' + saltIndex;
+    const secret = process.env.RAZORPAY_KEY_SECRET || 'rzp_secret_placeholder';
+    const generated_signature = crypto
+      .createHmac('sha256', secret)
+      .update(razorpay_order_id + '|' + razorpay_payment_id)
+      .digest('hex');
 
-    const phonepeEnv = process.env.PHONEPE_ENV || 'sandbox';
-    const phonepeHost = phonepeEnv === 'production' 
-      ? 'https://api.phonepe.com/apis/hermes' 
-      : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
+    if (generated_signature !== razorpay_signature) {
+      return next(new BadRequestError('Payment verification failed. Invalid signature.'));
+    }
 
-    const response = await fetch(`${phonepeHost}/pg/v1/status/${merchantId}/${transactionId}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-VERIFY': xVerifyChecksum,
-        'X-MERCHANT-ID': merchantId,
-        'accept': 'application/json'
+    const order = await Order.findOne({ orderId });
+    if (!order) return next(new NotFoundError('Order not found.'));
+
+    const payment = await Payment.findOne({ order: order._id });
+    if (!payment) return next(new NotFoundError('Payment record not found.'));
+
+    payment.paymentStatus = 'completed';
+    payment.status = 'completed';
+    payment.gatewayTransactionId = razorpay_payment_id;
+    await payment.save();
+
+    if (order.status === 'pending') {
+      order.status = 'placed';
+      order.statusTimeline.push({
+        status: 'placed',
+        message: 'Payment verified via Razorpay. Order placed successfully.'
+      });
+      await order.save();
+
+      // Clear customer's cart
+      try {
+        const cart = await Cart.findOne({ user: order.customer });
+        if (cart) {
+          cart.items = [];
+          await cart.save();
+        }
+      } catch (cartErr) {
+        console.error('Error clearing cart on verification:', cartErr);
       }
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Payment verified successfully.',
+      data: { orderId: order.orderId }
     });
-
-    const responseData = await response.json();
-    const isSuccess = responseData?.success && responseData?.code === 'PAYMENT_SUCCESS';
-
-    if (isSuccess) {
-      payment.paymentStatus = 'completed';
-      payment.status = 'completed';
-      if (responseData.data?.providerReferenceId) {
-        payment.gatewayTransactionId = responseData.data.providerReferenceId;
-      }
-      await payment.save();
-
-      if (order.status === 'pending') {
-        order.status = 'placed';
-        order.statusTimeline.push({
-          status: 'placed',
-          message: 'Payment verified via PhonePe. Order placed successfully.'
-        });
-        await order.save();
-
-        try {
-          const cart = await Cart.findOne({ user: order.customer });
-          if (cart) {
-            cart.items = [];
-            await cart.save();
-          }
-        } catch (cartErr) {
-          console.error('Error clearing cart on redirect:', cartErr);
-        }
-      }
-
-      return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/checkout?status=success&orderId=${order.orderId}`);
-    } else {
-      payment.paymentStatus = 'failed';
-      payment.status = 'failed';
-      await payment.save();
-
-      if (order.status === 'pending') {
-        order.status = 'cancelled';
-        order.statusTimeline.push({
-          status: 'cancelled',
-          message: 'PhonePe payment failed. Order cancelled.'
-        });
-        await order.save();
-
-        // Restore product stock and invalidate cache
-        for (const item of order.items) {
-          const product = await Product.findById(item.product);
-          if (product) {
-            if (item.variantSku) {
-              const variantIndex = product.variants.findIndex(v => v.sku === item.variantSku);
-              if (variantIndex > -1) {
-                product.variants[variantIndex].inventory += item.quantity;
-              }
-            } else {
-              product.inventory.quantity += item.quantity;
-            }
-            await product.save();
-            await invalidateProductCache(product._id);
-          }
-        }
-      }
-
-      return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/checkout?status=failed&error=payment_failed`);
-    }
-  } catch (err) {
-    console.error('PhonePe redirect processing error:', err.message);
-    return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/checkout?status=failed&error=verification_error`);
-  }
-};
-
-export const phonepeCallback = async (req, res) => {
-  try {
-    const responsePayloadBase64 = req.body?.response;
-    if (!responsePayloadBase64) {
-      return res.status(400).json({ status: 'fail', message: 'No response payload' });
-    }
-
-    // Verify webhook callback signature integrity to prevent spoofing
-    const xVerifyHeader = req.headers['x-verify'] || req.headers['X-Verify'];
-    if (xVerifyHeader) {
-      const saltKey = process.env.PHONEPE_SALT_KEY || '099eb0cd-02cf-4e2a-8aca-3e6c6aff0399';
-      const saltIndex = process.env.PHONEPE_SALT_INDEX || '1';
-
-      const stringToHash = responsePayloadBase64 + saltKey;
-      const crypto = await import('crypto');
-      const sha256 = crypto.createHash('sha256').update(stringToHash).digest('hex');
-      const expectedChecksum = sha256 + '###' + saltIndex;
-
-      if (xVerifyHeader !== expectedChecksum) {
-        console.warn('PhonePe Webhook verification failed: checksum mismatch.');
-        return res.status(401).json({ status: 'fail', message: 'Signature verification failed' });
-      }
-    } else {
-      console.warn('PhonePe Webhook payload missing X-VERIFY header.');
-    }
-
-    const decodedResponse = JSON.parse(Buffer.from(responsePayloadBase64, 'base64').toString('utf-8'));
-    const { success, code, data } = decodedResponse;
-    const transactionId = data?.merchantTransactionId;
-
-    if (!transactionId) {
-      return res.status(400).json({ status: 'fail', message: 'No transaction ID in callback data' });
-    }
-
-    const payment = await Payment.findOne({ paymentId: transactionId }).populate('order');
-    if (!payment) {
-      return res.status(404).json({ status: 'fail', message: 'Payment record not found' });
-    }
-
-    const order = payment.order;
-
-    if (success && code === 'PAYMENT_SUCCESS') {
-      payment.paymentStatus = 'completed';
-      payment.status = 'completed';
-      if (data?.providerReferenceId) {
-        payment.gatewayTransactionId = data.providerReferenceId;
-      }
-      await payment.save();
-
-      if (order && order.status === 'pending') {
-        order.status = 'placed';
-        order.statusTimeline.push({
-          status: 'placed',
-          message: 'Payment received via PhonePe callback.'
-        });
-        await order.save();
-
-        try {
-          const cart = await Cart.findOne({ user: order.customer });
-          if (cart) {
-            cart.items = [];
-            await cart.save();
-          }
-        } catch (cartErr) {
-          console.error('Error clearing cart on callback:', cartErr);
-        }
-      }
-    } else {
-      payment.paymentStatus = 'failed';
-      payment.status = 'failed';
-      await payment.save();
-
-      if (order && order.status === 'pending') {
-        order.status = 'cancelled';
-        order.statusTimeline.push({
-          status: 'cancelled',
-          message: 'PhonePe payment failed callback.'
-        });
-        await order.save();
-
-        // Restore product stock and invalidate cache
-        for (const item of order.items) {
-          const product = await Product.findById(item.product);
-          if (product) {
-            if (item.variantSku) {
-              const variantIndex = product.variants.findIndex(v => v.sku === item.variantSku);
-              if (variantIndex > -1) {
-                product.variants[variantIndex].inventory += item.quantity;
-              }
-            } else {
-              product.inventory.quantity += item.quantity;
-            }
-            await product.save();
-            await invalidateProductCache(product._id);
-          }
-        }
-      }
-    }
-
-    return res.status(200).json({ status: 'success', message: 'Callback processed' });
-  } catch (err) {
-    console.error('PhonePe callback processing error:', err.message);
-    return res.status(500).json({ status: 'error', message: err.message });
+  } catch (error) {
+    next(error);
   }
 };
 

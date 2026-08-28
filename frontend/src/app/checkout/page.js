@@ -7,13 +7,12 @@ import { MapPin, CreditCard, ShieldCheck, ShoppingBag, PlusCircle, CheckCircle2,
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useToast } from '@/components/ToastProvider';
-import { useGetCartQuery, useCheckoutMutation, useValidateCouponMutation, useAddAddressMutation, useGetShippingRulesQuery, useGetCodChargeQuery, useGetCartLimitsQuery } from '@/store/api';
+import { useGetCartQuery, useCheckoutMutation, useValidateCouponMutation, useAddAddressMutation, useGetShippingRulesQuery, useGetCodChargeQuery, useGetCartLimitsQuery, useVerifyRazorpayPaymentMutation } from '@/store/api';
 import { updateUser } from '@/store/authSlice';
 import { getOptimizedImageUrl } from '@/utils/image';
 
 const GATEWAYS = [
   { id: 'cod', name: 'Cash on Delivery (COD)', desc: 'Pay with cash upon package delivery.' },
-  { id: 'phonepe', name: 'PhonePe UPI / Card', desc: 'Secure payment via PhonePe gateway.' },
   { id: 'stripe', name: 'Stripe Credit Card', desc: 'Secure card transaction processing.' },
   { id: 'razorpay', name: 'Razorpay UPI / Wallet', desc: 'Instant UPI, net banking, or wallet.' }
 ];
@@ -55,9 +54,20 @@ function CheckoutPageContent() {
     }
   }, [mounted, searchParams, router]);
 
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
   // API Hooks
   const { data: cartRes, isLoading } = useGetCartQuery(undefined, { skip: !isAuthenticated || !mounted });
   const [checkoutApi, { isLoading: orderPlacing }] = useCheckoutMutation();
+  const [verifyRazorpayPayment, { isLoading: verifyingPayment }] = useVerifyRazorpayPaymentMutation();
   const [validateCoupon, { isLoading: couponValidating }] = useValidateCouponMutation();
   const [addAddressApi, { isLoading: addressAdding }] = useAddAddressMutation();
   const { data: shippingRulesRes } = useGetShippingRulesQuery(undefined, { skip: !isAuthenticated || !mounted });
@@ -310,9 +320,50 @@ function CheckoutPageContent() {
         sessionStorage.removeItem('buyNowItem');
       }
 
-      if (res.data?.paymentUrl) {
-        showToast('Redirecting to secure PhonePe page...', 'info');
-        window.location.href = res.data.paymentUrl;
+      if (res.data?.gateway === 'razorpay') {
+        const loaded = await loadRazorpayScript();
+        if (!loaded) {
+          showToast('Failed to load Razorpay SDK. Please check your internet connection.', 'error');
+          return;
+        }
+
+        const options = {
+          key: res.data.razorpayKeyId,
+          amount: Math.round(res.data.total * 100),
+          currency: 'INR',
+          name: 'Daykart',
+          description: 'Payment for Order #' + res.data.orderId,
+          order_id: res.data.razorpayOrderId,
+          handler: async function (response) {
+            try {
+              showToast('Verifying payment signature...', 'info');
+              const verifyRes = await verifyRazorpayPayment({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                orderId: res.data.orderId
+              }).unwrap();
+
+              if (verifyRes.status === 'success') {
+                setOrderSuccess({ orderId: res.data.orderId });
+                showToast('Payment successful and verified!', 'success');
+              }
+            } catch (verifyErr) {
+              showToast(verifyErr.data?.message || 'Payment signature verification failed.', 'error');
+            }
+          },
+          prefill: {
+            name: user?.name || '',
+            email: user?.email || '',
+            contact: user?.phoneNumber || '',
+          },
+          theme: {
+            color: '#06b6d4'
+          }
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.open();
         return;
       }
 

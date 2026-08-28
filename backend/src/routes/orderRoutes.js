@@ -1,17 +1,13 @@
 import express from 'express';
-import { checkout, getMyOrders, getOrderById, cancelOrder, getSellerOrders, updateOrderStatus, getDeliveryOrders, assignDeliveryPartner, returnOrder, verifyDeliveryOtp, phonepeRedirect, phonepeCallback } from '../controllers/orderController.js';
+import { checkout, getMyOrders, getOrderById, cancelOrder, getSellerOrders, updateOrderStatus, getDeliveryOrders, assignDeliveryPartner, returnOrder, verifyDeliveryOtp, verifyRazorpayPayment } from '../controllers/orderController.js';
 import { protect, restrictTo } from '../middlewares/auth.js';
 
 const router = express.Router();
 
-// Public callback routes for PhonePe payment gateway integrations
-router.post('/phonepe/callback', phonepeCallback);
-router.post('/phonepe/redirect', phonepeRedirect);
-router.get('/phonepe/redirect', phonepeRedirect);
-
 router.use(protect); // protect all order routes
 
 router.post('/checkout', restrictTo('customer', 'seller', 'admin'), checkout);
+router.post('/razorpay/verify', restrictTo('customer', 'seller', 'admin'), verifyRazorpayPayment);
 router.get('/my-orders', restrictTo('customer', 'seller', 'admin'), getMyOrders);
 router.get('/seller-orders', restrictTo('seller'), getSellerOrders);
 router.get('/delivery-orders', restrictTo('delivery_partner'), getDeliveryOrders);
