@@ -6,6 +6,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { MapPin, CreditCard, ShieldCheck, ShoppingBag, PlusCircle, CheckCircle2, Ticket, AlertCircle } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import Loader from '@/components/Loader';
 import { useToast } from '@/components/ToastProvider';
 import { useGetCartQuery, useCheckoutMutation, useValidateCouponMutation, useAddAddressMutation, useGetShippingRulesQuery, useGetCodChargeQuery, useGetCartLimitsQuery, useVerifyRazorpayPaymentMutation, useCancelOrderMutation } from '@/store/api';
 import { updateUser } from '@/store/authSlice';
@@ -81,6 +82,7 @@ function CheckoutPageContent() {
   const [selectedAddress, setSelectedAddress] = useState(user?.addresses?.find(a => a.isDefault)?._id || user?.addresses?.[0]?._id || '');
   const [selectedGateway, setSelectedGateway] = useState('cod');
   const [orderSuccess, setOrderSuccess] = useState(null);
+  const [orderError, setOrderError] = useState(null);
   const [fetchingLocation, setFetchingLocation] = useState(false);
   const [preferredDeliveryDate, setPreferredDeliveryDate] = useState('');
 
@@ -346,13 +348,14 @@ function CheckoutPageContent() {
 
               if (verifyRes.status === 'success') {
                 showToast('Payment successful and verified!', 'success');
+                setOrderSuccess({ orderId: res.data.orderId });
               } else {
                 showToast('Payment verification failed.', 'error');
+                setOrderError({ orderId: res.data.orderId, message: 'Payment verification failed.' });
               }
             } catch (verifyErr) {
               showToast(verifyErr.data?.message || 'Payment signature verification failed.', 'error');
-            } finally {
-              router.push('/orders');
+              setOrderError({ orderId: res.data.orderId, message: verifyErr.data?.message || 'Payment signature verification failed.' });
             }
           },
           prefill: {
@@ -371,10 +374,10 @@ function CheckoutPageContent() {
                   id: res.data.orderId,
                   reason: 'Customer closed the payment window during checkout.'
                 }).unwrap();
+                setOrderError({ orderId: res.data.orderId, message: 'The payment session lapsed or was cancelled.' });
               } catch (err) {
                 console.error('Failed to cancel order on modal close:', err);
-              } finally {
-                router.push('/orders');
+                setOrderError({ orderId: res.data.orderId, message: 'The payment window was closed before completion.' });
               }
             }
           }
@@ -401,7 +404,7 @@ function CheckoutPageContent() {
       <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950">
         <Navbar />
         <main className="flex-grow flex items-center justify-center">
-          <div className="text-sm font-semibold text-slate-500 animate-pulse">Loading Checkout Details...</div>
+          <Loader message="Loading Checkout Details..." />
         </main>
         <Footer />
       </div>
@@ -415,27 +418,69 @@ function CheckoutPageContent() {
         <main className="flex-grow flex flex-col items-center justify-center py-20 px-4">
           <div className="max-w-md w-full glass p-8 rounded-3xl border border-slate-200 dark:border-slate-800 text-center shadow-xl">
             <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto animate-bounce" />
-            <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-6">Order Placed Successfully!</h2>
-            <p className="text-sm text-slate-500 mt-2">Thank you for shopping on Daykart. Your order tracking ID is:</p>
+            <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-6 font-sans">Order Placed Successfully!</h2>
+            <p className="text-sm text-slate-500 mt-2 font-sans">Thank you for shopping on Daykart. Your order tracking ID is:</p>
             
             <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3.5 rounded-xl font-mono text-sm font-bold text-slate-800 dark:text-slate-100 mt-4 tracking-wider">
               {orderSuccess.orderId}
             </div>
 
-            <p className="text-xs text-slate-400 mt-4">A confirmation email has been dispatched to your mailbox.</p>
+            <p className="text-xs text-slate-400 mt-4 font-sans">A confirmation email has been dispatched to your mailbox.</p>
 
             <div className="mt-8 space-y-3">
               <button
                 onClick={() => router.push(`/orders/${orderSuccess.orderId}`)}
-                className="w-full bg-secondary hover:bg-cyan-600 text-white font-bold py-3.5 rounded-2xl text-xs shadow-md transition flex items-center justify-center gap-2"
+                className="w-full bg-secondary hover:bg-cyan-600 text-white font-bold py-3.5 rounded-2xl text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer font-sans"
               >
                 Track Order
               </button>
               <button
                 onClick={() => router.push('/')}
-                className="w-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition"
+                className="w-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition cursor-pointer font-sans"
               >
                 Continue Shopping
+              </button>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (orderError) {
+    return (
+      <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950 animate-fade-in">
+        <Navbar />
+        <main className="flex-grow flex flex-col items-center justify-center py-20 px-4">
+          <div className="max-w-md w-full glass p-8 rounded-3xl border border-red-200 dark:border-red-900/40 text-center shadow-xl">
+            <div className="w-16 h-16 bg-red-50 dark:bg-red-950/30 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6 border border-red-200/50 dark:border-red-900/30">
+              <AlertCircle className="w-10 h-10 animate-pulse" />
+            </div>
+            
+            <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-4 font-sans">Failed to Place Order</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 font-sans leading-relaxed">
+              {orderError.message || 'The payment session lapsed or was cancelled. Your items are still saved in your shopping cart.'}
+            </p>
+
+            {orderError.orderId && (
+              <div className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 rounded-2xl font-mono text-xxs text-slate-500 dark:text-slate-450 mt-4 tracking-wider">
+                Reference Order ID: {orderError.orderId}
+              </div>
+            )}
+
+            <div className="mt-8 space-y-3">
+              <button
+                onClick={() => setOrderError(null)}
+                className="w-full bg-secondary hover:bg-cyan-600 text-white font-bold py-3.5 rounded-2xl text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer font-sans"
+              >
+                Change Payment Method / Retry
+              </button>
+              <button
+                onClick={() => router.push('/cart')}
+                className="w-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold py-3.5 rounded-2xl text-xs transition cursor-pointer font-sans"
+              >
+                Return to Cart
               </button>
             </div>
           </div>
