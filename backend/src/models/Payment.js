@@ -12,7 +12,7 @@ const paymentSchema = new mongoose.Schema({
   paymentId: { type: String, required: true, unique: true },
   order: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', required: true },
   customer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  gateway: { type: String, enum: ['stripe', 'razorpay', 'paypal', 'phonepe', 'paytm', 'cod'], required: true },
+  gateway: { type: String, enum: ['stripe', 'razorpay', 'paypal', 'phonepe', 'paytm', 'cod', 'partial_cod'], required: true },
   gatewayTransactionId: { type: String },
   gatewayOrderId: { type: String },
   amount: { type: Number, required: true },

@@ -125,10 +125,28 @@ export const checkout = async (req, res, next) => {
       return next(new BadRequestError(`Minimum order value of ₹${minCheckoutVal} is required to place an order.`));
     }
 
+    const enableCodSetting = await SystemSetting.findOne({ key: 'enable_cod' });
+    const enableCod = enableCodSetting ? (enableCodSetting.value === 'true' || enableCodSetting.value === true) : true;
+    if (gateway === 'cod' && !enableCod) {
+      return next(new BadRequestError('Standard Cash on Delivery is currently disabled.'));
+    }
+
+    const enablePartialCodSetting = await SystemSetting.findOne({ key: 'enable_partial_cod' });
+    const enablePartialCod = enablePartialCodSetting ? (enablePartialCodSetting.value === 'true' || enablePartialCodSetting.value === true) : true;
+    if (gateway === 'partial_cod' && !enablePartialCod) {
+      return next(new BadRequestError('Partial COD is currently disabled.'));
+    }
+
+    const enableOnlineSetting = await SystemSetting.findOne({ key: 'enable_online' });
+    const enableOnline = enableOnlineSetting ? (enableOnlineSetting.value === 'true' || enableOnlineSetting.value === true) : true;
+    if (gateway === 'razorpay' && !enableOnline) {
+      return next(new BadRequestError('Online Payment is currently disabled.'));
+    }
+
     const minCodSetting = await SystemSetting.findOne({ key: 'min_cod_value' });
-    const minCodVal = minCodSetting ? Number(minCodSetting.value) : 500;
-    if (gateway === 'cod' && subtotal < minCodVal) {
-      return next(new BadRequestError(`Minimum order value of ₹${minCodVal} is required for Cash on Delivery (COD).`));
+    const minCodVal = minCodSetting ? Number(minCodSetting.value) : 0;
+    if ((gateway === 'cod' || gateway === 'partial_cod') && subtotal < minCodVal) {
+      return next(new BadRequestError(`Minimum order value of ₹${minCodVal} is required for Cash on Delivery.`));
     }
 
     // 4. Calculate coupon discount
@@ -242,7 +260,22 @@ export const checkout = async (req, res, next) => {
       await invalidateProductCache(product._id);
     }
 
-    // 8. Create Order
+    // 8. Calculate Partial COD split
+    let onlineAdvancePaid = 0;
+    let cashOnDeliveryBalance = 0;
+
+    if (gateway === 'partial_cod') {
+      const partialCodSetting = await SystemSetting.findOne({ key: 'partial_cod_percentage' });
+      const pct = partialCodSetting ? Number(partialCodSetting.value) : 10;
+      onlineAdvancePaid = Math.round((total * pct) / 100);
+      cashOnDeliveryBalance = total - onlineAdvancePaid;
+    } else if (gateway === 'cod') {
+      cashOnDeliveryBalance = total;
+    } else {
+      onlineAdvancePaid = total;
+    }
+
+    // Create Order
     const order = new Order({
       orderId,
       customer: req.user._id,
@@ -255,12 +288,14 @@ export const checkout = async (req, res, next) => {
         discount,
         tax,
         total,
+        onlineAdvancePaid,
+        cashOnDeliveryBalance,
       },
       coupon: couponDoc ? couponDoc._id : undefined,
-      status: gateway === 'cod' ? 'placed' : 'pending', // pending payment unless COD
+      status: gateway === 'cod' ? 'placed' : 'pending', // pending payment unless 100% COD
       statusTimeline: [{
         status: gateway === 'cod' ? 'placed' : 'pending',
-        message: gateway === 'cod' ? 'Order placed with Cash on Delivery' : 'Order initialized. Awaiting payment.',
+        message: gateway === 'cod' ? 'Order placed with Cash on Delivery' : (gateway === 'partial_cod' ? 'Partial COD initialized. Awaiting advance online payment.' : 'Order initialized. Awaiting payment.'),
       }],
       preferredDeliveryDate: new Date(preferredDeliveryDate),
     });
@@ -273,8 +308,8 @@ export const checkout = async (req, res, next) => {
       order: order._id,
       customer: req.user._id,
       gateway,
-      amount: total,
-      status: gateway === 'cod' ? 'pending' : 'pending', // pending gateway callback/success
+      amount: gateway === 'partial_cod' ? onlineAdvancePaid : total,
+      status: 'pending', // pending gateway callback/success
     });
     await payment.save();
 
@@ -352,7 +387,8 @@ export const checkout = async (req, res, next) => {
     }
 
     // 10. Clear Cart if not Buy Now
-    if (!isBuyNow && cart) {
+    // Clear Cart if not Buy Now (only for 100% COD, partial_cod and razorpay clear cart upon verification)
+    if (!isBuyNow && cart && gateway === 'cod') {
       cart.items = [];
       await cart.save();
     }
@@ -375,7 +411,7 @@ export const checkout = async (req, res, next) => {
       details: { orderId, total },
     });
 
-    if (gateway === 'razorpay') {
+    if (gateway === 'razorpay' || gateway === 'partial_cod') {
       const razorpayKeyId = process.env.RAZORPAY_KEY_ID || 'rzp_test_placeholder';
       const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET || 'rzp_secret_placeholder';
       
@@ -384,9 +420,11 @@ export const checkout = async (req, res, next) => {
         key_secret: razorpayKeySecret,
       });
 
+      const chargeAmount = gateway === 'partial_cod' ? onlineAdvancePaid : total;
+
       try {
         const rzpOrder = await razorpay.orders.create({
-          amount: Math.round(total * 100), // in paise
+          amount: Math.round(chargeAmount * 100), // in paise
           currency: 'INR',
           receipt: paymentId,
         });
@@ -396,11 +434,13 @@ export const checkout = async (req, res, next) => {
 
         return res.status(201).json({
           status: 'success',
-          message: 'Razorpay order created successfully.',
+          message: gateway === 'partial_cod' ? 'Partial COD Razorpay order created.' : 'Razorpay order created successfully.',
           data: {
             orderId,
             paymentId,
             total,
+            advanceAmount: onlineAdvancePaid,
+            codBalance: cashOnDeliveryBalance,
             gateway,
             razorpayOrderId: rzpOrder.id,
             razorpayKeyId: razorpayKeyId,

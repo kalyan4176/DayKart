@@ -441,9 +441,22 @@ export default function OrderDetailsPage({ params }) {
                   </div>
                 )}
                 <div className="flex justify-between border-t border-slate-200/50 dark:border-slate-800 pt-2 font-black text-slate-900 dark:text-white">
-                  <span>Total Amount Paid:</span>
+                  <span>Total Order Amount:</span>
                   <span>₹{order.pricing?.total?.toLocaleString('en-IN')}</span>
                 </div>
+
+                {order.payment?.gateway === 'partial_cod' && (
+                  <div className="mt-2 pt-2 border-t border-slate-200/50 dark:border-slate-800 space-y-1">
+                    <div className="flex justify-between text-emerald-600 font-bold">
+                      <span>Online Advance Paid:</span>
+                      <span>₹{order.pricing?.onlineAdvancePaid?.toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex justify-between text-amber-600 font-bold">
+                      <span>Cash to Pay on Delivery:</span>
+                      <span>₹{order.pricing?.cashOnDeliveryBalance?.toLocaleString('en-IN')}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -262,7 +262,7 @@ export default function DeliveryDashboard() {
         ) : (
           <div className="space-y-6">
             {filteredOrders.map((order) => {
-              const isCOD = order.payment?.paymentMethod === 'cod' && order.payment?.paymentStatus !== 'completed';
+              const isCOD = (order.payment?.gateway === 'cod' || order.payment?.gateway === 'partial_cod' || order.payment?.paymentMethod === 'cod') && !cashCollectedOrders[order.orderId];
               const isPendingPickup = order.status === 'processed';
               const isShipped = order.status === 'shipped';
               const isOutForDelivery = order.status === 'out_for_delivery';
@@ -402,7 +402,7 @@ export default function DeliveryDashboard() {
                           <div>
                             <span className="text-[9px] uppercase tracking-wider text-amber-500 font-extrabold block">Amount to Collect</span>
                             <p className="text-lg font-black text-amber-400 mt-0.5">
-                              ₹{order.pricing?.total?.toLocaleString('en-IN') || '0'}
+                              ₹{(order.pricing?.cashOnDeliveryBalance || order.pricing?.total || 0).toLocaleString('en-IN')}
                             </p>
                           </div>
                         ) : (
@@ -543,7 +543,7 @@ export default function DeliveryDashboard() {
                                 <span className="text-[10px] uppercase tracking-wider text-amber-400 font-extrabold">COD Payment Confirmation</span>
                               </div>
                               <p className="text-[11px] text-slate-350 leading-relaxed font-semibold">
-                                This is a Cash on Delivery (COD) order. Have you collected the cash of <span className="text-white font-extrabold">₹{order.pricing?.total?.toLocaleString()}</span>?
+                                This is a Cash on Delivery (COD) order. Have you collected the cash of <span className="text-white font-extrabold">₹{(order.pricing?.cashOnDeliveryBalance || order.pricing?.total || 0).toLocaleString()}</span>?
                               </p>
                               <div className="flex items-center gap-2 mt-1">
                                 <button

@@ -73,8 +73,8 @@ export const runPaymentTimeoutCheck = async () => {
       for (const order of pendingOrders) {
         const payment = await Payment.findOne({ order: order._id });
 
-        // Double-check with Razorpay if order is online
-        if (payment && payment.gateway === 'razorpay' && payment.gatewayOrderId) {
+        // Double-check with Razorpay if order is online or partial_cod
+        if (payment && (payment.gateway === 'razorpay' || payment.gateway === 'partial_cod') && payment.gatewayOrderId) {
           try {
             const rzpOrder = await razorpay.orders.fetch(payment.gatewayOrderId);
             if (rzpOrder && rzpOrder.status === 'paid') {

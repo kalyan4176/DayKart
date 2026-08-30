@@ -12,9 +12,10 @@ import { useGetCartQuery, useCheckoutMutation, useValidateCouponMutation, useAdd
 import { updateUser } from '@/store/authSlice';
 import { getOptimizedImageUrl } from '@/utils/image';
 
-const GATEWAYS = [
-  { id: 'cod', name: 'Cash on Delivery (COD)', desc: 'Pay with cash upon package delivery.' },
-  { id: 'razorpay', name: 'Razorpay UPI / Wallet', desc: 'Instant UPI, net banking, or wallet.' }
+const ALL_GATEWAYS = [
+  { id: 'cod', name: 'Cash on Delivery (Standard 100% COD)', desc: 'Pay with cash upon package delivery.' },
+  { id: 'partial_cod', name: 'Partial Cash on Delivery (Advance Deposit)', desc: 'Pay a small advance deposit online now via Razorpay and pay the remaining balance in cash upon delivery.' },
+  { id: 'razorpay', name: 'Full Online Payment (Razorpay UPI / Card / Netbanking)', desc: 'Instant 100% online payment via UPI, cards, net banking, or wallets.' }
 ];
 
 function CheckoutPageContent() {
@@ -78,9 +79,27 @@ function CheckoutPageContent() {
   const { data: cartLimitsRes } = useGetCartLimitsQuery(undefined, { skip: !isAuthenticated || !mounted });
   const minCheckoutValue = cartLimitsRes?.data?.minCheckoutValue || 0;
   const minCodValue = cartLimitsRes?.data?.minCodValue || 0;
+  const partialCodPercentage = cartLimitsRes?.data?.partialCodPercentage || 10;
+  const enableCod = cartLimitsRes?.data?.enableCod !== undefined ? cartLimitsRes?.data?.enableCod : true;
+  const enablePartialCod = cartLimitsRes?.data?.enablePartialCod !== undefined ? cartLimitsRes?.data?.enablePartialCod : true;
+  const enableOnline = cartLimitsRes?.data?.enableOnline !== undefined ? cartLimitsRes?.data?.enableOnline : true;
+
+  const activeGateways = ALL_GATEWAYS.filter(gw => {
+    if (gw.id === 'cod' && !enableCod) return false;
+    if (gw.id === 'partial_cod' && !enablePartialCod) return false;
+    if (gw.id === 'razorpay' && !enableOnline) return false;
+    return true;
+  });
 
   const [selectedAddress, setSelectedAddress] = useState(user?.addresses?.find(a => a.isDefault)?._id || user?.addresses?.[0]?._id || '');
   const [selectedGateway, setSelectedGateway] = useState('cod');
+
+  useEffect(() => {
+    if (activeGateways.length > 0 && !activeGateways.some(gw => gw.id === selectedGateway)) {
+      setSelectedGateway(activeGateways[0].id);
+    }
+  }, [activeGateways, selectedGateway]);
+
   const [orderSuccess, setOrderSuccess] = useState(null);
   const [orderError, setOrderError] = useState(null);
   const [fetchingLocation, setFetchingLocation] = useState(false);
@@ -322,16 +341,17 @@ function CheckoutPageContent() {
         sessionStorage.removeItem('buyNowItem');
       }
 
-      if (res.data?.gateway === 'razorpay') {
+      if (res.data?.gateway === 'razorpay' || res.data?.gateway === 'partial_cod') {
         const loaded = await loadRazorpayScript();
         if (!loaded) {
           showToast('Failed to load Razorpay SDK. Please check your internet connection.', 'error');
           return;
         }
 
+        const chargeAmt = res.data.advanceAmount || res.data.total;
         const options = {
           key: res.data.razorpayKeyId,
-          amount: Math.round(res.data.total * 100),
+          amount: Math.round(chargeAmt * 100),
           currency: 'INR',
           name: 'Daykart',
           description: 'Payment for Order #' + res.data.orderId,
@@ -634,34 +654,51 @@ function CheckoutPageContent() {
               </h3>
 
               <div className="space-y-3">
-                {GATEWAYS.map(gw => (
-                  <label
-                    key={gw.id}
-                    className={`flex gap-3.5 p-4 border rounded-2xl cursor-pointer transition-all ${
-                      selectedGateway === gw.id
-                        ? 'border-secondary bg-cyan-50/25 dark:bg-cyan-950/20'
-                        : 'border-slate-200 dark:border-slate-800 hover:border-secondary'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="gateway"
-                      value={gw.id}
-                      checked={selectedGateway === gw.id}
-                      onChange={() => setSelectedGateway(gw.id)}
-                      className="mt-1 accent-secondary"
-                    />
-                    <div className="text-xs">
-                      <span className="font-extrabold text-slate-800 dark:text-slate-200">{gw.name}</span>
-                      <p className="text-slate-500 mt-1">{gw.desc}</p>
-                      {gw.id === 'cod' && subtotal < minCodValue && (
-                        <p className="text-[10px] text-red-500 font-extrabold mt-1">
-                          (Requires a minimum order value of ₹{minCodValue})
-                        </p>
-                      )}
-                    </div>
-                  </label>
-                ))}
+                {activeGateways.map(gw => {
+                  const partialCodAdvance = Math.round((total * partialCodPercentage) / 100);
+                  const partialCodBalance = total - partialCodAdvance;
+
+                  return (
+                    <label
+                      key={gw.id}
+                      className={`flex gap-3.5 p-4 border rounded-2xl cursor-pointer transition-all ${
+                        selectedGateway === gw.id
+                          ? 'border-secondary bg-cyan-50/25 dark:bg-cyan-950/20'
+                          : 'border-slate-200 dark:border-slate-800 hover:border-secondary'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="gateway"
+                        value={gw.id}
+                        checked={selectedGateway === gw.id}
+                        onChange={() => setSelectedGateway(gw.id)}
+                        className="mt-1 accent-secondary"
+                      />
+                      <div className="text-xs flex-grow">
+                        <span className="font-extrabold text-slate-800 dark:text-slate-200">{gw.name}</span>
+                        <p className="text-slate-500 mt-1">{gw.desc}</p>
+                        {gw.id === 'partial_cod' && (
+                          <div className="mt-2.5 p-3 bg-cyan-50/60 dark:bg-cyan-950/40 border border-cyan-200/60 dark:border-cyan-800/40 rounded-xl text-[11px] font-medium text-cyan-800 dark:text-cyan-200 space-y-1.5">
+                            <div className="flex justify-between font-bold">
+                              <span>Pay Online Deposit Now ({partialCodPercentage}%):</span>
+                              <span className="text-secondary font-mono font-extrabold text-xs">₹{partialCodAdvance.toLocaleString('en-IN')}</span>
+                            </div>
+                            <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                              <span>Cash Balance on Delivery:</span>
+                              <span className="font-mono font-bold">₹{partialCodBalance.toLocaleString('en-IN')}</span>
+                            </div>
+                          </div>
+                        )}
+                        {(gw.id === 'cod' || gw.id === 'partial_cod') && subtotal < minCodValue && (
+                          <p className="text-[10px] text-red-500 font-extrabold mt-1">
+                            (Requires a minimum order value of ₹{minCodValue})
+                          </p>
+                        )}
+                      </div>
+                    </label>
+                  );
+                })}
               </div>
             </div>
           </div>

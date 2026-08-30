@@ -267,6 +267,10 @@ export default function AdminDashboard() {
   const [minCheckoutValInput, setMinCheckoutValInput] = useState('');
   const [minCodValInput, setMinCodValInput] = useState('');
   const [defaultAgentInput, setDefaultAgentInput] = useState('');
+  const [partialCodPctInput, setPartialCodPctInput] = useState('10');
+  const [enableCodInput, setEnableCodInput] = useState(true);
+  const [enablePartialCodInput, setEnablePartialCodInput] = useState(true);
+  const [enableOnlineInput, setEnableOnlineInput] = useState(true);
   const [settingsSuccess, setSettingsSuccess] = useState('');
   const [settingsError, setSettingsError] = useState('');
 
@@ -283,6 +287,10 @@ export default function AdminDashboard() {
       setMinCheckoutValInput(cartLimitsRes.data.minCheckoutValue !== undefined ? cartLimitsRes.data.minCheckoutValue : '');
       setMinCodValInput(cartLimitsRes.data.minCodValue !== undefined ? cartLimitsRes.data.minCodValue : '');
       setDefaultAgentInput(cartLimitsRes.data.defaultDeliveryAgent || '');
+      setPartialCodPctInput(cartLimitsRes.data.partialCodPercentage !== undefined ? cartLimitsRes.data.partialCodPercentage : 10);
+      setEnableCodInput(cartLimitsRes.data.enableCod !== undefined ? cartLimitsRes.data.enableCod : true);
+      setEnablePartialCodInput(cartLimitsRes.data.enablePartialCod !== undefined ? cartLimitsRes.data.enablePartialCod : true);
+      setEnableOnlineInput(cartLimitsRes.data.enableOnline !== undefined ? cartLimitsRes.data.enableOnline : true);
     }
   }, [cartLimitsRes]);
 
@@ -863,7 +871,11 @@ export default function AdminDashboard() {
       await updateCartLimitsMutation({
         minCheckoutValue: Number(minCheckoutValInput),
         minCodValue: Number(minCodValInput),
-        defaultDeliveryAgent: defaultAgentInput || ''
+        defaultDeliveryAgent: defaultAgentInput || '',
+        partialCodPercentage: Number(partialCodPctInput),
+        enableCod: enableCodInput,
+        enablePartialCod: enablePartialCodInput,
+        enableOnline: enableOnlineInput
       }).unwrap();
       setSettingsSuccess('Cart settings updated successfully!');
       showToast('Cart settings updated successfully!', 'success');
@@ -4933,6 +4945,75 @@ export default function AdminDashboard() {
                       <p className="text-[10px] text-slate-400 mt-1">
                         Select the default courier partner. If no action (courier assignment) is taken on an order within 2 hours of placement, the system will automatically assign this agent.
                       </p>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-4">
+                      <h4 className="text-xs font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                        Payment Gateway & Method Controls
+                      </h4>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <label className="flex items-center gap-3 p-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={enableCodInput}
+                            onChange={(e) => setEnableCodInput(e.target.checked)}
+                            className="w-4 h-4 accent-secondary rounded"
+                          />
+                          <div>
+                            <span className="text-xs font-bold text-slate-900 dark:text-white block">Standard 100% COD</span>
+                            <span className="text-[10px] text-slate-400">Full cash on delivery</span>
+                          </div>
+                        </label>
+
+                        <label className="flex items-center gap-3 p-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={enablePartialCodInput}
+                            onChange={(e) => setEnablePartialCodInput(e.target.checked)}
+                            className="w-4 h-4 accent-secondary rounded"
+                          />
+                          <div>
+                            <span className="text-xs font-bold text-slate-900 dark:text-white block">Partial COD</span>
+                            <span className="text-[10px] text-slate-400">Online % + Cash balance</span>
+                          </div>
+                        </label>
+
+                        <label className="flex items-center gap-3 p-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={enableOnlineInput}
+                            onChange={(e) => setEnableOnlineInput(e.target.checked)}
+                            className="w-4 h-4 accent-secondary rounded"
+                          />
+                          <div>
+                            <span className="text-xs font-bold text-slate-900 dark:text-white block">Full Online Payment</span>
+                            <span className="text-[10px] text-slate-400">Razorpay / Cards / UPI</span>
+                          </div>
+                        </label>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase mb-1.5">
+                          Partial COD Advance Online Deposit (%)
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="1"
+                            max="99"
+                            required
+                            value={partialCodPctInput}
+                            onChange={(e) => setPartialCodPctInput(e.target.value)}
+                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-205 dark:border-slate-800 focus:border-secondary pl-4 pr-10 py-3 rounded-2xl text-xs font-semibold outline-none transition text-black dark:text-white"
+                            placeholder="e.g. 10"
+                          />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">%</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          Percentage of the order total paid online upfront via Razorpay when a customer chooses Partial COD. The remaining balance is collected in cash upon delivery.
+                        </p>
+                      </div>
                     </div>
                   </div>
 

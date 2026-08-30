@@ -42,6 +42,8 @@ const orderSchema = new mongoose.Schema({
     discount: { type: Number, default: 0 },
     tax: { type: Number, default: 0 },
     total: { type: Number, required: true },
+    onlineAdvancePaid: { type: Number, default: 0 },
+    cashOnDeliveryBalance: { type: Number, default: 0 },
   },
   payment: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment' },
   coupon: { type: mongoose.Schema.Types.ObjectId, ref: 'Coupon' },
