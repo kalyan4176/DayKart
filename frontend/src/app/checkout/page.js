@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSelector, useDispatch } from 'react-redux';
 import { MapPin, CreditCard, ShieldCheck, ShoppingBag, PlusCircle, CheckCircle2, Ticket, AlertCircle } from 'lucide-react';
@@ -84,12 +84,14 @@ function CheckoutPageContent() {
   const enablePartialCod = cartLimitsRes?.data?.enablePartialCod !== undefined ? cartLimitsRes?.data?.enablePartialCod : true;
   const enableOnline = cartLimitsRes?.data?.enableOnline !== undefined ? cartLimitsRes?.data?.enableOnline : true;
 
-  const activeGateways = ALL_GATEWAYS.filter(gw => {
-    if (gw.id === 'cod' && !enableCod) return false;
-    if (gw.id === 'partial_cod' && !enablePartialCod) return false;
-    if (gw.id === 'razorpay' && !enableOnline) return false;
-    return true;
-  });
+  const activeGateways = useMemo(() => {
+    return ALL_GATEWAYS.filter(gw => {
+      if (gw.id === 'cod' && !enableCod) return false;
+      if (gw.id === 'partial_cod' && !enablePartialCod) return false;
+      if (gw.id === 'razorpay' && !enableOnline) return false;
+      return true;
+    });
+  }, [enableCod, enablePartialCod, enableOnline]);
 
   const [selectedAddress, setSelectedAddress] = useState(user?.addresses?.find(a => a.isDefault)?._id || user?.addresses?.[0]?._id || '');
   const [selectedGateway, setSelectedGateway] = useState('cod');
@@ -655,8 +657,8 @@ function CheckoutPageContent() {
 
               <div className="space-y-3">
                 {activeGateways.map(gw => {
-                  const partialCodAdvance = Math.round((total * partialCodPercentage) / 100);
-                  const partialCodBalance = total - partialCodAdvance;
+                  const partialCodAdvance = Math.round((grandTotal * partialCodPercentage) / 100);
+                  const partialCodBalance = grandTotal - partialCodAdvance;
 
                   return (
                     <label
