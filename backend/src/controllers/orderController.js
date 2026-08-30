@@ -267,7 +267,7 @@ export const checkout = async (req, res, next) => {
     if (gateway === 'partial_cod') {
       const partialCodSetting = await SystemSetting.findOne({ key: 'partial_cod_percentage' });
       const pct = partialCodSetting ? Number(partialCodSetting.value) : 10;
-      onlineAdvancePaid = Math.round((total * pct) / 100);
+      onlineAdvancePaid = total > 0 ? Math.min(total, Math.max(1, Math.round((total * pct) / 100))) : 0;
       cashOnDeliveryBalance = total - onlineAdvancePaid;
     } else if (gateway === 'cod') {
       cashOnDeliveryBalance = total;
@@ -411,7 +411,9 @@ export const checkout = async (req, res, next) => {
       details: { orderId, total },
     });
 
-    if (gateway === 'razorpay' || gateway === 'partial_cod') {
+    const chargeAmount = gateway === 'partial_cod' ? onlineAdvancePaid : total;
+
+    if ((gateway === 'razorpay' || gateway === 'partial_cod') && chargeAmount > 0) {
       const razorpayKeyId = process.env.RAZORPAY_KEY_ID || 'rzp_test_placeholder';
       const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET || 'rzp_secret_placeholder';
       
@@ -419,8 +421,6 @@ export const checkout = async (req, res, next) => {
         key_id: razorpayKeyId,
         key_secret: razorpayKeySecret,
       });
-
-      const chargeAmount = gateway === 'partial_cod' ? onlineAdvancePaid : total;
 
       try {
         const rzpOrder = await razorpay.orders.create({
@@ -453,6 +453,11 @@ export const checkout = async (req, res, next) => {
           message: 'Failed to initialize Razorpay payment: ' + pgErr.message
         });
       }
+    } else if ((gateway === 'razorpay' || gateway === 'partial_cod') && chargeAmount === 0) {
+      order.status = 'placed';
+      payment.status = 'success';
+      await order.save();
+      await payment.save();
     }
 
     res.status(201).json({
@@ -857,7 +862,7 @@ export const updateOrderStatus = async (req, res, next) => {
 
     if (paymentStatus && order.payment) {
       const payment = await Payment.findById(order.payment);
-      if (payment && payment.gateway === 'cod') {
+      if (payment && (payment.gateway === 'cod' || payment.gateway === 'partial_cod')) {
         payment.status = (paymentStatus === 'completed' || paymentStatus === 'success') ? 'success' : paymentStatus;
         await payment.save();
       }
